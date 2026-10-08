@@ -1,0 +1,26 @@
+# ===== Python =====
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# ===== 构建产物（可由源码重建，不入库）=====
+build/
+dist/
+*.exe
+*.spec
+
+# ===== 文档构建产物（.md 是真源；tools/md2html.py 产物不入库）=====
+docs/*.html
+
+# ===== 运行时产物 =====
+toolcache/
+*.log
+
+# ===== 编辑器 / 系统 =====
+.idea/
+.vscode/
+Thumbs.db
+desktop.ini
+~$*
