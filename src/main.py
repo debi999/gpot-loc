@@ -41,7 +41,19 @@ def main() -> None:
         return
 
     from gpot.ui.host import open_window
-    open_window(url)
+    try:
+        open_window(url)
+    except Exception as exc:  # WebView2 运行时缺失 / pywebview 未装等
+        import webbrowser
+        print(f"[G-POT] WebView2 窗口启动失败：{exc}")
+        print("[G-POT] 已自动改用系统浏览器打开界面（功能完全一致）。")
+        webbrowser.open(url)
+        print("[G-POT] 无窗口模式：关闭浏览器后按 Ctrl+C 停止服务。")
+        try:
+            while True:
+                time.sleep(3600)
+        except KeyboardInterrupt:
+            httpd.shutdown()
 
 
 if __name__ == "__main__":
