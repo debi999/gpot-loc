@@ -530,7 +530,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',sans-serif;font-s
         </div>
 
         <div class="btn-row" style="justify-content:flex-end">
-          <button class="btn btn-accent btn-lg" onclick="advance()">继续 · 翻译校对 →</button>
+          <button class="btn btn-accent btn-lg" onclick="afterExtract()">继续 · 翻译校对 →</button>
         </div>
       </section>
 
@@ -869,6 +869,13 @@ function advance(){
   if(state.cur > state.max) state.max = state.cur;
   if(state.cur === 4) fillTable();
   render();
+}
+function afterExtract(){
+  state.cur = 4;                        // 默认进入翻译步
+  state.max = Math.max(state.max, 5);   // FR-49：提取同时解锁第 4 步与第 5 步
+  if(state.cur === 4) fillTable();
+  render();
+  sb('提取完成。翻译可选：可直接点第 5 步保存，不必先翻译');
 }
 
 /* ---------------- 第 0 步 ---------------- */
