@@ -47,7 +47,9 @@ G-POT Loc 是一条面向独立游戏的七步汉化流水线：识别引擎 →
 ## 源码（C 路线最小原型）
 
 `src/` 是 v4.0 的应用真源，采用 **core / api / ui 三层解耦**（详见 [`src/README.md`](src/README.md)）：
-内核纯 Python 零依赖 UI、HTTP 桥唯一连接、前端纯静态。本机运行：
+内核纯 Python 零依赖 UI、HTTP 桥唯一连接、前端纯静态。**仓库根已放好两个启动 bat**
+（`启动 G-POT 翻译器(浏览器版).bat` 推荐首选，最稳；`启动 G-POT 翻译器.bat` 为 WebView2 原生窗口），
+双击即可运行。手动运行：
 
 ```bash
 cd src
@@ -65,6 +67,7 @@ python tests/test_pipeline.py        # 内核解耦测试（只 import core）
 | [docs/使用手册.md](docs/使用手册.md) | 面向玩家的分步操作说明与 FAQ |
 | [docs/测试用例.md](docs/测试用例.md) | TC 用例（按 FR 编号）、旧回归资产继承映射 |
 | [docs/开发计划.md](docs/开发计划.md) | 里程碑、技术栈决策矩阵、源码迁移清单 |
+| [docs/本地测试指南.md](docs/本地测试指南.md) | 双击即测：启动方式、七步走查、已知限制 |
 | [prototype/ui-prototype.html](prototype/ui-prototype.html) | 可点击的高保真原型（浏览器直接打开） |
 
 ## 与旧项目的关系

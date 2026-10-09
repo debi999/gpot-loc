@@ -10,6 +10,8 @@ import threading
 import time
 import uuid
 
+from gpot.core import pipeline
+
 
 def start_translate(store, retry: bool) -> str:
     with store.lock:
@@ -37,7 +39,7 @@ def start_translate(store, retry: bool) -> str:
                     store.translate["done"] = total
                     store.translate["failed"] = 34
                     store.translate["running"] = False
-                    store.unlock_to(5)  # 翻译完成 → 解锁应用（第 5 步）
+                    pipeline.complete_step(store, 4)  # 翻译完成 → 解锁应用（第 5 步）
                     break
                 job["progress"] = round(job["done"] / total * 100, 1)
                 store.translate["done"] = job["done"]

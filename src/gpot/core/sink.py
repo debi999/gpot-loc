@@ -8,6 +8,8 @@
 """
 from __future__ import annotations
 
+from gpot.core import pipeline
+
 
 def sink_view(engine_key: str) -> dict:
     if engine_key == "rm":
@@ -86,7 +88,7 @@ def apply(store, engine_key: str) -> dict:
                    else "www/data/_原文备份/data-20261009-0031/"),
         "note": view["title"],
     }
-    store.unlock_to(6)  # 应用完成 → 解锁验证（第 6 步）
+    pipeline.complete_step(store, 5)  # 应用完成 → 解锁验证（第 6 步）
     return store.sink
 
 
