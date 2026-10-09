@@ -27,3 +27,6 @@ toolcache/
 Thumbs.db
 desktop.ini
 ~$*
+
+# ===== WorkBuddy 本地会话 / 记忆（随会话变化，不入库）=====
+.workbuddy/

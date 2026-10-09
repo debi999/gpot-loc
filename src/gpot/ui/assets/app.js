@@ -370,7 +370,7 @@ function fillTable() {
   if (tb.dataset.filled) return;
   tb.innerHTML = ROWS.map((r, i) => {
     const dst = (r[2] === 'todo' || r[2] === 'fail')
-      ? '<span style="color:#8A93A3">（未翻译）</span>' : r[1];
+      ? '<span style="color:#9A8AA8">（未翻译）</span>' : r[1];
     return `<tr><td class="c-num">${i+1}</td><td class="c-stat">${STATMAP[r[2]]}</td><td>${r[0]}</td><td>${dst}</td></tr>`;
   }).join('');
   tb.dataset.filled = '1';

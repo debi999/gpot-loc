@@ -3,233 +3,319 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>G-POT 翻译器 v4.0 · UI 原型</title>
+<title>G-POT 翻译器 v4.0 · UI 原型（炼香工坊 · 粉紫）</title>
 <style>
 :root{
-  --bg:#F3F3F3; --surface:#FFFFFF; --surface-alt:#FAFAFA; --elevated:#FFFFFF;
-  --border:#E5E5E5; --border-str:#D1D1D1;
-  --text:#1B1F27; --text-sub:#5A6272; --text-mute:#8A93A3;
-  --accent:#4A5CD6; --accent-hov:#3E4FBF; --accent-act:#34439F; --accent-soft:#EDEFFB;
-  --ok:#3F9142; --ok-soft:#E8F3E9;
-  --warn:#C77A16; --warn-soft:#FAF1E2;
-  --danger:#C4453F; --danger-soft:#FAEAE9;
-  --info:#3B7DC4; --info-soft:#E8F1FA;
-  --r-sm:4px; --r:6px; --r-lg:8px;
-  --font:'Segoe UI Variable Text','Segoe UI','Microsoft YaHei UI','Microsoft YaHei',system-ui,sans-serif;
+  /* —— 机身 / 材质 —— */
+  --bg:#1A1320; --bg-2:#221831;
+  --surface:#2A1E3A; --surface-alt:#33254A; --inset:#150F1E;
+  --border:#3A2C4E; --edge:rgba(221,160,188,.22);     /* 黄铜/玫瑰金描边 */
+  /* —— 光源（暧昧粉紫）—— */
+  --rose:#E8629A; --rose-hi:#F58BC0; --rose-soft:rgba(232,98,154,.16);
+  --violet:#9B6BF0; --violet-soft:rgba(155,107,240,.18);
+  --honey:#E8B45A; --honey-soft:rgba(232,180,90,.14);  /* 蜜语成品色 */
+  --magenta:#E0577E;                                   /* 危险/阻断 */
+  /* —— 文字（暖白带粉调）—— */
+  --ink:#F6EDF5; --text:#E7DAEE; --text-sub:#BCAAC8; --text-mute:#9A8AA8;
+  /* —— 语义 —— */
+  --ok:var(--honey); --ok-soft:var(--honey-soft);
+  --warn:var(--rose); --warn-soft:var(--rose-soft);
+  --danger:var(--magenta); --danger-soft:rgba(224,87,126,.14);
+  --info:var(--violet); --info-soft:var(--violet-soft);
+  /* —— 圆角 / 字体 —— */
+  --r-sm:6px; --r:9px; --r-lg:14px;
+  --serif:Georgia,'Times New Roman','Songti SC',serif;
+  --mono:'Cascadia Code',Consolas,'Courier New',monospace;
+  --sans:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--font);font-size:14px;color:var(--text);background:var(--bg);
-     height:100vh;overflow:hidden;-webkit-font-smoothing:antialiased}
-button{font-family:inherit}
-.app{display:flex;flex-direction:column;height:100vh}
+html,body{height:100%}
+body{font-family:var(--sans);font-size:14px;color:var(--text);
+  background:
+    radial-gradient(115% 75% at 10% -12%,rgba(232,98,154,.12),transparent 55%),
+    radial-gradient(95% 65% at 102% -5%,rgba(155,107,240,.13),transparent 52%),
+    var(--bg);
+  overflow:hidden;-webkit-font-smoothing:antialiased}
+/* 绒面颗粒 + 暗角 */
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:50;
+  background:
+    radial-gradient(130% 120% at 50% 40%,transparent 60%,rgba(10,5,16,.55) 100%),
+    repeating-linear-gradient(0deg,rgba(255,255,255,.025) 0 1px,transparent 1px 3px);
+  mix-blend-mode:soft-light;opacity:.55}
+button{font-family:inherit;cursor:pointer}
+.app{display:flex;flex-direction:column;height:100vh;position:relative;z-index:1}
 
 /* ---------- 标题栏 ---------- */
-.titlebar{height:36px;flex:0 0 36px;display:flex;align-items:center;padding:0 12px 0 16px;
-  background:var(--bg);user-select:none;border-bottom:1px solid var(--border)}
-.tb-brand{display:flex;align-items:center;gap:8px}
-.tb-logo{width:18px;height:18px;border-radius:4px;background:var(--accent);color:#fff;
-  font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center}
-.tb-name{font-size:12px;font-weight:600}
-.tb-sub{font-size:12px;color:var(--text-mute)}
-.tb-right{margin-left:auto;display:flex;align-items:center;gap:4px}
-.iconbtn{width:30px;height:28px;border:none;background:transparent;border-radius:var(--r);
-  display:flex;align-items:center;justify-content:center;color:var(--text-sub);cursor:pointer}
-.iconbtn:hover{background:#E5E5E5}
+.titlebar{height:46px;flex:0 0 46px;display:flex;align-items:center;padding:0 14px 0 18px;
+  background:linear-gradient(180deg,#251A33,#1B1327);border-bottom:1px solid var(--edge);
+  user-select:none}
+.tb-brand{display:flex;align-items:center;gap:11px}
+.tb-logo{width:30px;height:30px;border-radius:9px;
+  background:linear-gradient(155deg,var(--rose-hi),var(--violet));
+  color:#fff;font-family:var(--serif);font-size:17px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 0 18px var(--rose-soft),inset 0 1px 0 rgba(255,255,255,.4)}
+.tb-name{font-family:var(--serif);font-size:16px;font-weight:700;letter-spacing:.02em;color:var(--ink)}
+.tb-sub{font-size:12px;color:var(--text-mute);font-style:italic}
+.tb-right{margin-left:auto;display:flex;align-items:center;gap:6px}
+.iconbtn{width:32px;height:30px;border:none;background:transparent;border-radius:var(--r);
+  display:flex;align-items:center;justify-content:center;color:var(--text-sub)}
+.iconbtn:hover{background:rgba(221,160,188,.12);color:var(--text)}
 
 /* ---------- 主体 ---------- */
 .body{flex:1;display:flex;min-height:0}
 
-/* ---------- 左侧导航 ---------- */
-.rail{width:272px;flex:0 0 272px;background:var(--bg);border-right:1px solid var(--border);
-  display:flex;flex-direction:column;padding:12px 8px;overflow-y:auto}
-.gamecard{display:flex;gap:12px;align-items:center;padding:10px;margin:0 4px 12px;
-  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg)}
-.gc-cover{width:40px;height:40px;flex:0 0 40px;border-radius:var(--r);background:var(--accent-soft);
-  display:flex;align-items:center;justify-content:center;color:var(--accent);font-size:15px;font-weight:600}
-.gc-name{font-size:13px;font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.gc-meta{font-size:11px;color:var(--text-mute);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rail-label{font-size:11px;font-weight:600;color:var(--text-mute);letter-spacing:.03em;
-  padding:6px 12px 4px;text-transform:uppercase}
-.steps{display:flex;flex-direction:column;gap:2px}
-.step{display:flex;align-items:center;gap:12px;padding:8px 12px;border:none;background:transparent;
-  border-radius:var(--r);cursor:pointer;text-align:left;width:100%;position:relative}
-.step:hover:not(:disabled){background:#E9E9E9}
-.step.current{background:var(--accent-soft)}
-.step:disabled{cursor:default;opacity:.55}
-.step-mark{width:26px;height:26px;flex:0 0 26px;border-radius:50%;display:flex;align-items:center;
-  justify-content:center;font-size:12px;font-weight:600;border:1.5px solid var(--border-str);
-  background:var(--surface);color:var(--text-mute)}
-.step.done .step-mark{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
-.step.current .step-mark{background:var(--accent);border-color:var(--accent);color:#fff}
-.step-title{font-size:13px;font-weight:600;line-height:1.35}
-.step-sub{font-size:11px;color:var(--text-mute);line-height:1.35;margin-top:1px}
-.step.current .step-sub{color:var(--accent)}
-.rail-foot{margin-top:auto;padding-top:12px;border-top:1px solid var(--border);
+/* ---------- 左侧炼制装置（导航轨） ---------- */
+.rail{width:288px;flex:0 0 288px;display:flex;flex-direction:column;padding:16px 12px 14px;
+  background:linear-gradient(180deg,#1E152B,#191122);border-right:1px solid var(--edge);overflow-y:auto}
+.gamecard{display:flex;gap:12px;align-items:center;padding:11px 12px;margin:0 0 16px;
+  background:linear-gradient(160deg,var(--surface),#241A33);border:1px solid var(--edge);
+  border-radius:var(--r-lg);box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+.gc-cover{width:42px;height:42px;flex:0 0 42px;border-radius:11px;
+  background:linear-gradient(155deg,var(--violet),var(--rose));color:#fff;
+  font-family:var(--serif);font-size:17px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.3)}
+.gc-name{font-size:13px;font-weight:700;color:var(--ink);line-height:1.3;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gc-meta{font-size:11px;color:var(--text-mute);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  font-family:var(--mono)}
+.rail-label{font-size:10.5px;font-weight:700;color:var(--rose);letter-spacing:.18em;
+  padding:2px 14px 8px;text-transform:uppercase;font-family:var(--mono)}
+
+/* 炼制装置：试管 + 导管 */
+.steps{position:relative;display:flex;flex-direction:column;gap:3px;padding:1px 0}
+.step{position:relative;display:flex;align-items:center;gap:14px;padding:9px 11px;
+  border:none;background:transparent;border-radius:11px;text-align:left;width:100%}
+.step::before{content:'';position:absolute;left:30px;top:0;bottom:0;width:2px;z-index:0;
+  background:linear-gradient(180deg,var(--violet-soft),var(--violet),var(--rose-soft));opacity:.5}
+.step:first-child::before{top:52%}
+.step:last-child::before{bottom:52%}
+.step:hover:not(:disabled){background:rgba(221,160,188,.07)}
+.step.current{background:linear-gradient(90deg,var(--rose-soft),transparent);
+  box-shadow:inset 3px 0 0 var(--rose)}
+.step:disabled{cursor:default;opacity:.5}
+.step-mark{position:relative;z-index:1;width:40px;height:40px;flex:0 0 40px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;
+  background:var(--surface);border:2px solid var(--border);color:var(--text-mute);
+  box-shadow:inset 0 1px 2px rgba(255,255,255,.05),0 2px 7px rgba(0,0,0,.45)}
+.step.done .step-mark{background:linear-gradient(160deg,var(--rose),#C24E82);
+  border-color:var(--rose-hi);color:#fff;
+  box-shadow:0 0 14px var(--rose-soft),inset 0 1px 2px rgba(255,255,255,.3)}
+.step.current .step-mark{background:linear-gradient(160deg,var(--violet),var(--rose));
+  border-color:var(--rose-hi);color:#fff;animation:simmer 2.6s ease-in-out infinite}
+@keyframes simmer{0%,100%{box-shadow:0 0 8px var(--violet-soft)}
+  50%{box-shadow:0 0 20px var(--rose-soft),0 0 8px var(--violet-soft)}}
+.step-title{font-size:13px;font-weight:700;line-height:1.35;color:var(--text)}
+.step.current .step-title{color:var(--ink)}
+.step-sub{font-size:11px;color:var(--text-mute);line-height:1.35;margin-top:2px;
+  font-family:var(--mono);letter-spacing:.01em}
+.step.current .step-sub{color:var(--rose-hi)}
+.rail-foot{margin-top:auto;padding-top:14px;border-top:1px solid var(--border);
   display:flex;flex-direction:column;gap:6px}
+.rail-foot .subtle{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--text-mute)}
 
-/* ---------- 内容区 ---------- */
-.content{flex:1;overflow-y:auto;min-width:0}
-.page{display:none;padding:24px 28px 40px;max-width:1180px}
-.page.active{display:block}
-.pg-head{margin-bottom:20px}
-.pg-step{font-size:12px;font-weight:600;color:var(--accent);letter-spacing:.02em}
-.pg-title{font-size:26px;font-weight:600;letter-spacing:-.01em;margin:2px 0 6px}
-.pg-desc{font-size:13px;color:var(--text-sub);line-height:1.6;max-width:760px}
+/* ---------- 内容区（工坊台面） ---------- */
+.content{flex:1;overflow-y:auto;min-width:0;
+  background:linear-gradient(180deg,rgba(20,12,28,.2),transparent 240px)}
+.page{display:none;padding:26px 30px 44px;max-width:1180px}
+.page.active{display:block;animation:rise .5s cubic-bezier(.2,.8,.2,1)}
+@keyframes rise{from{opacity:0;transform:translateY(10px);filter:blur(6px)}
+  to{opacity:1;transform:none;filter:blur(0)}}
+.pg-head{margin-bottom:22px}
+.pg-step{font-size:11px;font-weight:700;color:var(--violet);letter-spacing:.16em;
+  font-family:var(--mono);text-transform:uppercase}
+.pg-title{font-family:var(--serif);font-size:30px;font-weight:700;letter-spacing:.01em;
+  margin:4px 0 7px;color:var(--ink)}
+.pg-desc{font-size:13px;color:var(--text-sub);line-height:1.65;max-width:760px}
 
-/* ---------- 卡片 ---------- */
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
-  padding:16px 20px;margin-bottom:12px}
-.card-h{font-size:14px;font-weight:600;margin-bottom:4px}
-.card-sub{font-size:12px;color:var(--text-mute);margin-bottom:14px;line-height:1.55}
-.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
-.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
-.grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+/* ---------- 玻璃标本匣（卡片） ---------- */
+.card{background:linear-gradient(180deg,var(--surface),#241A33);border:1px solid var(--edge);
+  border-radius:var(--r-lg);padding:17px 21px;margin-bottom:14px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 12px 30px rgba(0,0,0,.35)}
+.card-h{font-size:14px;font-weight:700;color:var(--ink);margin-bottom:5px;letter-spacing:.01em}
+.card-sub{font-size:12px;color:var(--text-mute);margin-bottom:15px;line-height:1.6}
+.card-sub b{color:var(--text-sub)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+.grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:14px}
 
-/* 指标卡 */
-.metric{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px}
-.metric-l{font-size:12px;color:var(--text-sub)}
-.metric-v{font-size:24px;font-weight:600;letter-spacing:-.02em;margin-top:4px;font-variant-numeric:tabular-nums}
-.metric-n{font-size:11px;color:var(--text-mute);margin-top:2px}
+/* 指标卡（蜜语瓶） */
+.metric{background:linear-gradient(165deg,var(--surface),#231930);border:1px solid var(--edge);
+  border-radius:var(--r-lg);padding:15px 17px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+.metric-l{font-size:11.5px;color:var(--text-sub);font-family:var(--mono);letter-spacing:.03em}
+.metric-v{font-family:var(--serif);font-size:27px;font-weight:700;letter-spacing:-.01em;
+  margin-top:5px;color:var(--ink);font-variant-numeric:tabular-nums}
+.metric-n{font-size:11px;color:var(--text-mute);margin-top:3px;font-family:var(--mono)}
 
 /* InfoBar */
-.infobar{display:flex;gap:12px;padding:12px 16px;border-radius:var(--r);border:1px solid transparent;
-  font-size:13px;line-height:1.6;margin-bottom:12px}
-.ib-info{background:var(--info-soft);border-color:#C9DDF1;color:#14406B}
-.ib-warn{background:var(--warn-soft);border-color:#F0D9AE;color:#6B4308}
-.ib-ok{background:var(--ok-soft);border-color:#C6E2C8;color:#1D4920}
-.ib-danger{background:var(--danger-soft);border-color:#F2C9C7;color:#7A2723}
-.ib-ico{flex:0 0 18px;margin-top:1px}
+.infobar{display:flex;gap:12px;padding:12px 16px;border-radius:var(--r);border:1px solid var(--edge);
+  font-size:13px;line-height:1.6;margin-bottom:14px;
+  background:rgba(40,28,56,.6);box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+.infobar b{color:var(--ink)}
+.ib-info{border-left:3px solid var(--violet);color:#D9C7F2}
+.ib-warn{border-left:3px solid var(--rose);color:#F4CBDE}
+.ib-ok{border-left:3px solid var(--honey);color:#F0D9A8}
+.ib-danger{border-left:3px solid var(--magenta);color:#F2B9CB}
+.ib-ico{flex:0 0 18px;margin-top:1px;color:inherit}
 
 /* 按钮 */
-.btn{height:32px;padding:0 16px;border-radius:var(--r);border:1px solid var(--border-str);
-  background:var(--surface);color:var(--text);font-size:13px;cursor:pointer;
-  display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
-.btn:hover{background:var(--surface-alt)}
-.btn:disabled{opacity:.45;cursor:default}
-.btn-accent{background:var(--accent);border-color:var(--accent);color:#fff}
-.btn-accent:hover{background:var(--accent-hov)}
-.btn-accent:disabled{background:var(--accent);opacity:.45}
-.btn-lg{height:38px;padding:0 22px;font-size:14px;font-weight:600}
-.btn-danger{color:var(--danger);border-color:#E8BFBD}
-.btn-danger:hover{background:var(--danger-soft)}
+.btn{height:33px;padding:0 16px;border-radius:var(--r);border:1px solid var(--edge);
+  background:rgba(42,30,58,.6);color:var(--text);font-size:13px;cursor:pointer;
+  display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+  transition:background .15s,border-color .15s,transform .12s}
+.btn:hover{background:rgba(221,160,188,.12);border-color:var(--rose)}
+.btn:active{transform:translateY(1px)}
+.btn:disabled{opacity:.4;cursor:default}
+.btn-accent{background:linear-gradient(160deg,var(--rose-hi),var(--rose));border-color:transparent;
+  color:#2A0F1C;font-weight:700;
+  box-shadow:0 7px 22px var(--rose-soft),inset 0 1px 0 rgba(255,255,255,.45)}
+.btn-accent:hover{filter:brightness(1.07);background:linear-gradient(160deg,var(--rose-hi),var(--rose))}
+.btn-accent:disabled{opacity:.45;filter:none}
+.btn-lg{height:39px;padding:0 23px;font-size:14px}
+.btn-danger{color:#F2B9CB;border-color:rgba(224,87,126,.5);background:rgba(224,87,126,.1)}
+.btn-danger:hover{background:rgba(224,87,126,.2);border-color:var(--magenta)}
 .btn-ghost{border-color:transparent;background:transparent;color:var(--text-sub)}
-.btn-ghost:hover{background:#E9E9E9}
-.btn-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn-ghost:hover{background:rgba(221,160,188,.1);color:var(--text)}
+.btn-row{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
 .btn-row.spread{justify-content:space-between}
 
 /* 输入 */
-.inp{height:32px;padding:0 10px;border:1px solid var(--border-str);border-radius:var(--r);
-  background:var(--surface);font-size:13px;font-family:inherit;color:var(--text);min-width:0}
-.inp:focus{outline:none;border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.inp{height:33px;padding:0 11px;border:1px solid var(--edge);border-radius:var(--r);
+  background:var(--inset);font-size:13px;font-family:inherit;color:var(--text);min-width:0}
+.inp:focus{outline:none;border-color:var(--rose);box-shadow:inset 0 0 0 1px var(--rose),0 0 0 3px var(--rose-soft)}
 .inp::placeholder{color:var(--text-mute)}
 select.inp{cursor:pointer}
-.lbl{font-size:12px;color:var(--text-sub);display:block;margin-bottom:4px}
-.field{margin-bottom:12px}
-.drop{border:1.5px dashed var(--border-str);border-radius:var(--r-lg);padding:28px;text-align:center;
-  color:var(--text-mute);font-size:13px;background:var(--surface-alt)}
-.drop strong{color:var(--accent);font-weight:600}
+.lbl{font-size:12px;color:var(--text-sub);display:block;margin-bottom:5px}
+.field{margin-bottom:13px}
+.drop{border:1.5px dashed var(--edge);border-radius:var(--r-lg);padding:28px;text-align:center;
+  color:var(--text-mute);font-size:13px;background:rgba(21,15,30,.4)}
+.drop b{color:var(--rose-hi);font-weight:700}
 
 /* 提供方选择卡 */
-.prov{text-align:left;padding:14px;border:1px solid var(--border);border-radius:var(--r-lg);
-  background:var(--surface);cursor:pointer;position:relative}
-.prov:hover{border-color:var(--border-str)}
-.prov.on{border:2px solid var(--accent);padding:13px}
-.prov-n{font-size:13px;font-weight:600}
-.prov-d{font-size:11px;color:var(--text-mute);margin-top:3px;line-height:1.5}
-.prov-tick{position:absolute;top:10px;right:10px;width:16px;height:16px;border-radius:50%;
-  background:var(--accent);color:#fff;display:none;align-items:center;justify-content:center}
+.prov{text-align:left;padding:14px;border:1px solid var(--edge);border-radius:var(--r-lg);
+  background:linear-gradient(180deg,var(--surface),#231930);cursor:pointer;position:relative;
+  transition:border-color .15s,transform .12s,box-shadow .15s}
+.prov:hover{border-color:var(--rose);transform:translateY(-2px);
+  box-shadow:0 10px 24px rgba(0,0,0,.35)}
+.prov.on{border:2px solid var(--rose);padding:13px;
+  box-shadow:0 0 0 3px var(--rose-soft),0 10px 24px rgba(0,0,0,.35)}
+.prov-n{font-size:13px;font-weight:700;color:var(--ink)}
+.prov-d{font-size:11px;color:var(--text-mute);margin-top:4px;line-height:1.55}
+.prov-tick{position:absolute;top:11px;right:11px;width:17px;height:17px;border-radius:50%;
+  background:linear-gradient(160deg,var(--rose-hi),var(--rose));color:#2A0F1C;
+  display:none;align-items:center;justify-content:center}
 .prov.on .prov-tick{display:flex}
 
 /* Chip */
-.chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:10px;
-  font-size:11px;background:#F0F0F0;color:var(--text-sub);margin:0 4px 4px 0;font-family:var(--font)}
-.chip-mono{font-family:'Cascadia Code',Consolas,monospace;font-size:11px}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;
+  font-size:11px;background:rgba(155,107,240,.14);color:var(--text-sub);
+  margin:0 4px 4px 0;border:1px solid var(--violet-soft)}
+.chip-mono{font-family:var(--mono);font-size:11px}
 
 /* Badge */
-.badge{display:inline-flex;align-items:center;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600}
-.b-ok{background:var(--ok-soft);color:var(--ok)}
-.b-warn{background:var(--warn-soft);color:var(--warn)}
-.b-danger{background:var(--danger-soft);color:var(--danger)}
-.b-info{background:var(--info-soft);color:var(--info)}
-.b-muted{background:#F0F0F0;color:var(--text-mute)}
+.badge{display:inline-flex;align-items:center;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:700}
+.b-ok{background:var(--honey-soft);color:var(--honey)}
+.b-warn{background:var(--rose-soft);color:var(--rose-hi)}
+.b-danger{background:var(--danger-soft);color:#F2B9CB}
+.b-info{background:var(--violet-soft);color:#C9AEF6}
+.b-muted{background:rgba(154,138,168,.16);color:var(--text-mute)}
 
 /* 表格 */
-.tblwrap{border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;background:var(--surface)}
+.tblwrap{border:1px solid var(--edge);border-radius:var(--r-lg);overflow:hidden;
+  background:linear-gradient(180deg,var(--surface),#221830);box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
 table{width:100%;border-collapse:collapse;table-layout:fixed}
-th{text-align:left;font-size:12px;font-weight:600;color:var(--text-sub);padding:9px 12px;
-  border-bottom:1px solid var(--border);background:var(--surface-alt);white-space:nowrap}
-td{padding:9px 12px;border-bottom:1px solid #F2F2F2;font-size:13px;vertical-align:top;
+th{text-align:left;font-size:11.5px;font-weight:700;color:var(--text-sub);padding:10px 13px;
+  border-bottom:1px solid var(--border);background:rgba(21,15,30,.5);white-space:nowrap;
+  font-family:var(--mono);letter-spacing:.03em}
+td{padding:10px 13px;border-bottom:1px solid rgba(58,44,78,.6);font-size:13px;vertical-align:top;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 tr:last-child td{border-bottom:none}
-tbody tr:hover td{background:#FAFAFA}
-.c-num{width:56px;text-align:center;color:var(--text-mute);font-variant-numeric:tabular-nums}
+tbody tr:hover td{background:rgba(221,160,188,.06)}
+.c-num{width:56px;text-align:center;color:var(--text-mute);font-variant-numeric:tabular-nums;font-family:var(--mono)}
 .c-stat{width:92px}
-td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',sans-serif;font-size:12px;line-height:1.5}
-.mono{font-family:'Cascadia Code',Consolas,monospace;font-size:11.5px}
+td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-size:12px;line-height:1.5}
+.mono{font-family:var(--mono);font-size:11.5px;color:var(--text-sub)}
 
 /* 工具条 */
-.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .toolbar .spacer{margin-left:auto}
 
-/* 进度 */
-.prog{height:4px;background:#E5E5E5;border-radius:2px;overflow:hidden}
-.prog>i{display:block;height:100%;background:var(--accent);border-radius:2px;
-  transition:width .35s ease}
-.prog.ok>i{background:var(--ok)}
-.prog-row{display:flex;align-items:center;gap:12px;margin-top:14px}
+/* 进度（炼制液面） */
+.prog{height:6px;background:var(--inset);border-radius:999px;overflow:hidden;
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.5)}
+.prog>i{display:block;height:100%;border-radius:999px;
+  background:linear-gradient(90deg,var(--violet),var(--rose));
+  box-shadow:0 0 10px var(--rose-soft);transition:width .35s ease}
+.prog.ok>i{background:linear-gradient(90deg,var(--honey),#F0C879);box-shadow:0 0 10px var(--honey-soft)}
+.prog-row{display:flex;align-items:center;gap:13px;margin-top:15px}
 .prog-row .prog{flex:1}
-.prog-txt{font-size:12px;color:var(--text-sub);font-variant-numeric:tabular-nums;width:92px;text-align:right}
+.prog-txt{font-size:12px;color:var(--text-sub);font-variant-numeric:tabular-nums;width:92px;text-align:right;
+  font-family:var(--mono)}
 
 /* 列表行 */
-.rowitem{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #F2F2F2}
+.rowitem{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid rgba(58,44,78,.6)}
 .rowitem:last-child{border-bottom:none}
 .ri-main{flex:1;min-width:0}
-.ri-t{font-size:13px;font-weight:600;line-height:1.4}
-.ri-s{font-size:11.5px;color:var(--text-mute);margin-top:2px;line-height:1.5}
+.ri-t{font-size:13px;font-weight:700;line-height:1.4;color:var(--ink)}
+.ri-s{font-size:11.5px;color:var(--text-mute);margin-top:3px;line-height:1.5}
 .ri-side{flex:0 0 auto;text-align:right}
 
 /* 分段控件 */
-.seg{display:inline-flex;background:#EDEDED;border-radius:var(--r);padding:2px;gap:2px}
-.seg button{border:none;background:transparent;padding:5px 14px;border-radius:var(--r-sm);
+.seg{display:inline-flex;background:var(--inset);border-radius:var(--r);padding:3px;gap:2px;
+  border:1px solid var(--border)}
+.seg button{border:none;background:transparent;padding:6px 15px;border-radius:var(--r-sm);
   font-size:12.5px;color:var(--text-sub);cursor:pointer}
-.seg button.on{background:var(--surface);color:var(--text);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.seg button.on{background:linear-gradient(160deg,var(--rose-hi),var(--rose));color:#2A0F1C;font-weight:700;
+  box-shadow:0 3px 10px var(--rose-soft)}
 
 /* 开关 */
-.sw{display:flex;align-items:center;gap:10px;padding:8px 0;font-size:13px}
-.sw input{appearance:none;width:38px;height:20px;border-radius:10px;background:#C9C9C9;
-  position:relative;cursor:pointer;transition:background .15s;flex:0 0 38px}
-.sw input:checked{background:var(--accent)}
-.sw input::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;
-  background:#fff;transition:transform .15s}
-.sw input:checked::after{transform:translateX(18px)}
-.sw-d{font-size:11.5px;color:var(--text-mute)}
+.sw{display:flex;align-items:center;gap:11px;padding:9px 0;font-size:13px}
+.sw input{appearance:none;width:40px;height:21px;border-radius:11px;background:#3A2C4E;
+  position:relative;cursor:pointer;transition:background .15s;flex:0 0 40px;
+  border:1px solid var(--border)}
+.sw input:checked{background:linear-gradient(90deg,var(--violet),var(--rose))}
+.sw input::after{content:'';position:absolute;top:2px;left:2px;width:17px;height:17px;border-radius:50%;
+  background:var(--ink);transition:transform .15s}
+.sw input:checked::after{transform:translateX(19px)}
+.sw-d{font-size:11.5px;color:var(--text-mute);font-family:var(--mono)}
 
 /* 复选 */
-.cklist{display:flex;flex-direction:column;gap:2px}
-.ck{display:flex;align-items:flex-start;gap:10px;padding:7px 0;cursor:pointer}
-.ck input{appearance:none;width:18px;height:18px;flex:0 0 18px;border:1.5px solid var(--border-str);
-  border-radius:var(--r-sm);background:var(--surface);cursor:pointer;margin-top:1px;position:relative}
-.ck input:checked{background:var(--accent);border-color:var(--accent)}
-.ck input:checked::after{content:'';position:absolute;left:5px;top:2px;width:5px;height:9px;
-  border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
-.ck-t{font-size:13px;line-height:1.4}
+.cklist{display:flex;flex-direction:column;gap:3px}
+.ck{display:flex;align-items:flex-start;gap:11px;padding:8px 0;cursor:pointer}
+.ck input{appearance:none;width:19px;height:19px;flex:0 0 19px;border:1.5px solid var(--border);
+  border-radius:var(--r-sm);background:var(--inset);cursor:pointer;margin-top:1px;position:relative}
+.ck input:checked{background:linear-gradient(160deg,var(--rose-hi),var(--rose));border-color:transparent}
+.ck input:checked::after{content:'';position:absolute;left:6px;top:2px;width:5px;height:10px;
+  border:solid #2A0F1C;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.ck-t{font-size:13px;line-height:1.4;color:var(--text)}
 .ck-d{font-size:11.5px;color:var(--text-mute);line-height:1.5}
 
 /* 状态栏 */
-.statusbar{height:30px;flex:0 0 30px;border-top:1px solid var(--border);background:var(--bg);
-  display:flex;align-items:center;padding:0 16px;font-size:12px;color:var(--text-sub);gap:12px}
+.statusbar{height:32px;flex:0 0 32px;border-top:1px solid var(--edge);
+  background:linear-gradient(180deg,#1B1327,#150E1F);
+  display:flex;align-items:center;padding:0 18px;font-size:12px;color:var(--text-sub);gap:12px;
+  font-family:var(--mono);letter-spacing:.02em}
 .statusbar .spacer{margin-left:auto}
-.sb-prog{width:120px}
+.sb-prog{width:130px}
 
-/* 杂项 */
-.pipe{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:8px;align-items:center;margin:6px 0 2px}
-.pipe-step{background:var(--surface-alt);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px}
-.ps-t{font-size:11px;color:var(--text-mute);margin-bottom:3px}
-.ps-v{font-size:12.5px;font-weight:600;line-height:1.4}
-.pipe-arrow{color:var(--text-mute);font-size:15px;text-align:center}
+/* 管线三元组 */
+.pipe{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:10px;align-items:center;margin:6px 0 2px}
+.pipe-step{background:linear-gradient(165deg,var(--surface),#231930);border:1px solid var(--edge);
+  border-radius:var(--r);padding:12px 14px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+.ps-t{font-size:10.5px;color:var(--violet);margin-bottom:4px;font-family:var(--mono);letter-spacing:.05em;text-transform:uppercase}
+.ps-v{font-size:13px;font-weight:700;line-height:1.45;color:var(--ink)}
+.pipe-arrow{color:var(--rose-hi);font-size:17px;text-align:center}
+
 .hidden{display:none}
 .subtle{font-size:12px;color:var(--text-mute);line-height:1.6}
 .nowrap{white-space:nowrap}
+
+@media (prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+  .page.active{animation:none}
+}
 </style>
 </head>
 <body>
@@ -252,7 +338,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',sans-serif;font-s
     <div class="tb-brand">
       <div class="tb-logo">G</div>
       <span class="tb-name">G-POT 翻译器</span>
-      <span class="tb-sub">把生肉熬成蜜语。 · v4.0 原型</span>
+      <span class="tb-sub">把生肉熬成蜜语 · Localize the desire</span>
     </div>
     <div class="tb-right">
       <button class="iconbtn" title="设置"><svg width="15" height="15"><use href="#i-gear"/></svg></button>
@@ -260,7 +346,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',sans-serif;font-s
   </div>
 
   <div class="body">
-    <!-- ============ 左侧导航 ============ -->
+    <!-- ============ 左侧炼制装置 ============ -->
     <nav class="rail">
       <div class="gamecard">
         <div class="gc-cover">S</div>
@@ -269,7 +355,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',sans-serif;font-s
           <div class="gc-meta">F:\erogame\Starmaker_Story\…</div>
         </div>
       </div>
-      <div class="rail-label">汉化流程</div>
+      <div class="rail-label">炼制流程</div>
       <div class="steps" id="steps"></div>
       <div class="rail-foot">
         <button class="btn btn-ghost" style="justify-content:flex-start" onclick="advance()">
@@ -279,18 +365,18 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',sans-serif;font-s
           <svg width="13" height="13"><use href="#i-reset"/></svg> 重置演示
         </button>
         <div class="subtle" style="padding:0 12px">灰色的步骤完成上一步后解锁</div>
-        <div class="subtle" style="padding:0 12px;letter-spacing:.04em">Hook · Extract · Translate.</div>
+        <div class="subtle" style="padding:0 12px;letter-spacing:.06em">Hook · Extract · Translate.</div>
       </div>
     </nav>
 
-    <!-- ============ 内容区 ============ -->
+    <!-- ============ 内容区（工坊台面） ============ -->
     <main class="content">
 
       <!-- ---------- Step 0 ---------- -->
       <section class="page" data-page="0">
         <div class="pg-head">
           <div class="pg-step">第 0 步 · 一次性准备</div>
-          <h1 class="pg-title">配置翻译服务</h1>
+          <h1 class="pg-title">调配翻译服务</h1>
           <p class="pg-desc">接通一个翻译后端，后面才跑得动。</p>
         </div>
 
@@ -359,7 +445,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',sans-serif;font-s
 
         <div class="btn-row spread">
           <button class="btn">测试连接</button>
-          <button class="btn btn-accent btn-lg" onclick="advance()">保存并继续 · 选择游戏 →</button>
+          <button class="btn btn-accent btn-lg" onclick="advance()">封存并继续 · 选择游戏 →</button>
         </div>
       </section>
 
@@ -367,7 +453,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',sans-serif;font-s
       <section class="page" data-page="1">
         <div class="pg-head">
           <div class="pg-step">第 1 步 · 一次性准备</div>
-          <h1 class="pg-title">选择游戏目录</h1>
+          <h1 class="pg-title">选定游戏目录</h1>
           <p class="pg-desc">选游戏的<b>根目录</b>：放 .exe 的那一层。</p>
         </div>
 
@@ -381,9 +467,9 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',sans-serif;font-s
         </div>
 
         <div class="card">
-          <div class="card-h">最近使用</div>
+          <div class="card-h">最近取用</div>
           <div class="rowitem">
-            <div class="gc-cover" style="width:32px;height:32px;flex:0 0 32px;font-size:12px">S</div>
+            <div class="gc-cover" style="width:34px;height:34px;flex:0 0 34px;font-size:13px">S</div>
             <div class="ri-main">
               <div class="ri-t">Starmaker Story 1.8e</div>
               <div class="ri-s">F:\erogame\Starmaker_Story\…\Starmaker 1.8E · 已有 14,679 条译文 · 今天 00:21</div>
@@ -391,7 +477,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',sans-serif;font-s
             <div class="ri-side"><span class="badge b-ok">已配置</span></div>
           </div>
           <div class="rowitem">
-            <div class="gc-cover" style="width:32px;height:32px;flex:0 0 32px;font-size:12px;background:#EEE">P</div>
+            <div class="gc-cover" style="width:34px;height:34px;flex:0 0 34px;font-size:13px;background:linear-gradient(155deg,#4A3A66,#2E2440)">P</div>
             <div class="ri-main">
               <div class="ri-t">Project Sekai Demo</div>
               <div class="ri-s">G:\games\pjsekai · 未开始</div>
@@ -422,7 +508,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',sans-serif;font-s
           <div class="card-h">识别结果</div>
           <div class="btn-row spread" style="align-items:flex-start">
             <div>
-              <div style="font-size:22px;font-weight:600">Unity (Mono)</div>
+              <div style="font-family:var(--serif);font-size:23px;font-weight:700;color:var(--ink)">Unity (Mono)</div>
               <div class="subtle" style="margin-top:4px">置信度 79% · 由 3 项硬证据判定</div>
             </div>
             <span class="badge b-ok" style="font-size:12px;padding:4px 11px">确定性高</span>
@@ -466,7 +552,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',sans-serif;font-s
               <tr><td>ResourceRedirector</td><td class="mono">2.1.0</td><td class="mono">0.4 MB</td><td><span class="badge b-ok">已验证</span></td><td><span class="badge b-ok">已就位</span></td></tr>
             </tbody>
           </table>
-          <div class="btn-row" style="margin-top:14px">
+          <div class="btn-row" style="margin-top:15px">
             <button class="btn btn-accent btn-lg" onclick="deploy(this)">
               <svg width="14" height="14"><use href="#i-down"/></svg> 全部已就位 · 重新校验
             </button>
@@ -475,7 +561,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',sans-serif;font-s
         </div>
 
         <div class="btn-row" style="justify-content:flex-end">
-          <button class="btn btn-accent btn-lg" onclick="advance()">继续 · 提取文本 →</button>
+          <button class="btn btn-accent btn-lg" onclick="advance()">继续 · 萃取文本 →</button>
         </div>
       </section>
 
@@ -483,7 +569,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',sans-serif;font-s
       <section class="page" data-page="3">
         <div class="pg-head">
           <div class="pg-step">第 3 步 · 游戏更新后才重跑</div>
-          <h1 class="pg-title">提取待翻译文本</h1>
+          <h1 class="pg-title">萃取待翻译文本</h1>
           <p class="pg-desc">不用运行游戏，直接从资源里扫出原文。</p>
         </div>
 
@@ -507,8 +593,8 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',sans-serif;font-s
         <div class="card">
           <div class="card-h">扫描范围</div>
           <div class="ri-s" style="font-size:12.5px">Starmaker 1.8E_Data · 排除 StreamingAssets/resS · 预计扫 1,240 个文件</div>
-          <div class="btn-row" style="margin-top:14px">
-            <button class="btn btn-accent btn-lg" onclick="runExtract(this)">开始提取</button>
+          <div class="btn-row" style="margin-top:15px">
+            <button class="btn btn-accent btn-lg" onclick="runExtract(this)">开始萃取</button>
             <button class="btn">改范围</button>
           </div>
           <div class="prog-row" id="p3prog" hidden>
@@ -518,7 +604,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',sans-serif;font-s
         </div>
 
         <div class="grid4" id="p3result">
-          <div class="metric"><div class="metric-l">本轮新增</div><div class="metric-v">3,421</div><div class="metric-n">新提取到的原文</div></div>
+          <div class="metric"><div class="metric-l">本轮新增</div><div class="metric-v">3,421</div><div class="metric-n">新萃取到的原文</div></div>
           <div class="metric"><div class="metric-l">已存在</div><div class="metric-v">11,258</div><div class="metric-n">跳过，不覆盖原译文</div></div>
           <div class="metric"><div class="metric-l">护栏拦截</div><div class="metric-v">8,045</div><div class="metric-n">疑似碎片/污染</div></div>
           <div class="metric"><div class="metric-l">在表总数</div><div class="metric-v">14,679</div><div class="metric-n">当前全部条目</div></div>
@@ -530,7 +616,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',sans-serif;font-s
         </div>
 
         <div class="btn-row" style="justify-content:flex-end">
-          <button class="btn btn-accent btn-lg" onclick="afterExtract()">继续 · 翻译校对 →</button>
+          <button class="btn btn-accent btn-lg" onclick="afterExtract()">继续 · 炼制校对 →</button>
         </div>
       </section>
 
@@ -538,21 +624,21 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',sans-serif;font-s
       <section class="page" data-page="4">
         <div class="pg-head">
           <div class="pg-step">第 4 步 · 每轮迭代</div>
-          <h1 class="pg-title">翻译与人工校对</h1>
+          <h1 class="pg-title">炼制与人工校对</h1>
           <p class="pg-desc">机器先跑一遍，然后人工过一遍 —— 口吻、称谓、双关，翻错比没翻更伤。</p>
         </div>
 
-        <div class="grid4" style="margin-bottom:14px">
+        <div class="grid4" style="margin-bottom:15px">
           <div class="metric"><div class="metric-l">总条目</div><div class="metric-v">14,679</div><div class="metric-n">1,424,251 B</div></div>
-          <div class="metric"><div class="metric-l">已翻译</div><div class="metric-v" id="m-done">9,102</div><div class="metric-n">62%</div></div>
-          <div class="metric"><div class="metric-l">未翻译</div><div class="metric-v" id="m-todo">5,319</div><div class="metric-n">本次目标</div></div>
+          <div class="metric"><div class="metric-l">已炼制</div><div class="metric-v" id="m-done">9,102</div><div class="metric-n">62%</div></div>
+          <div class="metric"><div class="metric-l">未炼制</div><div class="metric-v" id="m-todo">5,319</div><div class="metric-n">本次目标</div></div>
           <div class="metric"><div class="metric-l">失败</div><div class="metric-v" id="m-fail">258</div><div class="metric-n">多为超长/超时</div></div>
         </div>
 
         <div class="card">
           <div class="btn-row spread" style="margin-bottom:2px">
             <div>
-              <div class="card-h" style="margin-bottom:2px">批量翻译</div>
+              <div class="card-h" style="margin-bottom:2px">批量炼制</div>
             </div>
             <div style="text-align:right">
               <div style="font-size:12px;color:var(--text-sub)">并发 4 · 预计 22 分钟</div>
@@ -563,12 +649,12 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',sans-serif;font-s
             <div class="prog" id="p4bar"><i style="width:62%"></i></div>
             <div class="prog-txt" id="p4txt">62%</div>
           </div>
-          <div class="btn-row" style="margin-top:14px">
-            <button class="btn btn-accent btn-lg" id="btnTrans" onclick="runTranslate(this)">翻译未译条目 ▾</button>
+          <div class="btn-row" style="margin-top:15px">
+            <button class="btn btn-accent btn-lg" id="btnTrans" onclick="runTranslate(this)">炼制未译条目 ▾</button>
             <button class="btn" onclick="runTranslate(this,true)">仅重试失败</button>
             <button class="btn">停止</button>
           </div>
-          <div class="btn-row" style="margin-top:8px">
+          <div class="btn-row" style="margin-top:9px">
             <span class="subtle">已译文不会被覆盖</span>
           </div>
         </div>
@@ -590,7 +676,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',sans-serif;font-s
               <tbody id="p4tbody"></tbody>
             </table>
           </div>
-          <div class="btn-row spread" style="margin-top:12px">
+          <div class="btn-row spread" style="margin-top:13px">
             <span class="subtle">双击任意行可直接改译文</span>
             <div class="btn-row">
               <button class="btn">‹‹</button><button class="btn">‹</button>
@@ -610,7 +696,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',sans-serif;font-s
       <section class="page" data-page="5">
         <div class="pg-head">
           <div class="pg-step">第 5 步 · 每轮迭代</div>
-          <h1 class="pg-title">保存并应用到游戏</h1>
+          <h1 class="pg-title">封存并应用到游戏</h1>
           <p class="pg-desc">这一步的样子由<b>引擎</b>决定 —— 按第 2 步的识别结果自动显示。</p>
         </div>
 
@@ -626,11 +712,11 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',sans-serif;font-s
               <button onclick="setEngine('manual',this)">无方案引擎</button>
             </div>
           </div>
-          <div class="subtle" style="margin-top:8px">默认锁定当前游戏识别出的管线；切到其它管线查看形态时，「保存并写入」会禁用。</div>
+          <div class="subtle" style="margin-top:9px">默认锁定当前游戏识别出的管线；切到其它管线查看形态时，「封存并写入」会禁用。</div>
           <div class="subtle" id="p5lockedTo" style="margin-top:4px"></div>
         </div>
 
-        <div class="infobar ib-warn" id="engLockNote" hidden style="margin-top:12px">
+        <div class="infobar ib-warn" id="engLockNote" hidden style="margin-top:13px">
           <svg class="ib-ico" width="17" height="17"><use href="#i-warn"/></svg>
           <div id="engLockText"></div>
         </div>
@@ -664,7 +750,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',sans-serif;font-s
 
           <div class="btn-row spread">
             <span class="subtle">原子写入 · 自动留 3 代备份</span>
-            <button class="btn btn-accent btn-lg" onclick="doApply(this)">保存并写入词典</button>
+            <button class="btn btn-accent btn-lg" onclick="doApply(this)">封存并写入词典</button>
           </div>
         </div>
 
@@ -705,7 +791,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',sans-serif;font-s
               <span class="chip"><span class="chip-mono">profile</span></span>
               <span class="chip"><span class="chip-mono">terms 用语</span></span>
             </div>
-            <div class="subtle" style="margin-top:12px"><b>不翻：</b>characterName / faceName / battlerName（图集名）· switches / variables（插件按名查找）· 事件命令码 355/655 的 JS 脚本 · 注释 108 · note</div>
+            <div class="subtle" style="margin-top:13px"><b>不翻：</b>characterName / faceName / battlerName（图集名）· switches / variables（插件按名查找）· 事件命令码 355/655 的 JS 脚本 · 注释 108 · note</div>
           </div>
 
           <div class="btn-row spread">
@@ -796,12 +882,12 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',sans-serif;font-s
             </button>
             <button class="btn btn-lg btn-danger" style="justify-content:center">还原到原文</button>
           </div>
-          <div class="subtle" style="margin-top:12px">Unity 管线下不显示「还原到原文」—— 本来就不需要。</div>
+          <div class="subtle" style="margin-top:13px">Unity 管线下不显示「还原到原文」—— 本来就不需要。</div>
         </div>
 
         <div class="card">
           <div class="card-h">整条流程走完了</div>
-          <div class="card-sub">下次改一句台词：点「4 翻译」→ 改 → 走第 5 步。</div>
+          <div class="card-sub">下次改一句台词：点「4 炼制」→ 改 → 走第 5 步。</div>
           <div class="btn-row">
             <button class="btn" onclick="resetDemo()">重看一遍流程</button>
           </div>
@@ -823,12 +909,12 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',sans-serif;font-s
 <script>
 /* ---------------- 步骤定义 ---------------- */
 var STEPS = [
-  {t:'配置翻译服务',     s:'本地 Ollama · 已连接'},
-  {t:'选择游戏目录',     s:'Starmaker Story 1.8e'},
+  {t:'调配翻译服务',     s:'本地 Ollama · 已连接'},
+  {t:'选定游戏目录',     s:'Starmaker Story 1.8e'},
   {t:'识别引擎与部署工具', s:'Unity (Mono) · 3 个已就位'},
-  {t:'提取待翻译文本',   s:'14,679 条'},
-  {t:'翻译与人工校对',   s:'已译 9,102 / 14,679'},
-  {t:'保存并应用到游戏', s:'待执行'},
+  {t:'萃取待翻译文本',   s:'14,679 条'},
+  {t:'炼制与人工校对',   s:'已炼 9,102 / 14,679'},
+  {t:'封存并应用到游戏', s:'待执行'},
   {t:'启动验证',         s:'待执行'}
 ];
 
@@ -871,11 +957,11 @@ function advance(){
   render();
 }
 function afterExtract(){
-  state.cur = 4;                        // 默认进入翻译步
-  state.max = Math.max(state.max, 5);   // FR-49：提取同时解锁第 4 步与第 5 步
+  state.cur = 4;                        // 默认进入炼制步
+  state.max = Math.max(state.max, 5);   // FR-49：萃取同时解锁第 4 步与第 5 步
   if(state.cur === 4) fillTable();
   render();
-  sb('提取完成。翻译可选：可直接点第 5 步保存，不必先翻译');
+  sb('萃取完成。炼制可选：可直接点第 5 步封存，不必先炼制');
 }
 
 /* ---------------- 第 0 步 ---------------- */
@@ -901,9 +987,9 @@ function runExtract(btn){
   btn.disabled = true; btn.textContent = '扫描中…';
   document.getElementById('p3prog').hidden = false;
   setTimeout(function(){
-    btn.textContent = '重新提取';
+    btn.textContent = '重新萃取';
     btn.disabled = false;
-    sb('提取完成 · 新增 3,421 条，护栏拦截 8,045 条');
+    sb('萃取完成 · 新增 3,421 条，护栏拦截 8,045 条');
   }, 1400);
 }
 
@@ -915,7 +1001,7 @@ var ROWS = [
   ['Thanks for waiting. Let us begin.','让大家久等了，我们开始吧。','ok'],
   ['You have unlocked a new outfit.','解锁了新服装。','ok'],
   ['Her voice echoed through the empty hall.','她的声音在空荡的大厅里回响。','ok'],
-  ['Not bad. But you can do better.','还不错，不过你还能做得更好。','warn'],
+  ['Not bad. But you can do better.','还不错，不过你还能做得更好。','ok'],
   ['[System] Insufficient funds.','[系统] 资金不足。','ok'],
   ['Stage 3 - Clear!','第 3 关 —— 通关！','ok'],
   ['Do you really think you have what it takes?','你真的觉得自己够格吗？','todo'],
@@ -931,9 +1017,9 @@ var ROWS = [
   ['I have never been this nervous before.','我从没这么紧张过。','fail']
 ];
 var STATMAP = {
-  ok:  '<span class="badge b-ok">已翻译</span>',
+  ok:  '<span class="badge b-ok">已炼制</span>',
   warn:'<span class="badge b-warn">英文残留</span>',
-  todo:'<span class="badge b-danger">未翻译</span>',
+  todo:'<span class="badge b-danger">未炼制</span>',
   fail:'<span class="badge b-danger">失败</span>'
 };
 function fillTable(){
@@ -942,7 +1028,7 @@ function fillTable(){
   var html = '';
   for(var i=0;i<ROWS.length;i++){
     var src = ROWS[i][0], dst = ROWS[i][1], st = ROWS[i][2];
-    if(st === 'todo' || st === 'fail') dst = '<span style="color:#8A93A3">（未翻译）</span>';
+    if(st === 'todo' || st === 'fail') dst = '<span style="color:#9A8AA8">（未炼制）</span>';
     html += '<tr><td class="c-num">'+(i+1)+'</td>'+
             '<td class="c-stat">'+STATMAP[st]+'</td>'+
             '<td>'+src+'</td><td>'+dst+'</td></tr>';
@@ -956,7 +1042,7 @@ function runTranslate(btn, retry){
   btn.disabled = true;
   var bar = document.getElementById('p4bar'), txt = document.getElementById('p4txt');
   var pct = 62;
-  btn.textContent = retry ? '重试中…' : '翻译中… 0 / 5,319';
+  btn.textContent = retry ? '重试中…' : '炼制中… 0 / 5,319';
   var iv = setInterval(function(){
     pct += Math.random()*7 + 3;
     if(pct >= 100) pct = 100;
@@ -965,17 +1051,17 @@ function runTranslate(btn, retry){
     txt.textContent = Math.round(pct)+'%';
     document.getElementById('m-done').textContent = done.toLocaleString();
     document.getElementById('m-todo').textContent = Math.max(0,14679-done-258).toLocaleString();
-    btn.textContent = '翻译中… '+done.toLocaleString()+' / 14,679';
-    sb('翻译进行中 · '+done.toLocaleString()+' / 14,679');
+    btn.textContent = '炼制中… '+done.toLocaleString()+' / 14,679';
+    sb('炼制进行中 · '+done.toLocaleString()+' / 14,679');
     if(pct >= 100){
       clearInterval(iv);
       bar.classList.add('ok');
-      btn.textContent = '已全部翻译';
+      btn.textContent = '已全部炼制';
       document.getElementById('m-fail').textContent = '34';
-      STEPS[4].s = '已译 14,679 / 14,679';
+      STEPS[4].s = '已炼 14,679 / 14,679';
       STEPS[5].s = '可执行';
       render();
-      sb('翻译完成 · 失败 34 条，可单独重试');
+      sb('炼制完成 · 失败 34 条，可单独重试');
       document.getElementById('btnNext4').classList.add('btn-accent');
     }
   }, 220);
@@ -997,29 +1083,29 @@ function setEngine(k, el){
   document.getElementById('eng-manual').hidden = k !== 'manual';
   document.getElementById('p5engineName').textContent = ENGINES[k].name;
   document.getElementById('p6hint').innerHTML = '<b>'+ENGINES[k].hint+'</b>';
-  // 锁死到当前游戏识别出的管线：选其它引擎仅可预览，保存按钮禁用
+  // 锁死到当前游戏识别出的管线：选其它引擎仅可预览，封存按钮禁用
   var locked = (k !== DETECTED);
   document.getElementById('p5lockedTo').textContent = '锁定：'+ENGINES[DETECTED].name+'（当前游戏识别结果）';
   var note = document.getElementById('engLockNote');
   if(locked){
     note.hidden = false;
     document.getElementById('engLockText').innerHTML =
-      '当前游戏识别为 <b>'+ENGINES[DETECTED].name+'</b>，不能按 <b>'+ENGINES[k].name+'</b> 管线写入。点回上方「'+ENGINES[DETECTED].name+'」即可解锁保存。';
+      '当前游戏识别为 <b>'+ENGINES[DETECTED].name+'</b>，不能按 <b>'+ENGINES[k].name+'</b> 管线写入。点回上方「'+ENGINES[DETECTED].name+'」即可解锁封存。';
   } else { note.hidden = true; }
   var abs = document.querySelectorAll('button[onclick^="doApply"]');
   for(var i=0;i<abs.length;i++) abs[i].disabled = locked;
   var bs = document.querySelectorAll('#engSeg button');
   for(var i=0;i<bs.length;i++) bs[i].classList.remove('on');
   el.classList.add('on');
-  sb(locked ? ('仅预览 '+ENGINES[k].name+' · 保存已锁定') : ('已切换到 '+ENGINES[k].name+' 的落地方式'));
+  sb(locked ? ('仅预览 '+ENGINES[k].name+' · 封存已锁定') : ('已切换到 '+ENGINES[k].name+' 的落地方式'));
 }
 function doApply(btn){
   btn.disabled = true;
   btn.textContent = '写入中…';
   setTimeout(function(){
-    btn.textContent = '完成 · 14,679 条已落盘';
+    btn.textContent = '已封存 · 14,679 条落盘';
     STEPS[5].s = '已写入 14,679 条';
-    STEPS[5].t = '保存并应用到游戏';
+    STEPS[5].t = '封存并应用到游戏';
     render();
     sb('写入完成 · 词典 1,424,251 B · 备份已更新');
     setTimeout(function(){ if(state.cur === 5) advance(); }, 700);
@@ -1037,7 +1123,7 @@ function resetDemo(){
   document.getElementById('m-done').textContent = '9,102';
   document.getElementById('m-todo').textContent = '5,319';
   document.getElementById('m-fail').textContent = '258';
-  STEPS[4].s = '已译 9,102 / 14,679';
+  STEPS[4].s = '已炼 9,102 / 14,679';
   STEPS[5].s = '待执行';
   render();
   sb('演示已重置 · 从第 0 步开始');
