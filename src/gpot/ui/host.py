@@ -11,5 +11,9 @@ def open_window(url: str, title: str = "G-POT 翻译器") -> None:
     import webview  # 懒加载：仅真正开窗口时才需要
     webview.create_window(title, url, width=1180, height=760,
                           min_size=(900, 600))
-    # 显式指定 Edge/WebView2 后端，避免在某些机器上误选 CEF 等缺失后端。
-    webview.start(gui="edgechromium")
+    # 优先显式 Edge/WebView2 后端；若该后端初始化失败，退一步用默认后端再试一次，
+    # 仍失败则抛出异常，由 main() 改用系统浏览器兜底。
+    try:
+        webview.start(gui="edgechromium")
+    except Exception:
+        webview.start()
