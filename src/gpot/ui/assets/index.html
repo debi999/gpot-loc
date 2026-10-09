@@ -240,6 +240,7 @@
             <div>
               <div class="card-h" style="margin-bottom:2px">当前管线</div>
               <div class="card-sub" style="margin-bottom:0" id="p5engineName">待识别</div>
+              <div class="subtle" id="p5lockedTo" style="margin-top:4px"></div>
             </div>
             <div class="seg" id="engSeg">
               <button onclick="previewEngine('unity',this)">Unity</button>
@@ -247,7 +248,7 @@
               <button onclick="previewEngine('manual',this)">无方案</button>
             </div>
           </div>
-          <div class="subtle" style="margin-top:8px">演示：可切换查看三种管线的落地形态；真实版按识别结果自动显示。</div>
+          <div class="subtle" style="margin-top:8px">默认锁定当前游戏识别出的管线；切到其它管线查看形态时，「保存并写入」会禁用。</div>
         </div>
         <div id="sinkView"></div>
       </section>

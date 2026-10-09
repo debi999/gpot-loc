@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import time
 
+from gpot.core import pipeline
+
 
 def extract(store, options: dict) -> dict:
     # TODO(M2): 接入真实提取 + 护栏（过滤 ~35.4% 碎片、80/95 污染）
@@ -15,5 +17,7 @@ def extract(store, options: dict) -> dict:
         "added": 3421, "existing": 11258, "guarded": 8045,
         "total": 14679, "status": "done",
     }
-    store.unlock_to(4)  # 提取完成 → 解锁翻译（第 4 步）
+    # 提取完成 → 解锁下一步。解锁目标由 pipeline._NEXT 统一定义
+    # （当前为第 5 步「保存并应用」，使翻译成为可选项）。
+    pipeline.complete_step(store, 3)
     return store.extract

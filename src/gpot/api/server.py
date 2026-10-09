@@ -171,7 +171,11 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send(200, {"ok": translate.cancel_job(_STATE, jid)})
 
         if path == "/api/sink/apply":
-            ek = (_STATE.engine or {}).get("key") or "unity"
+            ek = b.get("engine") or (_STATE.engine or {}).get("key") or "unity"
+            detected = (_STATE.engine or {}).get("key") or "unity"
+            if ek != detected:
+                return self._send(400, {"error": "engine_mismatch",
+                                        "message": f"当前游戏管线为 {detected}，不能按 {ek} 管线写入"})
             return self._send(200, sink.apply(_STATE, ek))
 
         if path == "/api/nav":

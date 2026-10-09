@@ -39,8 +39,19 @@ def test_extract_unlocks_translate():
     s.unlock_to(3)
     extract.extract(s, {})
     assert s.extract["total"] == 14679
-    assert s.max_step >= 4             # 提取完成解锁翻译
-    print("  ✓ 提取 + 解锁链")
+    assert s.max_step >= 5             # 提取完成直接解锁「保存并应用」（翻译变为可选项）
+    print("  ✓ 提取 + 解锁链（翻译可选）")
+
+
+def test_extract_unlocks_save_without_translate():
+    # 关键约束：提取后即可进入「保存并应用」，不必先完成翻译
+    s = store.Store()
+    s.unlock_to(3)
+    extract.extract(s, {})
+    assert s.nav(5) is True            # 第 5 步（保存）已解锁
+    assert s.nav(4) is True            # 第 4 步（翻译）也仍可达，但非必经
+    assert s.max_step == 5
+    print("  ✓ 提取后即可保存，无需翻译")
 
 
 def test_translate_job_runs_to_completion():

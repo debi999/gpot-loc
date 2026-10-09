@@ -625,8 +625,14 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',sans-serif;font-s
               <button onclick="setEngine('rm',this)">RPG Maker MV</button>
               <button onclick="setEngine('manual',this)">无方案引擎</button>
             </div>
-            <span class="subtle">原型演示：真实版自动显示</span>
           </div>
+          <div class="subtle" style="margin-top:8px">默认锁定当前游戏识别出的管线；切到其它管线查看形态时，「保存并写入」会禁用。</div>
+          <div class="subtle" id="p5lockedTo" style="margin-top:4px"></div>
+        </div>
+
+        <div class="infobar ib-warn" id="engLockNote" hidden style="margin-top:12px">
+          <svg class="ib-ico" width="17" height="17"><use href="#i-warn"/></svg>
+          <div id="engLockText"></div>
         </div>
 
         <!-- Unity -->
@@ -977,16 +983,28 @@ var ENGINES = {
   manual: {name:'TyranoScript（无自动方案）',
            hint:'这个引擎没有注入方案，译文存为本地草稿，导出后人工处理。'}
 };
+var DETECTED = 'unity';   // 第 2 步识别出的当前游戏管线（原型默认 Unity）
 function setEngine(k, el){
   document.getElementById('eng-unity').hidden  = k !== 'unity';
   document.getElementById('eng-rm').hidden     = k !== 'rm';
   document.getElementById('eng-manual').hidden = k !== 'manual';
   document.getElementById('p5engineName').textContent = ENGINES[k].name;
   document.getElementById('p6hint').innerHTML = '<b>'+ENGINES[k].hint+'</b>';
+  // 锁死到当前游戏识别出的管线：选其它引擎仅可预览，保存按钮禁用
+  var locked = (k !== DETECTED);
+  document.getElementById('p5lockedTo').textContent = '锁定：'+ENGINES[DETECTED].name+'（当前游戏识别结果）';
+  var note = document.getElementById('engLockNote');
+  if(locked){
+    note.hidden = false;
+    document.getElementById('engLockText').innerHTML =
+      '当前游戏识别为 <b>'+ENGINES[DETECTED].name+'</b>，不能按 <b>'+ENGINES[k].name+'</b> 管线写入。点回上方「'+ENGINES[DETECTED].name+'」即可解锁保存。';
+  } else { note.hidden = true; }
+  var abs = document.querySelectorAll('button[onclick^="doApply"]');
+  for(var i=0;i<abs.length;i++) abs[i].disabled = locked;
   var bs = document.querySelectorAll('#engSeg button');
   for(var i=0;i<bs.length;i++) bs[i].classList.remove('on');
   el.classList.add('on');
-  sb('已切换到 '+ENGINES[k].name+' 的落地方式');
+  sb(locked ? ('仅预览 '+ENGINES[k].name+' · 保存已锁定') : ('已切换到 '+ENGINES[k].name+' 的落地方式'));
 }
 function doApply(btn){
   btn.disabled = true;

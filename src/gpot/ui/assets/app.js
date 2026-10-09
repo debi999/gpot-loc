@@ -88,15 +88,19 @@ function curPage() { return STATE.current_step; }
 /* ---------------- 导航 ---------------- */
 async function goto(i) {
   const r = await api('POST', '/api/nav', { step: i });
-  if (r.current_step !== undefined) { STATE = r; renderRail(); showPage(i); }
-  else sb('这一步还没解锁');
+  if (r && r.max_step !== undefined && i <= r.max_step) {
+    STATE = r; renderRail(); showPage(i);
+    if (i === 5) await loadSink(curEngineKey());
+    if (i === 6) await loadVerify();
+  } else sb('这一步还没解锁');
 }
 async function goNext() {
   const next = STATE.current_step + 1;
   const r = await api('POST', '/api/nav', { step: next });
-  if (r.current_step !== undefined) { STATE = r; renderRail(); showPage(next);
-    if (next === 5) loadSink(STATE.engine ? STATE.engine.key : 'unity');
-    if (next === 6) loadVerify();
+  if (r && r.max_step !== undefined && next <= r.max_step) {
+    STATE = r; renderRail(); showPage(next);
+    if (next === 5) await loadSink(curEngineKey());
+    if (next === 6) await loadVerify();
   } else sb('先完成本步，下一步才解锁');
 }
 async function resetAll() {
@@ -324,9 +328,22 @@ async function stopTranslate() {
 }
 
 /* ---------------- Step 5：落盘（按引擎变脸） ---------------- */
+let SEL_ENGINE = null;            // 保存步骤当前选中的管线
+function curEngineKey() { return (STATE.engine && STATE.engine.key) || 'unity'; }
+
 async function loadSink(engineKey) {
-  const v = await api('GET', '/api/sink?engine=' + engineKey);
+  SEL_ENGINE = engineKey;
+  const detected = curEngineKey();
+  const locked = engineKey !== detected;   // 选了非当前引擎 → 锁死保存按钮
+  // 同步顶部 seg 高亮（找到 onclick 里带该引擎 key 的按钮）
+  document.querySelectorAll('#engSeg button').forEach(b => {
+    const m = (b.getAttribute('onclick') || '').match(/'([^']+)'/);
+    b.classList.toggle('on', !!(m && m[1] === engineKey));
+  });
   document.getElementById('p5engineName').textContent = engineName(engineKey);
+  document.getElementById('p5lockedTo').textContent =
+    '锁定：' + engineName(detected) + '（当前游戏识别结果）';
+  const v = await api('GET', '/api/sink?engine=' + engineKey);
   const m = (v.metrics || []).map(x =>
     `<div class="metric"><div class="metric-l">${x.l}</div><div class="metric-v">${x.v}</div><div class="metric-n">${x.n}</div></div>`).join('');
   const files = (v.files || []).map(f =>
@@ -351,6 +368,14 @@ async function loadSink(engineKey) {
   }
   const restore = v.can_restore
     ? `<button class="btn btn-danger" onclick="restoreOriginal()">还原原文</button>` : '';
+  // 选了非当前引擎时，保存按钮禁用（锁死到当前游戏管线）
+  const applyBtn = locked
+    ? `<button class="btn btn-accent btn-lg" disabled title="当前游戏识别为 ${engineName(detected)}，不能按 ${engineName(engineKey)} 管线写入">${v.title}</button>`
+    : `<button class="btn btn-accent btn-lg" onclick="applySink()">${v.title}</button>`;
+  const lockNote = locked
+    ? `<div class="infobar ib-warn"><svg class="ib-ico" width="17" height="17"><use href="#i-warn"/></svg>
+        <div>当前游戏识别为 <b>${engineName(detected)}</b>，不能按 <b>${engineName(engineKey)}</b> 管线写入。点回上方「${engineName(detected)}」即可解锁保存。</div></div>`
+    : '';
   document.getElementById('sinkView').innerHTML = `
     <div class="grid3">${m}</div>
     <div class="infobar ib-${v.kind==='none'?'danger':(v.kind==='rewrite'?'warn':'ok')}">
@@ -358,9 +383,10 @@ async function loadSink(engineKey) {
       <div>${v.warn}</div></div>
     ${files ? `<div class="card"><div class="card-h">${v.kind==='rewrite'?'回写位置':'写入位置'}</div>${files}</div>` : ''}
     ${extra}
+    ${lockNote}
     <div class="btn-row spread">
       ${restore}
-      <button class="btn btn-accent btn-lg" onclick="applySink()">${v.title}</button>
+      ${applyBtn}
     </div>`;
 }
 function engineName(k) {
@@ -372,7 +398,12 @@ function previewEngine(k, el) {
   loadSink(k);
 }
 async function applySink() {
-  const r = await api('POST', '/api/sink/apply');
+  if (SEL_ENGINE !== curEngineKey()) {
+    sb('请先选回当前游戏管线（' + engineName(curEngineKey()) + '）再保存');
+    return;
+  }
+  const r = await api('POST', '/api/sink/apply', { engine: SEL_ENGINE });
+  if (r.error) { sb(r.message || '保存被拒绝'); return; }
   sb('已应用 · ' + (r.files || []).length + ' 个落点');
   goNext();
 }
