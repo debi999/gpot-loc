@@ -123,7 +123,9 @@ class _Handler(BaseHTTPRequestHandler):
             jid = path.rsplit("/", 1)[-1]
             j = translate.get_job(_STATE, jid)
             return self._send(200 if j else 404, j or {"error": "no such job"})
-        return self._send(404, {"error": "not found"})
+        # 兜底：其余 GET 路径尝试作为 assets 静态文件伺服（兼容相对路径引用，
+        # 使 index.html 在 file:// 下双击也能完整加载 CSS/JS）。找不到仍 404。
+        return self._static(path.lstrip("/"), self._ctype(path))
 
     # -------------------- POST --------------------
     def do_POST(self):
