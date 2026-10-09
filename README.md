@@ -17,7 +17,8 @@ G-POT Loc 是一条面向独立游戏的七步汉化流水线：识别引擎 →
 | 阶段 | 状态 |
 |---|---|
 | UI 版面（七步流水线） | ✅ 已定稿（原型 `prototype/ui-prototype.html`，v0.2 密度收窄版） |
-| 业务功能按新版迁移 | ⏳ 待技术栈确认（见 [docs/开发计划.md](docs/开发计划.md)） |
+| **C 路线最小原型**（Python 内核 + WebView2） | ✅ 三层解耦架构跑通，见 [`src/`](src/) 与 [docs/开发计划.md](docs/开发计划.md) |
+| 业务功能按新版迁移（真实内核接入） | ⏳ M2（见 [docs/开发计划.md](docs/开发计划.md)） |
 | 可用稳定版本 | v3.x（旧界面），代码与回归测试在旧库继续可用 |
 
 ## 七步流程
@@ -42,6 +43,18 @@ G-POT Loc 是一条面向独立游戏的七步汉化流水线：识别引擎 →
   无自动方案的引擎不伪装，给出真实缺失原因
 - **提取护栏**：截断残片过滤（实测拦截 35.4%、0 误伤）与污染词条过滤（0 误伤）
 - **诚实性约束**：未执行的步骤不编造状态；已验证 / 仅查过 API 的工具包状态分开显示
+
+## 源码（C 路线最小原型）
+
+`src/` 是 v4.0 的应用真源，采用 **core / api / ui 三层解耦**（详见 [`src/README.md`](src/README.md)）：
+内核纯 Python 零依赖 UI、HTTP 桥唯一连接、前端纯静态。本机运行：
+
+```bash
+cd src
+pip install -r requirements.txt      # 只需 pywebview（Windows 自带 WebView2 运行时）
+python main.py                       # 开 WebView2 窗口；或 --no-gui 只起 API
+python tests/test_pipeline.py        # 内核解耦测试（只 import core）
+```
 
 ## 文档索引
 
