@@ -37,7 +37,7 @@ for %%P in (%CANDIDATES%) do (
     if !errorlevel! == 0 (
       set "PY=%%~P"
       set "PYREADY=1"
-      echo [G-POT] 选用解释器(已含 webview): %%~P >> "%LOG%"
+      echo [G-POT] 选用解释器 已含 webview: %%~P >> "%LOG%"
     )
   )
 )
@@ -49,7 +49,7 @@ if not defined PY (
       "%%~P" -m pip --version >nul 2>&1
       if !errorlevel! == 0 (
         set "PY=%%~P"
-        echo [G-POT] 选用解释器(需安装 webview): %%~P >> "%LOG%"
+        echo [G-POT] 选用解释器 需安装 webview: %%~P >> "%LOG%"
       )
     )
   )
