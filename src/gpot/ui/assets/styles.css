@@ -121,7 +121,7 @@ button{font-family:inherit}
 
 /* 管线：左侧一根发光导管串起所有节点 */
 .steps{display:flex;flex-direction:column;gap:2px;position:relative;padding-left:2px}
-.steps::before{content:'';position:absolute;left:17px;top:20px;bottom:20px;width:2px;
+.steps::before{content:'';position:absolute;left:27px;top:23px;bottom:23px;width:2px;
   background:linear-gradient(180deg,rgba(240,169,60,.45),rgba(240,169,60,.10) 75%,transparent);
   border-radius:2px}
 .step{display:flex;align-items:center;gap:13px;padding:9px 12px;border:none;background:transparent;
@@ -138,15 +138,13 @@ button{font-family:inherit}
   justify-content:center;font-family:var(--font-mono);font-size:11.5px;font-weight:700;
   border:1.5px solid var(--border-str);background:var(--inset);color:var(--text-mute);
   transition:all .2s;font-variant-numeric:tabular-nums;position:relative}
-/* 导管穿过节点：节点底色遮住管线，制造「串在管上」的错觉 */
-.step-mark::after{content:'';position:absolute;inset:-5px;border-radius:50%;background:var(--bg-2);z-index:-1}
+/* 导管从节点正后方穿过：节点自身不透明（z-index:1），线只在节点间隙可见 */
 .step.done .step-mark{background:rgba(240,169,60,.16);border-color:var(--amber);color:var(--amber)}
 .step.done .step-mark svg{filter:drop-shadow(0 0 3px rgba(240,169,60,.6))}
 .step.current .step-mark{background:var(--amber-grad);border-color:transparent;color:#221A0C;
   box-shadow:var(--sh-amber);animation:markPulse 2.4s ease-in-out infinite}
-.step.current .step-mark::after{background:var(--bg)}
-.step-title{font-size:13px;font-weight:600;line-height:1.35;color:var(--text)}
-.step-sub{font-family:var(--font-mono);font-size:10px;color:var(--text-mute);line-height:1.4;margin-top:2px;letter-spacing:.03em}
+.step-title{display:block;font-size:13px;font-weight:600;line-height:1.35;color:var(--text)}
+.step-sub{display:block;font-family:var(--font-mono);font-size:10px;color:var(--text-mute);line-height:1.4;margin-top:2px;letter-spacing:.03em}
 .step.current .step-title{color:var(--amber-hi)}
 .step.current .step-sub{color:var(--amber-dim)}
 .rail-foot{margin-top:auto;padding-top:14px;border-top:1px solid var(--border);
