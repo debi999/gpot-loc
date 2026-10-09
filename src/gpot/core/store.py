@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import threading
 
-# 七步的领域定义（步骤元数据属于内核，不属于界面）
+# FR-35: 七步领域定义（步骤元数据属于内核，不属于界面）
 STEPS = [
     {"n": 0, "key": "config",   "title": "配置翻译服务",        "sub": "本地 Ollama · 未连接"},
     {"n": 1, "key": "game",     "title": "选择游戏目录",        "sub": "未选择"},
@@ -32,7 +32,7 @@ class Store:
         self.jobs: dict = {}
         self.reset()
 
-    # ---- 导航锁：唯一权威 ----
+    # ---- 导航锁：唯一权威（FR-36）----
     def nav(self, step: int) -> bool:
         """跳转到 step。只能落在已解锁区间 [0, max_step]。"""
         with self.lock:
@@ -43,7 +43,7 @@ class Store:
             self.current_step = step
             return True
 
-    def unlock_to(self, step: int) -> None:
+    def unlock_to(self, step: int) -> None:  # FR-36: 解锁只增不减
         with self.lock:
             if step > self.max_step:
                 self.max_step = step

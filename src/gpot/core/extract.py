@@ -10,14 +10,14 @@ import time
 from gpot.core import pipeline
 
 
-def extract(store, options: dict) -> dict:
+def extract(store, options: dict) -> dict:  # FR-42: 文本提取与护栏（M2 接入真实提取+护栏）
     # TODO(M2): 接入真实提取 + 护栏（过滤 ~35.4% 碎片、80/95 污染）
     time.sleep(0.5)
     store.extract = {
         "added": 3421, "existing": 11258, "guarded": 8045,
         "total": 14679, "status": "done",
     }
-    # 提取完成 → 解锁下一步。解锁目标由 pipeline._NEXT 统一定义
-    # （当前为第 5 步「保存并应用」，使翻译成为可选项）。
+    # FR-49: 提取完成 → 解锁由 pipeline._NEXT 统一定义（当前直达第 5 步「保存并应用」，
+    # 使第 4 步翻译成为可选项；步骤推进只在 pipeline._NEXT 一处，调用方不越权）。
     pipeline.complete_step(store, 3)
     return store.extract

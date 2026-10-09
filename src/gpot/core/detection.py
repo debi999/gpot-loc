@@ -10,7 +10,7 @@ from __future__ import annotations
 import time
 
 
-def detect_engine(game_path: str) -> dict:
+def detect_engine(game_path: str) -> dict:  # FR-40: 引擎识别（M2 接入真实启发式）
     # TODO(M2): 接入真实文件系统启发式（来自 engine_detector.py）
     time.sleep(0.4)  # 模拟扫描耗时
     return {

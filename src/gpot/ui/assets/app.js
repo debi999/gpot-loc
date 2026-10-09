@@ -46,6 +46,7 @@ function renderRail() {
     const mark = done
       ? '<svg width="13" height="13"><use href="#i-check"/></svg>'
       : (i + 1);
+    // FR-46（单主按钮原则）& NFR-12（文案密度铁律）—— 每页导语≤1行、卡片副标题≤1行（UI 呈现层约束）
     html += `<button class="step ${cls}" data-i="${i}" ${locked ? 'disabled' : ''} onclick="goto(${i})">
       <span class="step-mark">${mark}</span>
       <span><span class="step-title">${s.title}</span>
@@ -298,6 +299,7 @@ async function pollJob() {
   if (!TRANS_JOB) return;
   const j = await api('GET', '/api/jobs/' + TRANS_JOB);
   if (!j || j.error) return;
+  // FR-43: 翻译与人工校对 —— 渲染进度与逐条结果，供人工确认/重试
   const done = j.done, total = STATE.translate.total;
   const todo = Math.max(0, total - done - STATE.translate.failed);
   document.getElementById('p4bar').firstElementChild.style.width = j.progress + '%';
@@ -334,7 +336,7 @@ function curEngineKey() { return (STATE.engine && STATE.engine.key) || 'unity'; 
 async function loadSink(engineKey) {
   SEL_ENGINE = engineKey;
   const detected = curEngineKey();
-  const locked = engineKey !== detected;   // 选了非当前引擎 → 锁死保存按钮
+  const locked = engineKey !== detected;   // FR-48: 选了非当前引擎 → 锁死保存按钮（锁死到当前游戏管线）
   // 同步顶部 seg 高亮（找到 onclick 里带该引擎 key 的按钮）
   document.querySelectorAll('#engSeg button').forEach(b => {
     const m = (b.getAttribute('onclick') || '').match(/'([^']+)'/);

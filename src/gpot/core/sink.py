@@ -11,7 +11,7 @@ from __future__ import annotations
 from gpot.core import pipeline
 
 
-def sink_view(engine_key: str) -> dict:
+def sink_view(engine_key: str) -> dict:  # FR-44: 落盘三形态视图（runtime/rewrite/none，按引擎自动变脸）
     if engine_key == "rm":
         return {
             "kind": "rewrite",
@@ -78,7 +78,7 @@ def sink_view(engine_key: str) -> dict:
     }
 
 
-def apply(store, engine_key: str) -> dict:
+def apply(store, engine_key: str) -> dict:  # FR-44: 应用落盘（按引擎自动变脸）
     view = sink_view(engine_key)
     store.sink = {
         "applied": True,
@@ -92,7 +92,7 @@ def apply(store, engine_key: str) -> dict:
     return store.sink
 
 
-def verify(store) -> dict:
+def verify(store) -> dict:  # FR-45: 启动验证（应用结果闭环）
     ek = (store.sink.get("engine")
           or (store.engine or {}).get("key")
           or "unity")

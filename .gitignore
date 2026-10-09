@@ -18,6 +18,9 @@ docs/*.html
 toolcache/
 *.log
 
+# ===== CodeGraph 索引（可由 codegraph init/sync 重建，不入库）=====
+.codegraph/
+
 # ===== 编辑器 / 系统 =====
 .idea/
 .vscode/

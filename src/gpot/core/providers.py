@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+# FR-38: 翻译后端目录（第 0 步配置翻译服务使用）
 PROVIDERS = [
     {"key": "ollama", "name": "本地 Ollama", "desc": "免费 · 离线 · 本机已装", "needs_key": False},
     {"key": "openai", "name": "OpenAI 兼容", "desc": "任意兼容端点", "needs_key": True},
@@ -19,7 +20,7 @@ def list_providers() -> list:
     return PROVIDERS
 
 
-def test_connection(cfg: dict) -> dict:
+def test_connection(cfg: dict) -> dict:  # FR-38: 连通性测试
     # TODO(M2): 真实 ping 已配置的端点
     ok = cfg.get("provider") == "ollama"  # 原型：本地模型默认通，其余需 Key
     return {

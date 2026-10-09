@@ -109,7 +109,7 @@ class _Handler(BaseHTTPRequestHandler):
             return self._static(path[len("/assets/"):], self._ctype(path))
         if path == "/api/state":
             return self._send(200, _STATE.to_dict())
-        if path == "/api/providers":
+        if path == "/api/providers":  # FR-38: 列出翻译后端（第 0 步配置）
             return self._send(200, {"providers": providers.list_providers()})
         if path.startswith("/api/sink"):
             q = parse_qs(p.query)
@@ -117,7 +117,7 @@ class _Handler(BaseHTTPRequestHandler):
                   or (_STATE.engine or {}).get("key")
                   or "unity")
             return self._send(200, sink.sink_view(ek))
-        if path.startswith("/api/verify"):
+        if path.startswith("/api/verify"):  # FR-45: 启动验证（第 6 步·应用结果闭环）
             return self._send(200, sink.verify(_STATE))
         if path.startswith("/api/jobs/"):
             jid = path.rsplit("/", 1)[-1]
@@ -131,7 +131,7 @@ class _Handler(BaseHTTPRequestHandler):
         path = p.path
         b = self._json_body()
 
-        if path == "/api/config":
+        if path == "/api/config":  # FR-38: 配置翻译服务 + 连通测试（第 0 步）
             for k in ("provider", "model", "address"):
                 if k in b:
                     _STATE.config[k] = b[k]
@@ -141,28 +141,28 @@ class _Handler(BaseHTTPRequestHandler):
                 pipeline.complete_step(_STATE, 0)
             return self._send(200, {"config": _STATE.config, **r})
 
-        if path == "/api/game":
+        if path == "/api/game":  # FR-39: 选择游戏目录（第 1 步）
             gp = b.get("path", "")
             _STATE.game = {"path": gp, "name": b.get("name") or _name_from_path(gp),
                           "existing": 14679}
             pipeline.complete_step(_STATE, 1)
             return self._send(200, _STATE.game)
 
-        if path == "/api/detect":
+        if path == "/api/detect":  # FR-40: 识别引擎（第 2 步）
             eng = detection.detect_engine(_STATE.game.get("path", ""))
             _STATE.engine = eng
             _STATE.kit = {"deployed": False, "tools": _kit_tools(eng)}
             pipeline.complete_step(_STATE, 2)
             return self._send(200, eng)
 
-        if path == "/api/deploy":
+        if path == "/api/deploy":  # FR-41: 部署注入工具（第 2 步·前移）
             _STATE.kit = {"deployed": True, "tools": _kit_tools(_STATE.engine, deployed=True)}
             return self._send(200, _STATE.kit)
 
-        if path == "/api/extract":
+        if path == "/api/extract":  # FR-42: 提取待翻译文本与护栏（第 3 步）
             return self._send(200, extract.extract(_STATE, b))
 
-        if path == "/api/translate/start":
+        if path == "/api/translate/start":  # FR-43: 启动翻译任务（第 4 步）
             jid = translate.start_translate(_STATE, bool(b.get("retry")))
             return self._send(200, {"job_id": jid})
 
@@ -170,7 +170,7 @@ class _Handler(BaseHTTPRequestHandler):
             jid = path.rsplit("/", 2)[-2]
             return self._send(200, {"ok": translate.cancel_job(_STATE, jid)})
 
-        if path == "/api/sink/apply":
+        if path == "/api/sink/apply":  # FR-44（按引擎变脸·落盘）& FR-48（引擎锁死校验）
             ek = b.get("engine") or (_STATE.engine or {}).get("key") or "unity"
             detected = (_STATE.engine or {}).get("key") or "unity"
             if ek != detected:
@@ -178,7 +178,7 @@ class _Handler(BaseHTTPRequestHandler):
                                         "message": f"当前游戏管线为 {detected}，不能按 {ek} 管线写入"})
             return self._send(200, sink.apply(_STATE, ek))
 
-        if path == "/api/nav":
+        if path == "/api/nav":  # FR-36: 导航锁（只落已解锁区间）
             ok = _STATE.nav(int(b.get("step", 0)))
             return self._send(200 if ok else 400, _STATE.to_dict())
 

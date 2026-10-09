@@ -13,7 +13,7 @@ import uuid
 from gpot.core import pipeline
 
 
-def start_translate(store, retry: bool) -> str:
+def start_translate(store, retry: bool) -> str:  # FR-43: 翻译任务（流式形状保留，M2 接真实后端）
     with store.lock:
         job_id = uuid.uuid4().hex[:8]
         total = store.translate["total"]
