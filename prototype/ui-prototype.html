@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>G-POT 翻译器 v4.0 · UI 原型（炼香工坊 · 粉紫）</title>
+<title>G-POT 翻译器 v4.0 · UI 原型</title>
 <style>
 :root{
   /* —— 机身 / 材质 —— */
@@ -338,7 +338,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
     <div class="tb-brand">
       <div class="tb-logo">G</div>
       <span class="tb-name">G-POT 翻译器</span>
-      <span class="tb-sub">把生肉熬成蜜语 · Localize the desire</span>
+      <span class="tb-sub">把生肉熬成蜜语。 · v4.0 原型</span>
     </div>
     <div class="tb-right">
       <button class="iconbtn" title="设置"><svg width="15" height="15"><use href="#i-gear"/></svg></button>
@@ -355,7 +355,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
           <div class="gc-meta">F:\erogame\Starmaker_Story\…</div>
         </div>
       </div>
-      <div class="rail-label">炼制流程</div>
+      <div class="rail-label">汉化流程</div>
       <div class="steps" id="steps"></div>
       <div class="rail-foot">
         <button class="btn btn-ghost" style="justify-content:flex-start" onclick="advance()">
@@ -376,7 +376,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
       <section class="page" data-page="0">
         <div class="pg-head">
           <div class="pg-step">第 0 步 · 一次性准备</div>
-          <h1 class="pg-title">调配翻译服务</h1>
+          <h1 class="pg-title">配置翻译服务</h1>
           <p class="pg-desc">接通一个翻译后端，后面才跑得动。</p>
         </div>
 
@@ -445,7 +445,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
 
         <div class="btn-row spread">
           <button class="btn">测试连接</button>
-          <button class="btn btn-accent btn-lg" onclick="advance()">封存并继续 · 选择游戏 →</button>
+          <button class="btn btn-accent btn-lg" onclick="advance()">保存并继续 · 选择游戏 →</button>
         </div>
       </section>
 
@@ -453,7 +453,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
       <section class="page" data-page="1">
         <div class="pg-head">
           <div class="pg-step">第 1 步 · 一次性准备</div>
-          <h1 class="pg-title">选定游戏目录</h1>
+          <h1 class="pg-title">选择游戏目录</h1>
           <p class="pg-desc">选游戏的<b>根目录</b>：放 .exe 的那一层。</p>
         </div>
 
@@ -467,7 +467,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
         </div>
 
         <div class="card">
-          <div class="card-h">最近取用</div>
+          <div class="card-h">最近使用</div>
           <div class="rowitem">
             <div class="gc-cover" style="width:34px;height:34px;flex:0 0 34px;font-size:13px">S</div>
             <div class="ri-main">
@@ -561,7 +561,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
         </div>
 
         <div class="btn-row" style="justify-content:flex-end">
-          <button class="btn btn-accent btn-lg" onclick="advance()">继续 · 萃取文本 →</button>
+          <button class="btn btn-accent btn-lg" onclick="advance()">继续 · 提取文本 →</button>
         </div>
       </section>
 
@@ -569,7 +569,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
       <section class="page" data-page="3">
         <div class="pg-head">
           <div class="pg-step">第 3 步 · 游戏更新后才重跑</div>
-          <h1 class="pg-title">萃取待翻译文本</h1>
+          <h1 class="pg-title">提取待翻译文本</h1>
           <p class="pg-desc">不用运行游戏，直接从资源里扫出原文。</p>
         </div>
 
@@ -594,7 +594,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
           <div class="card-h">扫描范围</div>
           <div class="ri-s" style="font-size:12.5px">Starmaker 1.8E_Data · 排除 StreamingAssets/resS · 预计扫 1,240 个文件</div>
           <div class="btn-row" style="margin-top:15px">
-            <button class="btn btn-accent btn-lg" onclick="runExtract(this)">开始萃取</button>
+            <button class="btn btn-accent btn-lg" onclick="runExtract(this)">开始提取</button>
             <button class="btn">改范围</button>
           </div>
           <div class="prog-row" id="p3prog" hidden>
@@ -604,7 +604,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
         </div>
 
         <div class="grid4" id="p3result">
-          <div class="metric"><div class="metric-l">本轮新增</div><div class="metric-v">3,421</div><div class="metric-n">新萃取到的原文</div></div>
+          <div class="metric"><div class="metric-l">本轮新增</div><div class="metric-v">3,421</div><div class="metric-n">新提取到的原文</div></div>
           <div class="metric"><div class="metric-l">已存在</div><div class="metric-v">11,258</div><div class="metric-n">跳过，不覆盖原译文</div></div>
           <div class="metric"><div class="metric-l">护栏拦截</div><div class="metric-v">8,045</div><div class="metric-n">疑似碎片/污染</div></div>
           <div class="metric"><div class="metric-l">在表总数</div><div class="metric-v">14,679</div><div class="metric-n">当前全部条目</div></div>
@@ -616,7 +616,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
         </div>
 
         <div class="btn-row" style="justify-content:flex-end">
-          <button class="btn btn-accent btn-lg" onclick="afterExtract()">继续 · 炼制校对 →</button>
+          <button class="btn btn-accent btn-lg" onclick="afterExtract()">继续 · 翻译校对 →</button>
         </div>
       </section>
 
@@ -624,21 +624,21 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
       <section class="page" data-page="4">
         <div class="pg-head">
           <div class="pg-step">第 4 步 · 每轮迭代</div>
-          <h1 class="pg-title">炼制与人工校对</h1>
+          <h1 class="pg-title">翻译与人工校对</h1>
           <p class="pg-desc">机器先跑一遍，然后人工过一遍 —— 口吻、称谓、双关，翻错比没翻更伤。</p>
         </div>
 
         <div class="grid4" style="margin-bottom:15px">
           <div class="metric"><div class="metric-l">总条目</div><div class="metric-v">14,679</div><div class="metric-n">1,424,251 B</div></div>
-          <div class="metric"><div class="metric-l">已炼制</div><div class="metric-v" id="m-done">9,102</div><div class="metric-n">62%</div></div>
-          <div class="metric"><div class="metric-l">未炼制</div><div class="metric-v" id="m-todo">5,319</div><div class="metric-n">本次目标</div></div>
+          <div class="metric"><div class="metric-l">已翻译</div><div class="metric-v" id="m-done">9,102</div><div class="metric-n">62%</div></div>
+          <div class="metric"><div class="metric-l">未翻译</div><div class="metric-v" id="m-todo">5,319</div><div class="metric-n">本次目标</div></div>
           <div class="metric"><div class="metric-l">失败</div><div class="metric-v" id="m-fail">258</div><div class="metric-n">多为超长/超时</div></div>
         </div>
 
         <div class="card">
           <div class="btn-row spread" style="margin-bottom:2px">
             <div>
-              <div class="card-h" style="margin-bottom:2px">批量炼制</div>
+              <div class="card-h" style="margin-bottom:2px">批量翻译</div>
             </div>
             <div style="text-align:right">
               <div style="font-size:12px;color:var(--text-sub)">并发 4 · 预计 22 分钟</div>
@@ -650,7 +650,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
             <div class="prog-txt" id="p4txt">62%</div>
           </div>
           <div class="btn-row" style="margin-top:15px">
-            <button class="btn btn-accent btn-lg" id="btnTrans" onclick="runTranslate(this)">炼制未译条目 ▾</button>
+            <button class="btn btn-accent btn-lg" id="btnTrans" onclick="runTranslate(this)">翻译未译条目 ▾</button>
             <button class="btn" onclick="runTranslate(this,true)">仅重试失败</button>
             <button class="btn">停止</button>
           </div>
@@ -696,7 +696,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
       <section class="page" data-page="5">
         <div class="pg-head">
           <div class="pg-step">第 5 步 · 每轮迭代</div>
-          <h1 class="pg-title">封存并应用到游戏</h1>
+          <h1 class="pg-title">保存并应用到游戏</h1>
           <p class="pg-desc">这一步的样子由<b>引擎</b>决定 —— 按第 2 步的识别结果自动显示。</p>
         </div>
 
@@ -712,7 +712,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
               <button onclick="setEngine('manual',this)">无方案引擎</button>
             </div>
           </div>
-          <div class="subtle" style="margin-top:9px">默认锁定当前游戏识别出的管线；切到其它管线查看形态时，「封存并写入」会禁用。</div>
+          <div class="subtle" style="margin-top:9px">默认锁定当前游戏识别出的管线；切到其它管线查看形态时，「保存并写入」会禁用。</div>
           <div class="subtle" id="p5lockedTo" style="margin-top:4px"></div>
         </div>
 
@@ -750,7 +750,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
 
           <div class="btn-row spread">
             <span class="subtle">原子写入 · 自动留 3 代备份</span>
-            <button class="btn btn-accent btn-lg" onclick="doApply(this)">封存并写入词典</button>
+            <button class="btn btn-accent btn-lg" onclick="doApply(this)">保存并写入词典</button>
           </div>
         </div>
 
@@ -887,7 +887,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
 
         <div class="card">
           <div class="card-h">整条流程走完了</div>
-          <div class="card-sub">下次改一句台词：点「4 炼制」→ 改 → 走第 5 步。</div>
+          <div class="card-sub">下次改一句台词：点「4 翻译」→ 改 → 走第 5 步。</div>
           <div class="btn-row">
             <button class="btn" onclick="resetDemo()">重看一遍流程</button>
           </div>
@@ -909,12 +909,12 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
 <script>
 /* ---------------- 步骤定义 ---------------- */
 var STEPS = [
-  {t:'调配翻译服务',     s:'本地 Ollama · 已连接'},
-  {t:'选定游戏目录',     s:'Starmaker Story 1.8e'},
+  {t:'配置翻译服务',     s:'本地 Ollama · 已连接'},
+  {t:'选择游戏目录',     s:'Starmaker Story 1.8e'},
   {t:'识别引擎与部署工具', s:'Unity (Mono) · 3 个已就位'},
-  {t:'萃取待翻译文本',   s:'14,679 条'},
-  {t:'炼制与人工校对',   s:'已炼 9,102 / 14,679'},
-  {t:'封存并应用到游戏', s:'待执行'},
+  {t:'提取待翻译文本',   s:'14,679 条'},
+  {t:'翻译与人工校对',   s:'已译 9,102 / 14,679'},
+  {t:'保存并应用到游戏', s:'待执行'},
   {t:'启动验证',         s:'待执行'}
 ];
 
@@ -957,11 +957,11 @@ function advance(){
   render();
 }
 function afterExtract(){
-  state.cur = 4;                        // 默认进入炼制步
-  state.max = Math.max(state.max, 5);   // FR-49：萃取同时解锁第 4 步与第 5 步
+  state.cur = 4;                        // 默认进入翻译步
+  state.max = Math.max(state.max, 5);   // FR-49：提取同时解锁第 4 步与第 5 步
   if(state.cur === 4) fillTable();
   render();
-  sb('萃取完成。炼制可选：可直接点第 5 步封存，不必先炼制');
+  sb('提取完成。翻译可选：可直接点第 5 步保存，不必先翻译');
 }
 
 /* ---------------- 第 0 步 ---------------- */
@@ -987,9 +987,9 @@ function runExtract(btn){
   btn.disabled = true; btn.textContent = '扫描中…';
   document.getElementById('p3prog').hidden = false;
   setTimeout(function(){
-    btn.textContent = '重新萃取';
+    btn.textContent = '重新提取';
     btn.disabled = false;
-    sb('萃取完成 · 新增 3,421 条，护栏拦截 8,045 条');
+    sb('提取完成 · 新增 3,421 条，护栏拦截 8,045 条');
   }, 1400);
 }
 
@@ -1001,7 +1001,7 @@ var ROWS = [
   ['Thanks for waiting. Let us begin.','让大家久等了，我们开始吧。','ok'],
   ['You have unlocked a new outfit.','解锁了新服装。','ok'],
   ['Her voice echoed through the empty hall.','她的声音在空荡的大厅里回响。','ok'],
-  ['Not bad. But you can do better.','还不错，不过你还能做得更好。','ok'],
+  ['Not bad. But you can do better.','还不错，不过你还能做得更好。','warn'],
   ['[System] Insufficient funds.','[系统] 资金不足。','ok'],
   ['Stage 3 - Clear!','第 3 关 —— 通关！','ok'],
   ['Do you really think you have what it takes?','你真的觉得自己够格吗？','todo'],
@@ -1017,9 +1017,9 @@ var ROWS = [
   ['I have never been this nervous before.','我从没这么紧张过。','fail']
 ];
 var STATMAP = {
-  ok:  '<span class="badge b-ok">已炼制</span>',
+  ok:  '<span class="badge b-ok">已翻译</span>',
   warn:'<span class="badge b-warn">英文残留</span>',
-  todo:'<span class="badge b-danger">未炼制</span>',
+  todo:'<span class="badge b-danger">未翻译</span>',
   fail:'<span class="badge b-danger">失败</span>'
 };
 function fillTable(){
@@ -1028,7 +1028,7 @@ function fillTable(){
   var html = '';
   for(var i=0;i<ROWS.length;i++){
     var src = ROWS[i][0], dst = ROWS[i][1], st = ROWS[i][2];
-    if(st === 'todo' || st === 'fail') dst = '<span style="color:#9A8AA8">（未炼制）</span>';
+    if(st === 'todo' || st === 'fail') dst = '<span style="color:#9A8AA8">（未翻译）</span>';
     html += '<tr><td class="c-num">'+(i+1)+'</td>'+
             '<td class="c-stat">'+STATMAP[st]+'</td>'+
             '<td>'+src+'</td><td>'+dst+'</td></tr>';
@@ -1042,7 +1042,7 @@ function runTranslate(btn, retry){
   btn.disabled = true;
   var bar = document.getElementById('p4bar'), txt = document.getElementById('p4txt');
   var pct = 62;
-  btn.textContent = retry ? '重试中…' : '炼制中… 0 / 5,319';
+  btn.textContent = retry ? '重试中…' : '翻译中… 0 / 5,319';
   var iv = setInterval(function(){
     pct += Math.random()*7 + 3;
     if(pct >= 100) pct = 100;
@@ -1051,17 +1051,17 @@ function runTranslate(btn, retry){
     txt.textContent = Math.round(pct)+'%';
     document.getElementById('m-done').textContent = done.toLocaleString();
     document.getElementById('m-todo').textContent = Math.max(0,14679-done-258).toLocaleString();
-    btn.textContent = '炼制中… '+done.toLocaleString()+' / 14,679';
-    sb('炼制进行中 · '+done.toLocaleString()+' / 14,679');
+    btn.textContent = '翻译中… '+done.toLocaleString()+' / 14,679';
+    sb('翻译进行中 · '+done.toLocaleString()+' / 14,679');
     if(pct >= 100){
       clearInterval(iv);
       bar.classList.add('ok');
-      btn.textContent = '已全部炼制';
+      btn.textContent = '已全部翻译';
       document.getElementById('m-fail').textContent = '34';
-      STEPS[4].s = '已炼 14,679 / 14,679';
+      STEPS[4].s = '已译 14,679 / 14,679';
       STEPS[5].s = '可执行';
       render();
-      sb('炼制完成 · 失败 34 条，可单独重试');
+      sb('翻译完成 · 失败 34 条，可单独重试');
       document.getElementById('btnNext4').classList.add('btn-accent');
     }
   }, 220);
@@ -1083,29 +1083,29 @@ function setEngine(k, el){
   document.getElementById('eng-manual').hidden = k !== 'manual';
   document.getElementById('p5engineName').textContent = ENGINES[k].name;
   document.getElementById('p6hint').innerHTML = '<b>'+ENGINES[k].hint+'</b>';
-  // 锁死到当前游戏识别出的管线：选其它引擎仅可预览，封存按钮禁用
+  // 锁死到当前游戏识别出的管线：选其它引擎仅可预览，保存按钮禁用
   var locked = (k !== DETECTED);
   document.getElementById('p5lockedTo').textContent = '锁定：'+ENGINES[DETECTED].name+'（当前游戏识别结果）';
   var note = document.getElementById('engLockNote');
   if(locked){
     note.hidden = false;
     document.getElementById('engLockText').innerHTML =
-      '当前游戏识别为 <b>'+ENGINES[DETECTED].name+'</b>，不能按 <b>'+ENGINES[k].name+'</b> 管线写入。点回上方「'+ENGINES[DETECTED].name+'」即可解锁封存。';
+      '当前游戏识别为 <b>'+ENGINES[DETECTED].name+'</b>，不能按 <b>'+ENGINES[k].name+'</b> 管线写入。点回上方「'+ENGINES[DETECTED].name+'」即可解锁保存。';
   } else { note.hidden = true; }
   var abs = document.querySelectorAll('button[onclick^="doApply"]');
   for(var i=0;i<abs.length;i++) abs[i].disabled = locked;
   var bs = document.querySelectorAll('#engSeg button');
   for(var i=0;i<bs.length;i++) bs[i].classList.remove('on');
   el.classList.add('on');
-  sb(locked ? ('仅预览 '+ENGINES[k].name+' · 封存已锁定') : ('已切换到 '+ENGINES[k].name+' 的落地方式'));
+  sb(locked ? ('仅预览 '+ENGINES[k].name+' · 保存已锁定') : ('已切换到 '+ENGINES[k].name+' 的落地方式'));
 }
 function doApply(btn){
   btn.disabled = true;
   btn.textContent = '写入中…';
   setTimeout(function(){
-    btn.textContent = '已封存 · 14,679 条落盘';
+    btn.textContent = '完成 · 14,679 条已落盘';
     STEPS[5].s = '已写入 14,679 条';
-    STEPS[5].t = '封存并应用到游戏';
+    STEPS[5].t = '保存并应用到游戏';
     render();
     sb('写入完成 · 词典 1,424,251 B · 备份已更新');
     setTimeout(function(){ if(state.cur === 5) advance(); }, 700);
@@ -1123,7 +1123,7 @@ function resetDemo(){
   document.getElementById('m-done').textContent = '9,102';
   document.getElementById('m-todo').textContent = '5,319';
   document.getElementById('m-fail').textContent = '258';
-  STEPS[4].s = '已炼 9,102 / 14,679';
+  STEPS[4].s = '已译 9,102 / 14,679';
   STEPS[5].s = '待执行';
   render();
   sb('演示已重置 · 从第 0 步开始');
