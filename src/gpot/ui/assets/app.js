@@ -8,13 +8,101 @@ const API = '';                 // 同源，留空即可
 let STATE = null;               // 最近一次 /api/state
 let SEL_PROV = 'ollama';        // 当前选中的提供方
 let TRANS_JOB = null;           // 进行中的翻译任务 id
+let DEMO = false;               // 离线预览模式：API 不可达（如 file:// 双击打开）时自动启用
 
 /* ---------------- 底层 ---------------- */
+/* 演示模式的固定应答（纯展示数据；业务规则仍只在后端 core/ 中） */
+const _DEMO_NEXT = { 0: 1, 1: 2, 2: 3, 3: 5, 4: 5, 5: 6, 6: 6 };
+let _demoJobPct = 0;
+function _demoState() {
+  return {
+    steps: [
+      { n: 0, title: '配置翻译服务', sub: '一次性准备' },
+      { n: 1, title: '选择游戏', sub: '一次性准备' },
+      { n: 2, title: '识别引擎', sub: '一次性准备' },
+      { n: 3, title: '提取文本', sub: '每轮迭代' },
+      { n: 4, title: '翻译校对', sub: '每轮迭代' },
+      { n: 5, title: '保存并应用', sub: '每轮迭代' },
+      { n: 6, title: '启动验证', sub: '每轮迭代' }
+    ],
+    current_step: 0, max_step: 0,
+    game: null, engine: null, config: null,
+    translate: { total: 14679, done: 14204, failed: 12 },
+    sink: { backup: false }
+  };
+}
+function _demoComplete() {
+  const nx = _DEMO_NEXT[STATE.current_step];
+  if (nx === undefined) return STATE;
+  STATE.max_step = Math.max(STATE.max_step, nx);
+  STATE.current_step = nx;
+  return STATE;
+}
+function _demoApi(method, path, body) {
+  if (path === '/api/providers')
+    return Promise.resolve({ providers: [
+      { key: 'ollama', name: '本地 Ollama', desc: '离线 · 本机模型' },
+      { key: 'openai', name: 'OpenAI 兼容', desc: '任意兼容端点' },
+      { key: 'deepl', name: 'DeepL API', desc: '云端高质量' }
+    ]});
+  if (path === '/api/state') { if (!STATE) STATE = _demoState(); return Promise.resolve(STATE); }
+  if (path === '/api/nav') {
+    const to = body && body.step;
+    if (to <= STATE.max_step) { STATE.current_step = to; return Promise.resolve(STATE); }
+    return Promise.resolve({ error: 'locked' });
+  }
+  if (path === '/api/reset') { STATE = _demoState(); _demoJobPct = 0; return Promise.resolve({}); }
+  if (path === '/api/config')
+    return Promise.resolve({ connected: true, message: '演示模式 · 未真正连通', config: {} });
+  if (path === '/api/game')
+    return Promise.resolve({ name: 'Starmaker Story（演示）', path: 'F:\\erogame\\...', existing: 14679 });
+  if (path === '/api/detect')
+    return Promise.resolve({ key: 'unity', name: 'Unity (Mono)', confidence: 0.79,
+      verdict: '可自动翻译', evidence: ['BepInEx 5.4.23', 'XUnity.AutoTranslator', 'Assembly-CSharp.dll'],
+      sink_desc: 'XUnity 词典保存即生效' });
+  if (path === '/api/deploy')
+    return Promise.resolve({ tools: [{ name: 'XUnity.AutoTranslator', version: '5.4.3',
+      size: '1.2 MB', verified: true, status: '已部署' }] });
+  if (path === '/api/extract')
+    return Promise.resolve({ added: 312, existing: 14679, guarded: 24, total: 14991 });
+  if (path === '/api/translate/start') { _demoJobPct = 0; return Promise.resolve({ job_id: 'demo' }); }
+  if (path.startsWith('/api/jobs/')) {
+    _demoJobPct = Math.min(100, _demoJobPct + 17);
+    return Promise.resolve({ running: _demoJobPct < 100, progress: _demoJobPct, done: Math.round(14679 * _demoJobPct / 100) });
+  }
+  if (path.startsWith('/api/jobs/') && method === 'POST') return Promise.resolve({});
+  if (path.startsWith('/api/sink')) {
+    const ek = (path.match(/engine=([a-z]+)/) || [])[1] || 'unity';
+    if (ek === 'rm') return Promise.resolve({ kind: 'rewrite', title: '保存并写入工作副本', warn: 'RPG Maker：保存只是工作副本，还需「应用到游戏」',
+      metrics: [{ l: '在表条目', v: '14,679', n: '全部' }, { l: '待写入', v: '787', n: '本轮新增' }, { l: '备份', v: '3', n: '历史代数' }],
+      files: [{ path: 'www/data/Map001.json', note: '事件文本', badge: 'warn', action: '回写' }],
+      whitelist: ['notes', 'description'], blacklist: 'characterName / faceName / switches', can_restore: true });
+    if (ek === 'manual') return Promise.resolve({ kind: 'none', title: '保存（无自动方案）', warn: '该引擎没有可靠的自动注入方案',
+      metrics: [{ l: '在表条目', v: '14,679', n: '全部' }],
+      reasons: [{ t: '无公开注入工具', s: '需要手动处理', badge: 'danger' }] });
+    return Promise.resolve({ kind: 'runtime', title: '保存并写入词典', warn: 'Unity/XUnity：保存即生效，重启游戏可见',
+      metrics: [{ l: '在表条目', v: '14,679', n: '全部' }, { l: '本轮新增', v: '312', n: '待写入' }, { l: '词典大小', v: '1.4 MB', n: 'Translation.txt' }],
+      files: [{ path: 'BepInEx/Translation/Translation.txt', note: 'XUnity 词典', badge: 'ok', action: '写入' }],
+      can_restore: false });
+  }
+  if (path.startsWith('/api/sink/apply')) return Promise.resolve({ files: [{}, {}, {}] });
+  if (path === '/api/verify')
+    return Promise.resolve({ hint: '启动游戏前确认注入工具已就位', checks: [
+      { t: 'BepInEx 目录完整', s: 'BepInEx/core 存在' }, { t: 'XUnity 词典就位', s: 'Translation.txt · 1.4 MB' }] });
+  return Promise.resolve({});
+}
 async function api(method, path, body) {
+  if (DEMO) return _demoApi(method, path, body);
   const opt = { method, headers: { 'Content-Type': 'application/json' } };
   if (body) opt.body = JSON.stringify(body);
-  const r = await fetch(API + path, opt);
-  return r.json().catch(() => ({}));
+  try {
+    const r = await fetch(API + path, opt);
+    return r.json().catch(() => ({}));
+  } catch (e) {
+    // API 不可达（file:// 直接打开等）→ 永久切到离线预览模式
+    DEMO = true;
+    return _demoApi(method, path, body);
+  }
 }
 function sb(msg) { document.getElementById('sbMsg').textContent = msg; }
 function setSbProg(pct) {
@@ -426,4 +514,5 @@ async function loadVerify() {
   await loadProviders();
   await loadState();
   fillTable();
+  if (DEMO) sb('离线预览模式 · 未连接后端（双击「启动 G-POT 翻译器.bat」为完整功能）');
 })();
