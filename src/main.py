@@ -29,17 +29,23 @@ import threading
 import time
 import urllib.request
 
-from gpot.api.server import build_server
+from gpot.api.server import build_server, APP_VERSION
 
 
-def _gpot_alive(port: int) -> bool:
-    """该端口上是否已有一个 G-POT 实例在跑（防双开：复用而不是崩掉）。"""
+def _gpot_alive(port: int) -> str | None:
+    """该端口上是否已有一个 G-POT 实例在跑；返回其版本号（防双开：复用而不是崩掉）。
+
+    返回 None = 端口活着但不是 G-POT（被别的程序占用）；返回版本字符串 = 是 G-POT。
+    """
     try:
         with urllib.request.urlopen(
                 f"http://127.0.0.1:{port}/api/state", timeout=2) as r:
-            return r.status == 200
+            if r.status != 200:
+                return None
+            import json
+            return json.loads(r.read().decode("utf-8", "replace")).get("app_version")
     except Exception:
-        return False
+        return None
 
 
 def main() -> None:
@@ -50,7 +56,8 @@ def main() -> None:
     ap.add_argument("--port", type=int, default=8731)
     args = ap.parse_args()
 
-    # 端口占用三态：自己绑上 / 已有 G-POT 实例（复用，不重复起服务）/ 换端口
+    # 端口占用三态：自己绑上 / 已有「同版本」G-POT 实例（复用）/ 换端口。
+    # 版本校验：旧版本实例不复用——否则改完代码双击 bat 打开的还是旧界面。
     httpd = None
     port = args.port
     reuse = False
@@ -59,9 +66,15 @@ def main() -> None:
             httpd = build_server(port)
             break
         except OSError:
-            if _gpot_alive(port):
+            ver = _gpot_alive(port)
+            if ver == APP_VERSION:
                 reuse = True
                 break
+            if ver is not None:  # 是 G-POT 但版本不同 → 旧实例，另起端口
+                print(f"[G-POT] 端口 {port} 上是旧版本实例（{ver} ≠ {APP_VERSION}），"
+                      f"换用端口 {port + 1} 启动新版本。旧实例可关闭以释放端口。")
+                port += 1
+                continue
             port += 1
     if httpd is None and not reuse:
         print(f"[G-POT] 端口 {args.port}~{port} 都被非 G-POT 程序占用，无法启动。")

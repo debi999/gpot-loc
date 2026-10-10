@@ -22,6 +22,10 @@ from gpot.core import (store as _store, detection, providers,
 # 应用级唯一状态实例
 _STATE = _store.Store()
 
+# 应用版本（区别于旧库 3.29：这是 v4.0 新程序；/api/state 暴露，
+# main.py 双开复用前比对——旧版本实例不复用，避免「双击 bat 还是老版本」）
+APP_VERSION = "4.0.0-m2"
+
 # 旧库格式 config.ini（随 kernel 落在 core/ 目录）—— 提供方/游戏目录记忆
 _CFG = kernel.load_config()
 
@@ -200,7 +204,9 @@ class _Handler(BaseHTTPRequestHandler):
         if path.startswith("/assets/"):
             return self._static(path[len("/assets/"):], self._ctype(path))
         if path == "/api/state":
-            return self._send(200, _STATE.to_dict())
+            d = _STATE.to_dict()
+            d["app_version"] = APP_VERSION
+            return self._send(200, d)
         if path == "/api/providers":  # FR-38: 列出翻译后端（第 0 步配置）
             return self._send(200, {"providers": providers.list_providers()})
         if path.startswith("/api/sink"):

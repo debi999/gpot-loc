@@ -629,5 +629,7 @@ async function loadVerify() {
   await loadProviders();
   await loadState();
   fillTable();
+  if (!DEMO && STATE.app_version)
+    document.getElementById('appVer').textContent = 'v' + STATE.app_version;
   if (DEMO) sb('离线预览模式 · 未连接后端（双击「启动 G-POT 翻译器.bat」为完整功能）');
 })();

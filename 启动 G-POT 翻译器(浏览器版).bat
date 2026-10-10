@@ -46,11 +46,14 @@ if not defined PY (
 
 REM ---------------------------------------------------------------------------
 REM 2) 启动（--open-browser：仅本地服务 + 系统浏览器，不依赖 WebView2 / pywebview）
+REM    pythonw 无黑窗，bat 窗口随即关闭。运行日志: %TEMP%\gpot-run.log
 REM ---------------------------------------------------------------------------
-echo [G-POT] 启动 G-POT 翻译器（系统浏览器模式）...
-echo [G-POT] 将自动打开默认浏览器；此黑窗口请勿关闭。
-"%PY%" main.py --open-browser
-echo [G-POT] 程序已退出，退出码 %errorlevel%。详细日志: %LOG%
-type "%LOG%"
-pause
+set "PYW=!PY:python.exe=pythonw.exe!"
+if exist "!PYW!" (
+  start "" "!PYW!" main.py --open-browser
+) else (
+  echo [G-POT] 未找到 pythonw，改用最小化窗口启动...
+  start /min "" "!PY!" main.py --open-browser
+)
 endlocal
+exit /b 0
