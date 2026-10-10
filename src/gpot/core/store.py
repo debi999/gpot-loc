@@ -64,6 +64,8 @@ class Store:
                 "src": "auto",
                 "dst": "zh-CN",
                 "prompt": "",
+                "concurrency": "3",   # FR-58: 并发数（1~8）
+                "delay": "0.3",       # FR-58: 请求间隔秒
                 "connected": False,
             }
             self.game = {"path": "", "name": "", "existing": 0}
@@ -189,6 +191,21 @@ def edit_row(tstore, i: int, translation: str) -> dict | None:
     tstore.update_status(e)
     tstore.dirty = True
     return e
+
+
+def delete_rows(tstore, indices) -> int:  # FR-57: 删除条目（右键菜单/多选）
+    """按条目序号删除（去重 + 越界忽略）。返回实际删除条数，不落盘。
+
+    索引集合先归一为合法序号再一次性重建列表，避免边删边移位。
+    """
+    valid = sorted({i for i in indices
+                    if isinstance(i, int) and 0 <= i < len(tstore.entries)})
+    if not valid:
+        return 0
+    drop = set(valid)
+    tstore.entries = [e for i, e in enumerate(tstore.entries) if i not in drop]
+    tstore.dirty = True
+    return len(drop)
 
 
 def recent_games(recent_dirs, limit: int = 5) -> list:

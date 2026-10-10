@@ -51,18 +51,20 @@ GUI 模式下若进程自带控制台（假 pythonw / 控制台直跑），`main
 
 | 方法 | 路径 | 作用 |
 |---|---|---|
-| GET  | `/api/state`            | 全量流水线状态（步骤 / 配置 / 引擎 / 进度 / `app_version` …） |
+| GET  | `/api/state`            | 全量流水线状态（步骤 / 配置 / 引擎 / 进度 / `app_version` / `prompt_default` / `external_changed` …） |
 | GET  | `/api/providers`        | 翻译后端目录 |
-| POST | `/api/config`           | 保存并测试翻译服务配置 |
+| GET  | `/api/models`           | 获取模型列表（OpenAI /models + Ollama /api/tags 兜底，FR-54） |
+| POST | `/api/config`           | 保存并测试翻译服务配置（含 src/dst/prompt/并发间隔；本地 Ollama 族连通后自动同步 server_config.ini，FR-53/55/58/59） |
 | POST | `/api/game`             | 选定游戏目录（含 BepInEx 下钻 `resolve_game_root`） |
 | POST | `/api/detect`           | 识别引擎 + 准备工具清单 |
 | POST | `/api/deploy`           | 部署注入工具 |
 | POST | `/api/extract`          | 提取待翻译文本 |
-| POST | `/api/translate/start`  | 启动翻译任务 → 返回 `job_id` |
+| POST | `/api/translate/start`  | 启动翻译任务 → 返回 `job_id`（scope 含 selected 勾选行，FR-61） |
 | GET  | `/api/jobs/{id}`        | 轮询翻译任务进度 |
 | POST | `/api/jobs/{id}/cancel` | 取消翻译任务 |
-| GET  | `/api/rows`             | 第 4 步表格真数据（`limit` / `offset` / `status` / `q`，返回 `total` / `matched`） |
+| GET  | `/api/rows`             | 第 4 步表格真数据（`limit` / `offset` / `status` / `q` / `sort` / `rev`，返回 `total` / `matched`） |
 | POST | `/api/row/edit`         | 双击行内编辑译文（立即原子落盘 + 状态重判） |
+| POST | `/api/row/delete`       | 删除条目（indices 去重越界忽略，FR-57） |
 | GET  | `/api/sink?engine=`     | 取某引擎的「落盘形态」视图（三态） |
 | POST | `/api/sink/apply`       | 保存并应用到游戏（按引擎分流；引擎不符 400） |
 | GET  | `/api/verify`           | 取验证指引 + 写入自检 |
@@ -72,6 +74,11 @@ GUI 模式下若进程自带控制台（假 pythonw / 控制台直跑），`main
 | POST | `/api/restore`          | 还原原文（RPG Maker 备份点） |
 | POST | `/api/nav`              | 导航跳转（受 max_step 锁约束） |
 | POST | `/api/reset`            | 重置演示状态 |
+| POST | `/api/export-csv`       | 导出 CSV（UTF-8-sig） |
+| POST | `/api/import-csv`       | 导入 CSV（merge 合并） |
+| POST | `/api/import-txt`       | 导入 TXT（等号/Tab/纯原文三形态，FR-56） |
+| POST | `/api/replace`          | 全局查找替换（field=translation/original/both） |
+| POST | `/api/dedup`            | 清理重复（normalize 键） |
 
 ## 目录
 

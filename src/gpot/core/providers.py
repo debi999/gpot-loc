@@ -67,6 +67,42 @@ def _get_json(url: str, headers: dict | None = None, timeout: int = 6):
         return json.loads(r.read().decode("utf-8"))
 
 
+def fetch_models(cfg: dict) -> dict:  # FR-54: 获取模型列表（独立端点，不必先连通测试）
+    """拉取模型列表填下拉框（忠实移植旧 GUI _fetch_models 的双通道）。
+
+    ① OpenAI 兼容 {base}/models（带 Bearer，有 key 才带）；
+    ② 失败时兜底 Ollama 原生 /api/tags（base 以 /v1 结尾则剥掉）。
+    返回 {"ok", "models", "message"}；base 为空直接 bad_base。
+    """
+    kn = _KEY2NAME.get(cfg.get("provider", ""), cfg.get("provider", "免费Google"))
+    kcfg = to_kernel_cfg(cfg)
+    base = (kcfg["base"] or "").rstrip("/")
+    key = kcfg["key"]
+    if not base:
+        return {"ok": False, "models": [], "message": "请先填写服务地址"}
+    try:                                    # ① OpenAI 兼容通道
+        data = _get_json(base + "/models",
+                         {"Authorization": "Bearer %s" % key} if key else None,
+                         timeout=10)
+        models = [m.get("id") for m in (data.get("data") or [])
+                  if isinstance(m, dict) and m.get("id")]
+        if models:
+            return {"ok": True, "models": models, "message": "获取到 %d 个模型" % len(models)}
+    except Exception:
+        pass
+    try:                                    # ② Ollama 原生 /api/tags 兜底
+        host = base[:-3] if base.endswith("/v1") else base
+        data = _get_json(host + "/api/tags", timeout=10)
+        models = [m.get("name") for m in (data.get("models") or [])
+                  if isinstance(m, dict) and m.get("name")]
+        if models:
+            return {"ok": True, "models": models,
+                    "message": "获取到 %d 个模型（Ollama 原生接口）" % len(models)}
+    except Exception:
+        pass
+    return {"ok": False, "models": [], "message": "未获取到模型列表，可能接口不兼容"}
+
+
 def test_connection(cfg: dict) -> dict:  # FR-38: 连通性测试（真实廉价探测）
     kn = _KEY2NAME.get(cfg.get("provider", ""), cfg.get("provider", "免费Google"))
     kcfg = to_kernel_cfg(cfg)

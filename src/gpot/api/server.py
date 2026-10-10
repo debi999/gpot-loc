@@ -18,14 +18,14 @@ from urllib.parse import urlparse, parse_qs
 
 from gpot.core import (store as _store, detection, providers,
                        extract, translate, sink, pipeline,
-                       kernel, kit_catalog, kit_installer)
+                       kernel, kit_catalog, kit_installer, injected)
 
 # 应用级唯一状态实例
 _STATE = _store.Store()
 
 # 应用版本（FR-51: 版本唯一真源，随 /api/state 暴露、状态栏常显、双开复用前比对——
 # 旧版本实例不复用，避免「双击 bat 还是老版本」；老板 2026-10-10 指定 V0.4* 起编号）
-APP_VERSION = "0.4.6"
+APP_VERSION = "0.5.0"
 
 # 旧库格式 config.ini（随 kernel 落在 core/ 目录）—— 提供方/游戏目录记忆
 _CFG = kernel.load_config()
@@ -49,6 +49,9 @@ def _persist_config() -> None:
     _CFG["src"] = kcfg["src"]
     _CFG["dst"] = kcfg["dst"]
     _CFG["prompt"] = kcfg["prompt"]
+    # FR-58: 并发/间隔（UI 键与 kernel 配置键同名，直存）
+    _CFG["concurrency"] = str(_STATE.config.get("concurrency", "") or "")
+    _CFG["delay"] = str(_STATE.config.get("delay", "") or "")
     try:
         kernel.save_config(_CFG)
     except Exception:
@@ -61,7 +64,8 @@ def _restore_config() -> None:
         return
     c = _STATE.config
     c["provider"] = providers._NAME2KEY.get(_CFG.get("provider", ""), c["provider"])
-    for k in ("base", "key", "model", "appid", "secret", "src", "dst", "prompt"):
+    for k in ("base", "key", "model", "appid", "secret", "src", "dst", "prompt",
+              "concurrency", "delay"):
         if _CFG.get(k):
             c[{"base": "address"}.get(k, k)] = _CFG[k]
     if _CFG.get("provider") == "本地Ollama/Qwen" and _CFG.get("model"):
@@ -401,9 +405,13 @@ class _Handler(BaseHTTPRequestHandler):
         if path == "/api/state":
             d = _STATE.to_dict()
             d["app_version"] = APP_VERSION
+            d["prompt_default"] = kernel.LLM_SYSTEM   # FR-53: 恢复默认提示词
+            d["external_changed"] = _STATE.tstore.external_changed()  # FR-60
             return self._send(200, d)
         if path == "/api/providers":  # FR-38: 列出翻译后端（第 0 步配置）
             return self._send(200, {"providers": providers.list_providers()})
+        if path == "/api/models":     # FR-54: 获取模型列表（不必先连通测试）
+            return self._send(200, providers.fetch_models(_STATE.config))
         if path.startswith("/api/sink"):
             q = parse_qs(p.query)
             ek = (q.get("engine", [None])[0]
@@ -438,6 +446,10 @@ class _Handler(BaseHTTPRequestHandler):
                    for i, e in translate.filter_entries(t, {
                        "q": q.get("q", [""])[0],
                        "status": q.get("status", ["all"])[0]})]
+        # FR-57: 表头列排序（original/translation/status；纯函数在 core/translate）
+        matched = translate.sort_matched(matched,
+                                         q.get("sort", [""])[0],
+                                         q.get("rev", ["0"])[0] in ("1", "true"))
         page = matched[offset:offset + limit]
         return {"total": len(t.entries), "matched": len(matched),
                 "shown": len(page), "rows": page}
@@ -466,13 +478,21 @@ class _Handler(BaseHTTPRequestHandler):
 
         if path == "/api/config":  # FR-38: 配置翻译服务 + 连通测试（第 0 步）
             for k in ("provider", "model", "address", "key", "appid",
-                      "secret", "src", "dst", "prompt"):
+                      "secret", "src", "dst", "prompt",
+                      "concurrency", "delay"):
                 if k in b:
                     _STATE.config[k] = b[k]
             r = providers.test_connection(_STATE.config)
             _STATE.config["connected"] = r["connected"]
             if r["connected"]:
                 pipeline.complete_step(_STATE, 0)
+                # FR-59: 本地 Ollama 族连通后同步游戏内实时翻译（老版 save_settings 行为）
+                r["injected_synced"] = injected.sync_injected(
+                    providers.to_kernel_cfg(_STATE.config)["provider"],
+                    _STATE.config.get("address", ""),
+                    _STATE.config.get("model", ""),
+                    (_STATE.game or {}).get("path", "") or "",
+                    kernel.LOCAL_PROVIDERS)
             _persist_config()
             _persist_flow()   # FR-37
             return self._send(200, {"config": _STATE.config, **r})
@@ -548,9 +568,10 @@ class _Handler(BaseHTTPRequestHandler):
                 return self._send(500, {"error": "extract_failed",
                                         "message": str(e)[:300]})
 
-        if path == "/api/translate/start":  # FR-43: 启动翻译任务（第 4 步，真实后端；scope=todo/filtered/all/retry）
+        if path == "/api/translate/start":  # FR-43: 启动翻译任务（第 4 步，真实后端；scope=todo/filtered/all/retry/selected）
             scope = b.get("scope") or ("retry" if b.get("retry") else "todo")
-            flt = {"q": b.get("q", ""), "status": b.get("status", "all")}
+            flt = {"q": b.get("q", ""), "status": b.get("status", "all"),
+                   "indices": b.get("indices") or []}  # FR-61: 任意勾选行
             jid = translate.start_translate(_STATE, bool(b.get("retry")),
                                             scope=scope, flt=flt)
             _persist_flow()   # FR-37
@@ -664,6 +685,48 @@ class _Handler(BaseHTTPRequestHandler):
             _sync_translate_metrics()
             st = _STATE.tstore.stats()
             return self._send(200, {"ok": True, "updated": n, "path": ip,
+                                    "total": st["total"], "translated": st["translated"]})
+
+        if path == "/api/import-txt":  # FR-56: 导入 TXT（三形态自动识别，同族对话框）
+            ip = b.get("path")
+            if not ip:
+                ip = (_pick_file() or {}).get("path")
+                if not ip:
+                    return self._send(200, {"canceled": True})
+            if not os.path.isfile(ip):
+                return self._send(400, {"error": "bad_file",
+                                        "message": "文件不存在：%s" % ip})
+            try:
+                n = kernel.import_txt(_STATE.tstore, ip)
+            except Exception as e:
+                return self._send(500, {"error": "import_failed",
+                                        "message": str(e)[:200]})
+            if n:
+                _STATE.tstore.save(_STATE.tstore.path)   # 立即落盘
+            _sync_translate_metrics()
+            st = _STATE.tstore.stats()
+            return self._send(200, {"ok": True, "updated": n, "path": ip,
+                                    "total": st["total"], "translated": st["translated"]})
+
+        if path == "/api/row/delete":  # FR-57: 删除条目（indices = 条目序号列表）
+            idx = b.get("indices")
+            if not isinstance(idx, list):
+                return self._send(400, {"error": "bad_indices",
+                                        "message": "indices 必须是序号数组"})
+            try:
+                n = _store.delete_rows(_STATE.tstore, idx)
+            except Exception as e:
+                return self._send(500, {"error": "delete_failed",
+                                        "message": str(e)[:200]})
+            if n:
+                try:
+                    _STATE.tstore.save(_STATE.tstore.path)
+                except Exception as e:
+                    return self._send(500, {"error": "save_failed",
+                                            "message": str(e)[:200]})
+            _sync_translate_metrics()
+            st = _STATE.tstore.stats()
+            return self._send(200, {"ok": True, "deleted": n,
                                     "total": st["total"], "translated": st["translated"]})
 
         if path == "/api/replace":  # FR-43: 查找替换（core 实现，立即落盘 + 指标同步）

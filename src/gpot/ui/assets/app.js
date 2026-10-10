@@ -160,6 +160,7 @@ async function loadState() {
   renderRail();
   renderGameCard();
   renderStep4Metrics();
+  _applyConfigToInputs();   // FR-53/55/58: 配置记忆值 → 第 0 步输入框
   if (STATE.current_step === 5) loadSink(STATE.engine ? STATE.engine.key : 'unity');
   if (curPage() === 6) loadVerify();
   showPage(STATE.current_step);
@@ -218,8 +219,29 @@ function showPage(i) {
   if (i === 3) renderStep3Base();   // 提取页先亮出「已有提取结果」基线
   if (i === 4) {                    // 校对页每次进入都刷新指标 + 真实条目
     renderStep4Metrics();
-    if (!DEMO) loadRows();
+    if (!DEMO) { loadRows(); checkExternal(); }
   }
+}
+/* FR-60: 词典文件被外部（游戏/编辑器）改写过 → 第 4 步顶提示条 */
+async function checkExternal() {
+  const el = document.getElementById('p4ext');
+  if (!el || DEMO) return;
+  const s = await api('GET', '/api/state');
+  el.classList.toggle('hidden', !(s && s.external_changed));
+}
+/* FR-60: 外部改动后重新载入词典（走 /api/game 同路径重载，不重跑提取） */
+async function reloadRows() {
+  const p = (STATE.game && STATE.game.path) || '';
+  if (!p) return;
+  const g = await api('POST', '/api/game', { path: p });
+  STATE.game = g;
+  STATE.translate.total = g.existing || 0;
+  await api('GET', '/api/state').then(s => {
+    if (s && s.translate) STATE.translate = { ...STATE.translate, ...s.translate };
+  });
+  renderStep4Metrics(); loadRows();
+  document.getElementById('p4ext').classList.add('hidden');
+  sb('已重新载入词典文件 · ' + (g.existing || 0).toLocaleString() + ' 条');
 }
 
 /* 第 3 步基线：进入即显示已有提取成果（FR-42 语义：提取优先认已有文本） */
@@ -274,6 +296,13 @@ async function loadProviders() {
     </button>`).join('');
   pickDefaults();
 }
+function _applyConfigToInputs() {
+  // FR-53/55/58: 把 STATE.config 记忆值灌回第 0 步输入框（语言/并发/间隔/提示词）
+  const c = STATE.config || {};
+  const set = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined && v !== '') el.value = v; };
+  set('cfgSrc', c.src); set('cfgDst', c.dst);
+  set('cfgConc', c.concurrency); set('cfgDelay', c.delay);
+}
 function pickDefaults() {
   // 选中提供方的默认地址/模型回填输入框；需要密钥时展开 Key 行
   const p = PROVS.find(x => x.key === SEL_PROV) || {};
@@ -298,13 +327,42 @@ function _cfgBody() {
     key: document.getElementById('cfgKey').value.trim(),
     appid: document.getElementById('cfgSecret').value.split('/')[0].trim(),
     secret: document.getElementById('cfgSecret').value.split('/')[1]?.trim() || '',
+    // FR-55: 语言方向 / FR-58: 并发间隔 / FR-53: 提示词（弹窗编辑，存 STATE.config）
+    src: document.getElementById('cfgSrc').value,
+    dst: document.getElementById('cfgDst').value,
+    concurrency: document.getElementById('cfgConc').value,
+    delay: document.getElementById('cfgDelay').value,
+    prompt: (STATE.config && STATE.config.prompt) || '',
   };
+}
+/* FR-54: 独立获取模型列表（不必先跑连接测试；后端带 Ollama /api/tags 兜底） */
+async function fetchModels() {
+  const btn = document.getElementById('btnModels');
+  btn.disabled = true; btn.textContent = '获取中…';
+  const r = await api('GET', '/api/models');
+  btn.disabled = false; btn.textContent = '获取模型';
+  if (r && r.ok && r.models && r.models.length) {
+    document.getElementById('modelList').innerHTML =
+      r.models.map(m => `<option value="${esc(m)}">`).join('');
+    const model = document.getElementById('cfgModel');
+    if (!model.value.trim() || !r.models.includes(model.value.trim())) {
+      model.value = r.models[0];
+      sb('已选中模型 ' + r.models[0]);
+    } else {
+      sb(r.message);
+    }
+  } else sb((r && r.message) || '未获取到模型列表');
 }
 async function saveConfig() {
   const r = await api('POST', '/api/config', _cfgBody());
   STATE.config = r.config;
   renderCfgStatus(r);
-  if (r.connected) { sb('翻译服务已连通'); goNext(); }
+  if (r.connected) {
+    // FR-59: 本地 Ollama 族连通后自动同步游戏内实时翻译（老版 save_settings 行为）
+    if (r.injected_synced) sb('翻译服务已连通 · 游戏内实时翻译已同步使用模型 ' + r.config.model);
+    else sb('翻译服务已连通');
+    goNext();
+  }
 }
 async function testConn() {
   const r = await api('POST', '/api/config', _cfgBody());
@@ -535,14 +593,38 @@ function _fillTableRows(rows) {
   tb.innerHTML = rows.map(r => {
     const dst = (r[2] === 'todo' || r[2] === 'fail')
       ? '<span style="color:#9A8AA8">（未翻译）</span>' : r[1];
-    return `<tr data-ei="${r[3] ?? ''}" data-t="${esc(r[1])}"><td class="c-num"></td><td class="c-stat">${STATMAP[r[2]] || ''}</td><td>${esc(r[0])}</td><td>${dst === r[1] ? esc(r[1]) : dst}</td></tr>`;
+    const ei = r[3] ?? '';
+    // FR-61: 行首勾选框（离线演示无条目序号 → 不渲染）
+    const ck = ei === '' ? '' :
+      `<input type="checkbox" data-i="${ei}" ${SEL_ROWS.has(+ei) ? 'checked' : ''} onclick="rowSel(event,this)">`;
+    return `<tr data-ei="${ei}" data-t="${esc(r[1])}"><td class="c-num" style="width:30px">${ck}</td><td class="c-num"></td><td class="c-stat">${STATMAP[r[2]] || ''}</td><td>${esc(r[0])}</td><td>${dst === r[1] ? esc(r[1]) : dst}</td></tr>`;
   }).join('');
   // 序号跟随全表位置（分页第 2 页从 51 起算），而不是每页都从 1 开始
-  tb.querySelectorAll('tr .c-num').forEach((td, k) => {
+  tb.querySelectorAll('tr .c-num:nth-child(2)').forEach((td, k) => {
     td.textContent = rows[k][3] === '' || rows[k][3] === undefined
       ? k + 1 : rows[k][3] + 1;
   });
   tb.dataset.filled = '1';
+  _updateSelCount();
+}
+/* FR-61: 勾选行状态（跨页保留；删重/导入等会改序号的操作后清空） */
+const SEL_ROWS = new Set();
+function rowSel(ev, ck) {
+  ev.stopPropagation();
+  const i = +ck.dataset.i;
+  if (ck.checked) SEL_ROWS.add(i); else SEL_ROWS.delete(i);
+  _updateSelCount();
+}
+function toggleAllRows(ck) {
+  document.querySelectorAll('#p4tbody input[type=checkbox][data-i]').forEach(c => {
+    c.checked = ck.checked;
+    if (ck.checked) SEL_ROWS.add(+c.dataset.i); else SEL_ROWS.delete(+c.dataset.i);
+  });
+  _updateSelCount();
+}
+function _updateSelCount() {
+  const dd = document.getElementById('ddSelected');
+  if (dd) dd.textContent = SEL_ROWS.size ? `翻译勾选行（${SEL_ROWS.size}）` : '翻译勾选行';
 }
 function esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -563,6 +645,18 @@ function p4Size(v) {
 }
 function onRowsFilter() { P4.page = 1; if (!DEMO) loadRows(); }
 
+/* FR-57: 点表头列排序（original/translation/status，再点一次反向；空值恒沉底） */
+const P4SORT = { col: '', rev: false };
+function sortBy(col) {
+  if (P4SORT.col === col) P4SORT.rev = !P4SORT.rev;
+  else { P4SORT.col = col; P4SORT.rev = false; }
+  document.querySelectorAll('.sortmark').forEach(s => s.textContent = '');
+  const mk = document.getElementById('sm-' + col);
+  if (mk) mk.textContent = P4SORT.rev ? '↓' : '↑';
+  P4.page = 1;
+  if (!DEMO) loadRows();
+}
+
 async function loadRows() {
   // 第 4 步表格：分页 + 搜索 + 状态筛选（/api/rows）
   const qEl = document.getElementById('p4q');
@@ -571,7 +665,8 @@ async function loadRows() {
   const st = (stEl && stEl.value) || 'all';
   const r = await api('GET', '/api/rows?limit=' + P4.size
     + '&offset=' + (P4.page - 1) * P4.size
-    + '&status=' + st + '&q=' + encodeURIComponent(q));
+    + '&status=' + st + '&q=' + encodeURIComponent(q)
+    + (P4SORT.col ? '&sort=' + P4SORT.col + '&rev=' + (P4SORT.rev ? 1 : 0) : ''));
   P4.matched = r.matched || 0;
   if ((P4.page - 1) * P4.size >= P4.matched && P4.matched > 0) {
     P4.page = p4Pages();          // 翻过头了（筛选后变少）→ 收回最后一页
@@ -617,7 +712,7 @@ function onRowDblClick(ev) {
   const tr = ev.target.closest && ev.target.closest('tr');
   if (!tr || tr.dataset.ei === undefined || tr.dataset.ei === '') return;
   const ei = +tr.dataset.ei;
-  const cell = tr.cells[3];
+  const cell = tr.cells[4];   // 第 5 列 = 译文（FR-61 加勾选列后顺延）
   if (!cell || cell.querySelector('input')) return;
   const cur = tr.dataset.t || '';
   cell.innerHTML = `<input class="inp" style="width:100%" value="${cur}">`;
@@ -653,6 +748,10 @@ async function runTranslate(scope) {
   if (scope === 'filtered') {
     body.q = (document.getElementById('p4q') || {}).value || '';
     body.status = (document.getElementById('p4filter') || {}).value || 'all';
+  }
+  if (scope === 'selected') {           // FR-61: 只翻勾选行
+    if (!SEL_ROWS.size) { sb('先在表格里勾选要翻译的行'); btn.disabled = false; return; }
+    body.indices = [...SEL_ROWS];
   }
   const r = await api('POST', '/api/translate/start', body);
   if (r.done_all) {           // 没有需要翻译的条目 → 直接完成
@@ -733,6 +832,40 @@ async function importCsv() {
     sb('CSV 导入完成 · 更新 ' + r.updated.toLocaleString() + ' 条');
   } else sb((r && r.message) || '导入失败');
 }
+/* FR-56: 导入 TXT（原文=译文 / Tab 分隔 / 纯原文三形态自动识别合并） */
+async function importTxt() {
+  const r = await api('POST', '/api/import-txt');
+  if (r && r.canceled) return;
+  if (r && r.ok) {
+    STATE.translate.total = r.total;
+    STATE.translate.done = r.translated;
+    renderStep4Metrics(); loadRows();
+    sb('TXT 导入完成 · 更新 ' + r.updated.toLocaleString() + ' 条');
+  } else sb((r && r.message) || '导入失败');
+}
+
+/* ---------------- FR-53: 翻译提示词管理（编辑 / 恢复默认 / 保存） ---------------- */
+function openPrompt() {
+  document.getElementById('promptTxt').value = (STATE.config && STATE.config.prompt) || '';
+  document.getElementById('promptModal').classList.remove('hidden');
+  document.getElementById('promptTxt').focus();
+}
+function closePrompt() { document.getElementById('promptModal').classList.add('hidden'); }
+function resetPrompt() {
+  // 恢复默认 = 内置 LLM_SYSTEM（真源随 /api/state 的 prompt_default 下发）
+  document.getElementById('promptTxt').value = STATE.prompt_default || '';
+  sb('已恢复内置默认提示词 · 记得点「保存」');
+}
+function savePrompt() {
+  STATE.config = STATE.config || {};
+  STATE.config.prompt = document.getElementById('promptTxt').value.replace(/\s+$/, '');
+  closePrompt();
+  // 立即落盘（带完整 config 体；连通时顺带刷新步骤状态）
+  api('POST', '/api/config', _cfgBody()).then(r => {
+    if (r && r.config) STATE.config = r.config;
+    sb('提示词已保存 · 下次翻译生效（缓存已随提示词失效）');
+  });
+}
 function openReplace() {
   document.getElementById('replModal').classList.remove('hidden');
   document.getElementById('replFind').focus();
@@ -762,7 +895,7 @@ async function dedupRows() {
     sb('清理完成 · 删除重复 ' + r.removed.toLocaleString() + ' 条，剩 ' + r.total.toLocaleString() + ' 条');
   } else sb((r && r.message) || '清理失败');
 }
-/* 右键行菜单：复制原文 / 复制译文 / 清空译文 */
+/* 右键行菜单：复制原文 / 复制译文 / 查看全文 / 清空译文 / 删除条目 */
 function _copy(text) {
   if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => sb('已复制'));
   else sb('复制失败 · 浏览器不支持剪贴板');
@@ -772,22 +905,46 @@ function onRowCtx(ev) {
   if (!tr || !tr.dataset.ei) return;
   ev.preventDefault();
   const ei = +tr.dataset.ei;
-  const orig = tr.cells[2] ? tr.cells[2].textContent : '';
+  const orig = tr.cells[3] ? tr.cells[3].textContent : '';   // 第 4 列 = 原文
   const trans = tr.dataset.t || '';
   const menu = document.getElementById('ctxMenu');
   menu.innerHTML = `
     <button class="dd-item" onclick="_copy(${JSON.stringify(orig)});_hideCtx()">复制原文</button>
     <button class="dd-item" onclick="_copy(${JSON.stringify(trans)});_hideCtx()">复制译文</button>
-    <button class="dd-item" onclick="_clearRow(${ei});_hideCtx()">清空译文</button>`;
+    <button class="dd-item" onclick="viewFull(${ei});_hideCtx()">查看全文</button>
+    <button class="dd-item" onclick="_clearRow(${ei});_hideCtx()">清空译文</button>
+    <button class="dd-item" style="color:#e0526e" onclick="deleteRows([${ei}]);_hideCtx()">删除条目</button>`;
   menu.classList.remove('hidden');
   menu.style.left = Math.min(ev.clientX, innerWidth - 150) + 'px';
-  menu.style.top = Math.min(ev.clientY, innerHeight - 120) + 'px';
+  menu.style.top = Math.min(ev.clientY, innerHeight - 160) + 'px';
 }
 function _hideCtx() { document.getElementById('ctxMenu').classList.add('hidden'); }
 async function _clearRow(ei) {
   const r = await api('POST', '/api/row/edit', { i: ei, translation: '' });
   if (r && r.ok) { sb('已清空该条译文（状态回「未翻译」）'); loadRows(); }
   else sb((r && r.message) || '操作失败');
+}
+/* FR-57: 查看全文（长句在行内看不全 → 弹窗完整展示） */
+function viewFull(ei) {
+  const tr = document.querySelector(`#p4tbody tr[data-ei="${ei}"]`);
+  if (!tr) return;
+  document.getElementById('fullOrig').textContent = tr.cells[3] ? tr.cells[3].textContent : '';
+  document.getElementById('fullTrans').textContent = tr.dataset.t || '（未翻译）';
+  document.getElementById('fullModal').classList.remove('hidden');
+}
+function closeFull() { document.getElementById('fullModal').classList.add('hidden'); }
+/* FR-57: 删除条目（indices = 条目序号；序号会移位 → 删完清空勾选集） */
+async function deleteRows(indices) {
+  if (!indices || !indices.length) return;
+  if (!confirm('删除选中的 ' + indices.length + ' 条条目？删除后不可恢复（备份轮转除外）。')) return;
+  const r = await api('POST', '/api/row/delete', { indices });
+  if (r && r.ok) {
+    SEL_ROWS.clear();
+    STATE.translate.total = r.total;
+    STATE.translate.done = r.translated;
+    renderStep4Metrics(); loadRows();
+    sb('已删除 ' + r.deleted.toLocaleString() + ' 条 · 剩 ' + r.total.toLocaleString() + ' 条');
+  } else sb((r && r.message) || '删除失败');
 }
 
 /* ---------------- Step 5：落盘（按引擎变脸） ---------------- */

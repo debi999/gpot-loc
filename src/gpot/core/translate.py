@@ -8,6 +8,7 @@ api 层只负责把 job 进度转成 JSON 推给前端，不在此处理并发�
 from __future__ import annotations
 
 import threading
+import time
 import uuid
 
 from gpot.core import pipeline
@@ -52,10 +53,36 @@ def select_targets(store, scope: str = "todo", flt: dict | None = None) -> list:
         return list(tstore.entries)
     if scope == "filtered":
         return [e for _i, e in filter_entries(tstore, flt)]
+    if scope == "selected":   # FR-61: 任意勾选行（flt["indices"] = 条目序号列表）
+        idx = (flt or {}).get("indices") or []
+        out = []
+        for i in idx:
+            if isinstance(i, int) and 0 <= i < len(tstore.entries):
+                out.append(tstore.entries[i])
+        return out
     targets = [e for e in tstore.entries if e["status"] == "untranslated"]
     if scope == "retry":
         targets += [e for e in tstore.entries if e["status"] == "english"]
     return targets
+
+
+def sort_matched(matched: list, col: str, rev: bool) -> list:  # FR-57: 列排序
+    """第 4 步表头排序（纯函数）。col = original|translation|status，其余原样返回。
+
+    matched 是 _rows 已筛选的行字典列表（{i,o,t,s}）；空值排最后（不分方向）。
+    """
+    if col not in ("original", "translation", "status"):
+        return matched
+    keyf = (lambda r: (r["t"] == "", r["t"].lower())) if col == "translation" \
+        else (lambda r: (r["o"] == "", r["o"].lower())) if col == "original" \
+        else (lambda r: (r["s"] == "", r["s"]))
+    out = sorted(matched, key=keyf, reverse=bool(rev))
+    # 空值永远沉底：反向时把空值段再挪回末尾
+    if rev:
+        nonempty = [r for r in out if not keyf(r)[0]]
+        empties = [r for r in out if keyf(r)[0]]
+        out = nonempty + empties
+    return out
 
 
 def start_translate(store, retry: bool = False, scope: str = "todo",
@@ -79,17 +106,26 @@ def start_translate(store, retry: bool = False, scope: str = "todo",
 
     def worker() -> None:
         tr = kernel.Translator(_providers.to_kernel_cfg(dict(store.config)))
+        # FR-58: 并发/延迟（第 0 步可配；conc=1 时等价旧的顺序分块）
+        try:
+            conc = max(1, min(8, int(str(store.config.get("concurrency", "") or 3), 10)))
+        except (TypeError, ValueError):
+            conc = 3
+        try:
+            delay = max(0.0, min(10.0, float(str(store.config.get("delay", "") or 0))))
+        except (TypeError, ValueError):
+            delay = 0.0
+        chunks = [targets[i:i + CHUNK] for i in range(0, len(targets), CHUNK)]
         ok = True
-        for i in range(0, len(targets), CHUNK):
-            with store.lock:
-                if job["cancel"] or not job["running"]:
-                    ok = False
-                    break
-                chunk = targets[i:i + CHUNK]
+
+        def run_chunk(chunk):
             try:
-                outs = tr.translate_batch_fast([e["original"] for e in chunk])
+                return chunk, tr.translate_batch_fast(
+                    [e["original"] for e in chunk])
             except Exception:
-                outs = [None] * len(chunk)
+                return chunk, [None] * len(chunk)
+
+        def apply(chunk, outs):
             with store.lock:
                 for e, o in zip(chunk, outs):
                     if o:
@@ -101,8 +137,37 @@ def start_translate(store, retry: bool = False, scope: str = "todo",
                         job["failed"] += 1
                 processed = job["done"] + job["failed"]
                 job["progress"] = round(processed / max(1, job["total"]) * 100, 1)
-            if job["done"] + job["failed"] >= job["total"]:
-                break
+
+        if conc <= 1:
+            for chunk in chunks:
+                with store.lock:
+                    if job["cancel"] or not job["running"]:
+                        ok = False
+                        break
+                chunk, outs = run_chunk(chunk)
+                apply(chunk, outs)
+                if delay:
+                    time.sleep(delay)
+                if job["done"] + job["failed"] >= job["total"]:
+                    break
+        else:
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=conc) as ex:
+                pending = []
+                for chunk in chunks:           # 主线程派发（可响应取消）
+                    with store.lock:
+                        if job["cancel"] or not job["running"]:
+                            ok = False
+                            break
+                    pending.append(ex.submit(run_chunk, chunk))
+                    if delay:
+                        time.sleep(delay)
+                for fut in pending:            # 结果按派发序回填
+                    if job["cancel"] or not job["running"]:
+                        ok = False
+                        break
+                    chunk, outs = fut.result()
+                    apply(chunk, outs)
 
         with store.lock:
             job["running"] = False

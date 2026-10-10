@@ -1161,6 +1161,19 @@ class TranslationStore:
         self.bom = True
         self.dirty = False
         self.corrupt_chars = 0   # load() 时统计的 U+FFFD 数（词典文件损坏指标）
+        self.mtime = 0.0         # 最近一次 load/save 的文件 mtime（外部改动检测，FR-60）
+
+    def external_changed(self) -> bool:
+        """FR-60: 词典文件在本次程序载入后被外部（游戏/编辑器）改写过？
+
+        以 mtime 为准：自上次 load/save 后文件时间戳变了（且仍存在）即视为外部改动。
+        """
+        if not self.path or not os.path.isfile(self.path) or not self.mtime:
+            return False
+        try:
+            return os.path.getmtime(self.path) > self.mtime + 1e-6
+        except OSError:
+            return False
 
     def load(self, path):
         self.path = path
@@ -1185,6 +1198,7 @@ class TranslationStore:
             self.entries.append({'original': original, 'translation': translation,
                                   'status': status})
         self.dirty = False
+        self.mtime = os.path.getmtime(path)
 
     @staticmethod
     def _escape_line(s):
@@ -1234,6 +1248,10 @@ class TranslationStore:
                 pass
             raise
         self.dirty = False
+        try:
+            self.mtime = os.path.getmtime(path)
+        except OSError:
+            pass
 
     def stats(self):
         s = {'total': len(self.entries), 'translated': 0, 'untranslated': 0, 'english': 0}
@@ -1870,6 +1888,72 @@ def import_csv(store, path, mode='merge'):
         else:
             store.entries.append({'original': o, 'translation': t,
                                   'status': classify(o, t)})
+            updated += 1
+    if updated:
+        store.dirty = True
+    return updated
+
+
+def import_txt(store, path):
+    """FR-56: 导入 TXT —— 忠实移植旧 GUI _import_txt（v3.x）。
+
+    自动识别三种内容形态并合并：
+      1) `原文=译文` / `原文\\t译文` 行 -> 按原文更新/新增译文(合并);
+      2) 纯原文行 -> 追加为未翻译文本;
+      3) `#`/空行 -> 忽略。
+    行首数字编号（如 "1. "）自动剥掉；原文先精确匹配、再 normalize 匹配。
+    返回更新的总条数。
+    """
+    with open(path, encoding='utf-8', errors='replace') as f:
+        lines = f.readlines()
+    index = {e['original']: e for e in store.entries}
+    index_norm = {normalize(e['original']): e for e in store.entries}
+    updated = 0
+
+    def ensure(orig):
+        e = index.get(orig)
+        if e is not None:
+            return e, False
+        e2 = index_norm.get(normalize(orig))
+        if e2 is not None:
+            return e2, False
+        e = {'original': orig, 'translation': '', 'status': 'untranslated'}
+        store.entries.append(e)
+        index[orig] = e
+        index_norm[normalize(orig)] = e
+        return e, True
+
+    for line in lines:
+        line = line.rstrip('\r\n')
+        if not line.strip() or line.lstrip().startswith('#'):
+            continue
+        raw = re.sub(r'^\d+\.\s*', '', line).strip()
+        if not raw:
+            continue
+        orig = trans = None
+        if '=' in raw:                      # 原文=译文 (只切第一个 =)
+            o, t = raw.split('=', 1)
+            o, t = o.strip(), t.strip()
+            if o and t:
+                orig, trans = o, t
+        elif '\t' in raw:
+            o, t = raw.split('\t', 1)
+            o, t = o.strip(), t.strip()
+            if o and t:
+                orig, trans = o, t
+        if orig is None:                    # 纯原文: 追加为未翻译
+            _e, new = ensure(raw)
+            if new:
+                updated += 1
+            continue
+        e, _new = ensure(orig)
+        if not e['translation'] and trans:
+            e['translation'] = trans
+            store.update_status(e)
+            updated += 1
+        elif e['translation'] != trans:
+            e['translation'] = trans
+            store.update_status(e)
             updated += 1
     if updated:
         store.dirty = True
