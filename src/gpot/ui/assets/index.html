@@ -218,9 +218,14 @@
         <div class="tbl-zone">
           <div class="toolbar">
             <span class="tbl-tag"><span class="idx">02</span>校对</span>
-            <input class="inp" style="width:220px" placeholder="搜索原文或译文…">
-            <select class="inp"><option>全部</option><option>未翻译</option><option>英文残留</option><option>已翻译</option></select>
-            <span class="subtle nowrap" id="p4count">筛选后全部条目</span>
+            <input class="inp" style="width:220px" id="p4q" placeholder="搜索原文或译文…" oninput="onRowsFilter()">
+            <select class="inp" id="p4filter" onchange="onRowsFilter()">
+              <option value="all">全部</option>
+              <option value="untranslated">未翻译</option>
+              <option value="english">英文残留</option>
+              <option value="translated">已翻译</option>
+            </select>
+            <span class="subtle nowrap" id="p4count">共 0 条</span>
             <div class="spacer"></div>
             <button class="btn btn-ghost">导入 CSV</button>
             <button class="btn btn-ghost">导出 CSV</button>
@@ -235,12 +240,7 @@
           </div>
           <div class="btn-row spread" style="margin-top:8px;padding-bottom:2px">
             <span class="subtle">双击任意行可直接改译文</span>
-            <div class="btn-row">
-              <button class="btn">‹‹</button><button class="btn">‹</button>
-              <span class="subtle nowrap">1 / 294</span>
-              <button class="btn">›</button><button class="btn">››</button>
-              <input class="inp" style="width:56px" value="1">
-            </div>
+            <span class="subtle nowrap" id="p4pager">共 0 条</span>
           </div>
         </div>
         <div class="btn-row" style="justify-content:flex-end;padding-top:10px">
@@ -257,10 +257,13 @@
         </div>
         <div class="card">
           <div class="btn-row spread">
-            <div>
-              <div class="card-h" style="margin-bottom:2px">当前管线</div>
-              <div class="card-sub" style="margin-bottom:0" id="p5engineName">待识别</div>
-              <div class="subtle" id="p5lockedTo" style="margin-top:4px"></div>
+            <div class="btn-row" style="gap:14px;align-items:center;margin:0;min-width:0">
+              <div class="gc-cover" id="p5badge" style="width:46px;height:46px;font-size:20px;border-radius:12px;flex:none">?</div>
+              <div style="min-width:0">
+                <div class="card-h" style="margin-bottom:2px">当前管线</div>
+                <div class="card-sub" style="margin-bottom:0" id="p5engineName">待识别</div>
+                <div class="subtle" id="p5lockedTo" style="margin-top:4px"></div>
+              </div>
             </div>
             <div class="seg" id="engSeg">
               <button onclick="previewEngine('unity',this)">Unity</button>
@@ -269,6 +272,7 @@
             </div>
           </div>
           <div class="subtle" style="margin-top:8px">默认锁定当前游戏识别出的管线；切到其它管线查看形态时，「保存并写入」会禁用。</div>
+          <div id="p5evidence" style="margin-top:10px"></div>
         </div>
         <div id="sinkView"></div>
       </section>
@@ -291,8 +295,8 @@
         <div class="card">
           <div class="card-h">下一步</div>
           <div class="grid3">
-            <button class="btn btn-lg btn-accent" style="justify-content:center"><svg width="14" height="14"><use href="#i-play"/></svg> 启动游戏验证</button>
-            <button class="btn btn-lg" style="justify-content:center"><svg width="14" height="14"><use href="#i-folder"/></svg> 打开译文目录</button>
+            <button class="btn btn-lg btn-accent" style="justify-content:center" onclick="launchGame()"><svg width="14" height="14"><use href="#i-play"/></svg> 启动游戏验证</button>
+            <button class="btn btn-lg" style="justify-content:center" onclick="openTransDir()"><svg width="14" height="14"><use href="#i-folder"/></svg> 打开译文目录</button>
             <button class="btn btn-lg btn-danger" style="justify-content:center" id="btnRestore" hidden>还原到原文</button>
           </div>
         </div>

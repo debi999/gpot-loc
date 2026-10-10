@@ -24,7 +24,7 @@ _STATE = _store.Store()
 
 # 应用版本（老板 2026-10-10 指定：修改版从 V0.4* 起编号；/api/state 暴露，
 # main.py 双开复用前比对——旧版本实例不复用，避免「双击 bat 还是老版本」）
-APP_VERSION = "0.4.1"
+APP_VERSION = "0.4.2"
 
 # 旧库格式 config.ini（随 kernel 落在 core/ 目录）—— 提供方/游戏目录记忆
 _CFG = kernel.load_config()
@@ -91,6 +91,32 @@ def _name_from_path(p: str) -> str:
     return p.split("/")[-1].split("\\")[-1] or "未命名游戏"
 
 
+# 游戏目录里不算「游戏本体」的 exe（按名字排除）
+_EXE_EXCLUDE = ("crash", "unity", "uninst", "setup", "install", "vcredist",
+                "dxsetup", "dotnet", "update", "patch", "xunity", "bepinex")
+
+
+def _find_game_exe(gdir: str) -> str | None:
+    """在游戏根目录找游戏本体 exe：排除工具类名字后取最大的（本体通常最大）。"""
+    if not gdir or not os.path.isdir(gdir):
+        return None
+    try:
+        cands = [(p.stat().st_size, str(p))
+                 for p in Path(gdir).glob("*.exe")
+                 if not any(b in p.name.lower() for b in _EXE_EXCLUDE)
+                 and p.stat().st_size > 0]
+    except OSError:
+        return None
+    if not cands:   # 极端情况：全是被排除的名字 → 放宽到只排除崩溃报告器
+        try:
+            cands = [(p.stat().st_size, str(p))
+                     for p in Path(gdir).glob("*.exe")
+                     if "crash" not in p.name.lower() and p.stat().st_size > 0]
+        except OSError:
+            return None
+    return max(cands)[1] if cands else None
+
+
 def _pick_folder() -> dict:
     """Windows 原生「选择文件夹」对话框（在 HTTP worker 线程内打开）。
 
@@ -123,7 +149,9 @@ def _pick_folder() -> dict:
             BIF_NEWDIALOGSTYLE = 0x0040    # 可新建文件夹的现代化样式
             buf = ctypes.create_unicode_buffer(260)
             bi = BROWSEINFOW()
-            bi.pszDisplayName = buf
+            # 结构体指针字段不能直接赋 c_wchar 数组（ctypes 报 incompatible
+            # types）——必须 cast 成 LPWSTR；pszDisplayName 只回显选中名，可空
+            bi.pszDisplayName = ctypes.cast(buf, wintypes.LPWSTR)
             bi.lpszTitle = "选择游戏根目录（含 BepInEx 或 *_Data 的目录）"
             bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE
             pidl = shell32.SHBrowseForFolderW(ctypes.byref(bi))
@@ -373,6 +401,36 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send(500, {"error": "restore_failed",
                                         "message": str(e)[:300]})
+
+        if path == "/api/launch":  # FR-45: 第 6 步「启动游戏验证」——真启动游戏
+            gdir = _STATE.game.get("path", "")
+            if not gdir or not os.path.isdir(gdir):
+                return self._send(400, {"error": "no_game",
+                                        "message": "先在第 1 步选择游戏目录"})
+            exe = _find_game_exe(gdir)
+            if not exe:
+                return self._send(400, {"error": "no_exe",
+                                        "message": "游戏目录里没找到可执行的游戏 .exe"})
+            try:
+                os.startfile(exe)   # 独立进程启动，生命周期与翻译器无关
+                return self._send(200, {"ok": True, "exe": exe})
+            except Exception as e:
+                return self._send(500, {"error": "launch_failed",
+                                        "message": "启动失败：%s" % str(e)[:200]})
+
+        if path == "/api/open-dir":  # 第 6 步「打开译文目录」
+            gdir = _STATE.game.get("path", "")
+            tp = kernel.translation_file_path(gdir) if gdir else ""
+            d = os.path.dirname(tp) if tp else ""
+            if not d or not os.path.isdir(d):
+                return self._send(400, {"error": "no_dir",
+                                        "message": "译文目录还不存在（先走完第 5 步保存）"})
+            try:
+                os.startfile(d)
+                return self._send(200, {"ok": True, "dir": d})
+            except Exception as e:
+                return self._send(500, {"error": "open_failed",
+                                        "message": "打开失败：%s" % str(e)[:200]})
 
         if path == "/api/nav":  # FR-36: 导航锁（只落已解锁区间）
             ok = _STATE.nav(int(b.get("step", 0)))

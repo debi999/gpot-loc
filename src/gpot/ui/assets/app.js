@@ -89,6 +89,10 @@ function _demoApi(method, path, body) {
   if (path === '/api/verify')
     return Promise.resolve({ hint: '启动游戏前确认注入工具已就位', checks: [
       { t: 'BepInEx 目录完整', s: 'BepInEx/core 存在' }, { t: 'XUnity 词典就位', s: 'Translation.txt · 1.4 MB' }] });
+  if (path === '/api/launch')
+    return Promise.resolve({ ok: true, exe: '演示模式 · 不真启动' });
+  if (path === '/api/open-dir')
+    return Promise.resolve({ ok: true, dir: '演示模式 · 不真打开' });
   return Promise.resolve({});
 }
 async function api(method, path, body) {
@@ -184,13 +188,13 @@ function renderGameCard() {
 function renderStep4Metrics() {
   const t = STATE.translate;
   const todo = Math.max(0, t.total - t.done - t.failed);
-  const pct = Math.round(t.done / t.total * 100);
+  const pct = t.total ? Math.round(t.done / t.total * 100) : 0;   // 0 条时防 NaN%
   const box = document.getElementById('p4metrics');
   box.innerHTML = `
-    <div class="metric"><div class="metric-l">总条目</div><div class="metric-v">${t.total.toLocaleString()}</div><div class="metric-n">1,424,251 B</div></div>
-    <div class="metric"><div class="metric-l">已翻译</div><div class="metric-v" id="m-done">${t.done.toLocaleString()}</div><div class="metric-n">${pct}%</div></div>
+    <div class="metric"><div class="metric-l">总条目</div><div class="metric-v">${(t.total || 0).toLocaleString()}</div><div class="metric-n">含已有译文</div></div>
+    <div class="metric"><div class="metric-l">已翻译</div><div class="metric-v" id="m-done">${(t.done || 0).toLocaleString()}</div><div class="metric-n">${pct}%</div></div>
     <div class="metric"><div class="metric-l">未翻译</div><div class="metric-v" id="m-todo">${todo.toLocaleString()}</div><div class="metric-n">本次目标</div></div>
-    <div class="metric"><div class="metric-l">失败</div><div class="metric-v" id="m-fail">${t.failed}</div><div class="metric-n">多为超长/超时</div></div>`;
+    <div class="metric"><div class="metric-l">失败</div><div class="metric-v" id="m-fail">${t.failed || 0}</div><div class="metric-n">多为超长/超时</div></div>`;
   const bar = document.getElementById('p4bar');
   bar.firstElementChild.style.width = pct + '%';
   document.getElementById('p4txt').textContent = pct + '%';
@@ -202,6 +206,10 @@ function showPage(i) {
   });
   document.querySelector('.content').scrollTop = 0;
   if (i === 3) renderStep3Base();   // 提取页先亮出「已有提取结果」基线
+  if (i === 4) {                    // 校对页每次进入都刷新指标 + 真实条目
+    renderStep4Metrics();
+    if (!DEMO) loadRows();
+  }
 }
 
 /* 第 3 步基线：进入即显示已有提取成果（FR-42 语义：提取优先认已有文本） */
@@ -415,6 +423,9 @@ async function runExtract() {
     <div class="metric"><div class="metric-l">本轮新增</div><div class="metric-v">${r.added.toLocaleString()}</div><div class="metric-n">新提取到的原文</div></div>
     <div class="metric"><div class="metric-l">已存在</div><div class="metric-v">${r.existing.toLocaleString()}</div><div class="metric-n">跳过，不覆盖原译文</div></div>
     <div class="metric"><div class="metric-l">护栏拦截</div><div class="metric-v">${r.guarded.toLocaleString()}</div><div class="metric-n">疑似碎片/污染</div></div>`;
+  // 提取结果灌回全局状态：第 4 步指标和表格要靠它显示
+  STATE.translate.total = r.total || 0;
+  STATE.translate.done = r.translated || 0;
   btn.textContent = '重新提取'; btn.disabled = false;
   document.getElementById('btnNext3').disabled = false;
   sb(!r.added && r.total
@@ -457,14 +468,26 @@ function fillTable() {
   loadRows();
 }
 async function loadRows() {
-  // 第 4 步表格灌真实条目（/api/rows，一次最多 5000 条）
-  const r = await api('GET', '/api/rows?limit=5000');
+  // 第 4 步表格灌真实条目（/api/rows，一次最多 5000 条）+ 搜索/筛选
+  const q = (document.getElementById('p4q') || {}).value || '';
+  const st = (document.getElementById('p4filter') || {}).value || 'all';
+  const r = await api('GET', '/api/rows?limit=5000&status=' + st
+    + '&q=' + encodeURIComponent(q.trim()));
   const rows = (r.rows || []).map(x => [x.o, x.t, x.s]);
   if (!rows.length) rows.push(['（还没有条目）', '先在第 3 步提取文本', 'todo']);
   _fillTableRows(rows);
   const tb = document.getElementById('p4tbody');
   tb.dataset.total = r.total || rows.length;
+  const cnt = document.getElementById('p4count');
+  if (cnt) cnt.textContent = q.trim() || st !== 'all'
+    ? `筛出 ${rows.length} 条 / 共 ${(r.total || 0).toLocaleString()} 条`
+    : `共 ${(r.total || 0).toLocaleString()} 条`;
+  const pager = document.getElementById('p4pager');
+  if (pager) pager.textContent = (r.total || 0) > 5000
+    ? `显示前 5,000 条 · 共 ${(r.total || 0).toLocaleString()} 条`
+    : `共 ${(r.total || 0).toLocaleString()} 条`;
 }
+function onRowsFilter() { if (!DEMO) loadRows(); }
 function _fillTableRows(rows) {
   const tb = document.getElementById('p4tbody');
   tb.innerHTML = rows.map((r, i) => {
@@ -543,6 +566,17 @@ async function loadSink(engineKey) {
   document.getElementById('p5engineName').textContent = engineName(engineKey);
   document.getElementById('p5lockedTo').textContent =
     '锁定：' + engineName(detected) + '（当前游戏识别结果）';
+  // 管线徽章 + 识别依据（填充第 5 步头卡左侧空间，真实数据来自第 2 步识别）
+  const badge = document.getElementById('p5badge');
+  if (badge) badge.textContent = (engineName(detected) || '?').trim()[0] || '?';
+  const evBox = document.getElementById('p5evidence');
+  if (evBox) {
+    const ev = (STATE.engine && STATE.engine.evidence) || [];
+    evBox.innerHTML = ev.length
+      ? `<div class="subtle" style="margin-bottom:6px">识别依据（第 2 步扫描到的硬证据）</div>
+         <div>${ev.map(e => `<span class="chip"><span class="chip-mono">${esc(e)}</span></span>`).join('')}</div>`
+      : '';
+  }
   const v = await api('GET', '/api/sink?engine=' + engineKey);
   const m = (v.metrics || []).map(x =>
     `<div class="metric"><div class="metric-l">${x.l}</div><div class="metric-v">${x.v}</div><div class="metric-n">${x.n}</div></div>`).join('');
@@ -622,6 +656,17 @@ async function loadVerify() {
     `<div class="rowitem"><div class="ri-main"><div class="ri-t">${c.t}</div><div class="ri-s mono">${c.s}</div></div>
      <div class="ri-side"><span class="badge b-ok">通过</span></div></div>`).join('');
   document.getElementById('btnRestore').hidden = !(STATE.sink && STATE.sink.backup);
+}
+async function launchGame() {
+  sb('正在启动游戏…');
+  const r = await api('POST', '/api/launch');
+  if (r && r.ok) sb('已启动游戏 · ' + r.exe);
+  else sb((r && r.message) || '启动失败 · 请手动启动游戏');
+}
+async function openTransDir() {
+  const r = await api('POST', '/api/open-dir');
+  if (r && r.ok) sb('已打开译文目录');
+  else sb((r && r.message) || '打开失败');
 }
 
 /* ---------------- 启动 ---------------- */
