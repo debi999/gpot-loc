@@ -25,7 +25,7 @@ _STATE = _store.Store()
 
 # 应用版本（FR-51: 版本唯一真源，随 /api/state 暴露、状态栏常显、双开复用前比对——
 # 旧版本实例不复用，避免「双击 bat 还是老版本」；老板 2026-10-10 指定 V0.4* 起编号）
-APP_VERSION = "0.5.2"
+APP_VERSION = "0.5.3"
 
 # 旧库格式 config.ini（随 kernel 落在 core/ 目录）—— 提供方/游戏目录记忆
 _CFG = kernel.load_config()
@@ -146,7 +146,16 @@ def _restore_flow() -> None:
 
 
 def _kit_tools(engine: dict | None, deployed: bool = False) -> list:
-    """注入工具清单（真实数据：kit_catalog.required_tools）。"""
+    """注入工具清单（真实数据：kit_catalog.required_tools）。
+
+    FR-66 修正：原有一列 `version` 是**永远为空的假列**——kit_catalog 的 14 个包里
+    一条 `'version'` 字段都没有，`.get("version", "—")` 恒取兜底，于是工具表那一列
+    永远是一排「—」（跟老板吐槽的「v—啥意思」同一类病：看不懂的占位符）。
+    版本号本来就在 `title` 里写着（如 "BepInEx 5.4.23.5 (Windows x64)"），重复一列
+    既无信息量又恒空 —— 按 NFR-9 直接删字段、删列，不留假数据。
+
+    `size` 的兜底同理不留裸「—」：拿不到就说「大小未知」，不说哑谜。
+    """
     eng = (engine or {}).get("engine")
     if not eng:
         return []
@@ -156,8 +165,7 @@ def _kit_tools(engine: dict | None, deployed: bool = False) -> list:
         size = p.get("size")
         out.append({
             "name": p.get("title") or p.get("id", ""),
-            "version": p.get("version", "—"),
-            "size": (f"{size / 1e6:.1f} MB" if isinstance(size, (int, float)) else "—"),
+            "size": (f"{size / 1e6:.1f} MB" if isinstance(size, (int, float)) else "大小未知"),
             "verified": bool(p.get("verified")),
             "status": status,
         })

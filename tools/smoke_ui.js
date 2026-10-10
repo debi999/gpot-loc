@@ -99,6 +99,12 @@ const { chromium } = require('playwright-core');
     check(`gear menu dropped ${gone}`, !gearTxt.includes(gone));
   check('themeBtn kept in titlebar', await page.locator('#themeBtn').count() === 1);
   check('gear version is a real semver (not v—): ' + gearVer, /^v\d+\.\d+\.\d+$/m.test(gearVer));
+  // FR-66：同類占位符全库清扫 —— 界面不许再出现没自解释的破折号占位符
+  const shownHtml = await page.evaluate(() => document.body.innerText);
+  check('no bare dash placeholder on screen (' + 'v—' + ')', !shownHtml.includes('v—'));
+  check('p4eta not a dash placeholder', !shownHtml.includes('预计剩余 ——'));
+  const etaTxt = (await page.textContent('#p4eta')).trim();
+  check('p4eta static text is readable: ' + etaTxt, etaTxt.includes('翻译开始后显示预计剩余时间'));
   // 点别处应收起（避免遮挡操作）
   await page.mouse.click(400, 500);
   await page.waitForTimeout(200);

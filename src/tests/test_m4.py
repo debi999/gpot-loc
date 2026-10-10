@@ -312,3 +312,56 @@ def test_norm_show_keeps_write_path_untouched():
     assert ki._norm_show(raw) == expected
     # 原函数返回值未被就地改写（仍是混用斜杠 —— 那是 sink.py 写盘要用的原值）
     assert "/" in raw, "catalog.sink_path 的返回值不应被展示层归一污染"
+
+
+# ---------------------------------------------------------------------------
+# FR-66: 界面不留「看不懂的占位符」——老板那句「v—啥意思」的同类清扫（v0.5.3）
+#
+# 起因：第 2 步工具表的「版本」列恒为一排「—」——kit_catalog 里一条 version 字段
+# 都没有，`.get("version", "—")` 永远走兜底。假列不如没列：版本号本来就写在 title
+# 里（"BepInEx 5.4.23.5 (Windows x64)"）。同类还有 index.html 的静态初值「v—」、
+# 「预计剩余 ——」、sink 的「写入体积 —」——JS 没跑到/后端没起时它们就原样上屏。
+# ---------------------------------------------------------------------------
+def test_kit_tools_has_no_fake_version_column():
+    """version 字段已删，不许复活 —— 守住「工具表不再有恒空的假列」。"""
+    import gpot.api.server as server
+    tools = server._kit_tools({"engine": "Unity"}, False)
+    assert tools, "Unity 应有工具清单（清单为空的话这条断言本身就该重写）"
+    for t in tools:
+        assert "version" not in t, "version 是恒空假列，已删，不许复活"
+        assert t["size"], "大小要么给数，要么说「大小未知」，不许空着"
+        assert t["size"] != "—", "大小兜底不许留哑谜「—」"
+
+
+def test_kit_tools_size_is_readable_number():
+    """size 必须是可读串（"0.6 MB" 或「大小未知」），不是破折号/负数/空串。"""
+    import gpot.api.server as server
+    for t in server._kit_tools({"engine": "Unity"}, False):
+        s = t["size"]
+        assert s in ("大小未知",) or s.endswith(" MB"), "大小格式异常：%r" % s
+        assert not s.startswith("-"), "不许出现负体积：%r" % s
+
+
+def test_ui_static_has_no_bare_dash_placeholders():
+    """index.html 静态初值不许有「v—」「预计剩余 ——」这类哑谜。
+
+    ⚠️ 只扫**会显示出来的文本**：HTML 注释里提到这些串（比如 FR-66 的修补说明）
+    不算违规，所以先剥掉注释再断言。写法本身也是给后来人留句提醒——别把 explains
+    性注释误判成 bug。
+    """
+    import re
+    here = os.path.dirname(os.path.abspath(__file__))
+    html = open(os.path.join(here, os.pardir, "gpot", "ui", "assets", "index.html"),
+                encoding="utf-8").read()
+    shown = re.sub(r"<!--.*?-->", "", html, flags=re.S)
+    for bad in ("v—", "预计剩余 ——"):
+        assert bad not in shown, "界面静态文案仍残留占位符：%s" % bad
+
+
+def test_sink_view_metrics_no_bare_dash():
+    """第 5 步「写入体积」初值不许写「—」（长得像数字，容易被读成 0 字节）。"""
+    from gpot.core import sink
+    for key in ("Unity", "RPGMakerMZ", "None"):
+        view = sink.sink_view(key, None)
+        for m in view.get("metrics", []):
+            assert m["v"] != "—", "%s 的指标「%s」仍是裸破折号" % (key, m["l"])

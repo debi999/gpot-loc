@@ -247,7 +247,8 @@
             <div class="prog" id="p4bar"><i style="width:62%"></i></div>
             <div class="prog-txt" id="p4txt">62%</div>
           </div>
-          <span class="subtle nowrap" id="p4eta">预计剩余 —— · 已译文不会被覆盖</span>
+          <!-- FR-66：初值别摆「——」哑谜，翻译跑起来后 JS 按实测速度填剩余时间 -->
+          <span class="subtle nowrap" id="p4eta">翻译开始后显示预计剩余时间 · 已译文不会被覆盖</span>
           <div style="position:relative;display:flex">
             <button class="btn btn-accent" id="btnTrans" onclick="runTranslate('todo')">翻译未译条目</button>
             <button class="btn btn-accent" onclick="ddToggle(event)" title="选择翻译范围" style="border-left:1px solid var(--border)">▾</button>
@@ -466,7 +467,8 @@
     <div class="subtle">回到第 0 步重新开始（译文资产不删）</div>
   </button>
   <div style="height:1px;background:var(--border);margin:6px 0"></div>
-  <div class="subtle" style="padding:4px 14px 2px" id="gearVer">v—</div>
+  <!-- FR-66：静态初值别留「v—」（JS 没跑到/后端未起时就是那串看不懂的东西）——留空由 JS 填 -->
+  <div class="subtle" style="padding:4px 14px 2px" id="gearVer"></div>
 </div>
 
 <!-- 运行日志（FR-62） -->

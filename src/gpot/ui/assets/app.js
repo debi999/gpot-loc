@@ -497,16 +497,18 @@ async function deployKit() {
   btn.disabled = true; btn.textContent = '部署中…';
   const kit = await api('POST', '/api/deploy');
   STATE.kit = kit;   // FR-41: 记录部署态（重新校验文案用）
+  /* FR-66：删掉原「版本」列 —— kit_catalog 没有 version 字段，那一列恒排「—」，
+     而版本号本来就写在工具名里（"BepInEx 5.4.23.5 (Windows x64)"），重复且误导。 */
   const rows = (kit.tools || []).map(t => `
-    <tr><td>${t.name}</td><td class="mono">${t.version}</td><td class="mono">${t.size}</td>
+    <tr><td>${t.name}</td><td class="mono">${t.size}</td>
     <td>${t.verified ? '<span class="badge b-ok">已验证</span>' : '<span class="badge b-warn">仅查过</span>'}</td>
     <td><span class="badge b-ok">${t.status}</span></td></tr>`).join('');
   document.getElementById('kitBox').innerHTML = `
     <div class="card">
       <div class="card-h">需要部署的工具 <span class="badge b-muted" style="margin-left:6px">一次性</span></div>
       <div class="tblwrap"><table>
-        <thead><tr><th>工具</th><th style="width:110px">版本</th><th style="width:80px">大小</th><th style="width:96px">校验</th><th style="width:88px">状态</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="5" class="subtle">该引擎暂无可靠工具包</td></tr>'}</tbody>
+        <thead><tr><th>工具</th><th style="width:90px">大小</th><th style="width:96px">校验</th><th style="width:88px">状态</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="4" class="subtle">该引擎暂无可靠工具包</td></tr>'}</tbody>
       </table></div>
     </div>`;
   btn.textContent = '重新校验';   // FR-41: 部署过 → 文案变「重新校验」
