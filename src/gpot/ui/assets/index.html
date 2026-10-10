@@ -59,8 +59,7 @@
         <button class="btn btn-ghost" style="justify-content:flex-start" onclick="resetAll()">
           <svg width="13" height="13"><use href="#i-reset"/></svg> 重置演示
         </button>
-        <div class="subtle" style="padding:0 12px">灰色的步骤完成上一步后解锁</div>
-        <div class="subtle" style="padding:0 12px;letter-spacing:.04em">Hook · Extract · Translate.</div>
+        <div class="subtle" style="padding:4px 10px 0;letter-spacing:.22em;color:var(--violet)">炼香工坊</div>
       </div>
     </nav>
 
@@ -111,7 +110,7 @@
             <input class="inp" id="gamePath" style="flex:1" value="F:\erogame\Starmaker_Story\Starmaker Story(1.8e\Starmaker 1.8E">
             <button class="btn" onclick="pickFolder()"><svg width="14" height="14"><use href="#i-folder"/></svg> 浏览</button>
           </div>
-          <div class="drop">把文件夹拖到这里也可以 · 或点上方<b>浏览</b></div>
+          <div class="drop-hint">把文件夹拖进窗口任意位置也可以 · 或点上方 <b>浏览</b></div>
         </div>
         <div id="gameInfo"></div>
         <div class="btn-row" style="justify-content:flex-end">
@@ -132,7 +131,7 @@
             <div>还没识别。点下方按钮扫描游戏目录。</div>
           </div>
         </div>
-        <div class="btn-row" style="justify-content:flex-end">
+        <div class="btn-row" style="justify-content:flex-end" id="detectRow">
           <button class="btn btn-accent btn-lg" id="btnDetect" onclick="detectEngine()">识别引擎</button>
         </div>
       </section>
@@ -173,7 +172,7 @@
         </div>
         <div class="grid4 hidden" id="p3result"></div>
         <div class="btn-row" style="justify-content:flex-end">
-          <button class="btn btn-accent btn-lg" id="btnNext3" onclick="goNext()" disabled>继续 · 翻译校对 →</button>
+          <button class="btn btn-lg" id="btnNext3" onclick="goNext()" disabled>继续 · 翻译校对 →</button>
         </div>
       </section>
 
@@ -231,7 +230,7 @@
           </div>
         </div>
         <div class="btn-row" style="justify-content:flex-end">
-          <button class="btn btn-accent btn-lg" id="btnNext4" onclick="goNext()" disabled>继续 · 应用到游戏 →</button>
+          <button class="btn btn-lg" id="btnNext4" onclick="goNext()" disabled>继续 · 应用到游戏 →</button>
         </div>
       </section>
 
@@ -276,32 +275,30 @@
           <div id="p6checks"></div>
         </div>
         <div class="card">
-          <div class="card-h">下一步你可以</div>
+          <div class="card-h">下一步</div>
           <div class="grid3">
-            <button class="btn btn-lg" style="justify-content:center"><svg width="14" height="14"><use href="#i-play"/></svg> 启动游戏验证</button>
+            <button class="btn btn-lg btn-accent" style="justify-content:center"><svg width="14" height="14"><use href="#i-play"/></svg> 启动游戏验证</button>
             <button class="btn btn-lg" style="justify-content:center"><svg width="14" height="14"><use href="#i-folder"/></svg> 打开译文目录</button>
             <button class="btn btn-lg btn-danger" style="justify-content:center" id="btnRestore" hidden>还原到原文</button>
           </div>
-          <div class="subtle" style="margin-top:12px">Unity 管线下不显示「还原到原文」—— 本来就不需要。</div>
         </div>
         <div class="card">
-          <div class="card-h">整条流程走完了</div>
-          <div class="card-sub">下次改一句台词：点「4 翻译」→ 改 → 走第 5 步。</div>
-          <div class="btn-row">
-            <button class="btn" onclick="resetAll()">重看一遍流程</button>
-          </div>
+          <div class="card-h">日常迭代</div>
+          <div class="subtle">下次改一句台词：点左侧「4 翻译与人工校对」→ 改 → 走第 5 步保存。</div>
         </div>
       </section>
 
     </main>
   </div>
 
-  <!-- ============ 状态栏 ============ -->
+  <!-- ============ 状态栏（空闲时进度淡出，FR-47） ============ -->
   <div class="statusbar">
     <span id="sbMsg">就绪</span>
     <div class="spacer"></div>
-    <div class="prog sb-prog"><i id="sbBar" style="width:0%"></i></div>
-    <span id="sbPct" style="width:52px;text-align:right">0%</span>
+    <div class="sb-live off" id="sbLive">
+      <div class="prog sb-prog"><i id="sbBar" style="width:0%"></i></div>
+      <span id="sbPct" style="width:46px;text-align:right">0%</span>
+    </div>
   </div>
 </div>
 

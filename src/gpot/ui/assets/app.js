@@ -105,9 +105,16 @@ async function api(method, path, body) {
   }
 }
 function sb(msg) { document.getElementById('sbMsg').textContent = msg; }
+let _sbIdleTimer = null;
 function setSbProg(pct) {
+  /* FR-47：任务进行时进度亮起，空闲 2.6s 后淡出 */
+  const live = document.getElementById('sbLive');
+  if (!live) return;
+  live.classList.remove('off');
   document.getElementById('sbBar').style.width = pct + '%';
   document.getElementById('sbPct').textContent = Math.round(pct) + '%';
+  clearTimeout(_sbIdleTimer);
+  _sbIdleTimer = setTimeout(() => live.classList.add('off'), 2600);
 }
 
 /* ---------------- 状态加载与渲染 ---------------- */
@@ -290,10 +297,13 @@ async function detectEngine() {
       </div>
     </div>
     <div id="kitBox"></div>
-    <div class="btn-row spread">
-      <button class="btn btn-accent btn-lg" id="btnDeploy" onclick="deployKit()">部署注入工具</button>
-      <button class="btn btn-ghost" onclick="goNext()">跳过，我手动装</button>
-    </div>`;
+      <div class="btn-row spread">
+        <button class="btn btn-accent btn-lg" id="btnDeploy" onclick="deployKit()">部署注入工具</button>
+        <button class="btn btn-ghost" onclick="goNext()">跳过，我手动装</button>
+      </div>`;
+  /* 主按钮移交（简报硬伤 2）：识别后底部「识别引擎」撤下，主按钮归部署区 */
+  const detectRow = document.getElementById('detectRow');
+  if (detectRow) detectRow.hidden = true;
   sb('识别为 ' + eng.name);
 }
 async function deployKit() {
@@ -360,10 +370,10 @@ const ROWS = [
   ['I have never been this nervous before.','我从没这么紧张过。','fail']
 ];
 const STATMAP = {
-  ok:  '<span class="badge b-ok">已翻译</span>',
-  warn:'<span class="badge b-warn">英文残留</span>',
-  todo:'<span class="badge b-danger">未翻译</span>',
-  fail:'<span class="badge b-danger">失败</span>'
+  ok:  '<span class="badge b-ok">✓ 已翻译</span>',
+  warn:'<span class="badge b-warn">△ 英文残留</span>',
+  todo:'<span class="badge b-warn">○ 未翻译</span>',
+  fail:'<span class="badge b-danger">✕ 失败</span>'
 };
 function fillTable() {
   const tb = document.getElementById('p4tbody');

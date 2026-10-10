@@ -126,7 +126,8 @@ button{font-family:inherit;cursor:pointer;background:none;border:none;color:inhe
 .sv{font-family:var(--serif);font-size:28px;font-weight:700;color:var(--ink);
   font-variant-numeric:tabular-nums;letter-spacing:-.01em;line-height:1.1}
 .sv small{font-size:15px;color:var(--text-sub);font-weight:400}
-.sv.hi{color:var(--rose-hi)}
+.sv.hi{color:var(--honey)}
+.sv.vi{color:#C9AEF6}
 .sv.ok{color:var(--honey)}
 .sl{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--text-mute);
   text-transform:uppercase;margin-bottom:6px}
@@ -158,8 +159,9 @@ button.lrow:hover{background:rgba(221,160,188,.06)}
   padding:2px 7px;border:1px solid var(--border);border-radius:var(--r);color:var(--text-sub);
   white-space:nowrap;line-height:1.6}
 .t-ok{color:var(--honey);border-color:rgba(232,180,90,.45)}
-.t-warn{color:var(--rose-hi);border-color:rgba(232,98,154,.5)}
-.t-danger{color:#F2B9CB;border-color:rgba(224,87,126,.5)}
+/* 警告/危险同属品红系，靠形状区分：warn=空心、danger=实底 */
+.t-warn{color:#F2B9CB;border-color:rgba(224,87,126,.55)}
+.t-danger{color:#F6D5DF;border-color:var(--magenta);background:rgba(224,87,126,.2)}
 .t-info{color:#C9AEF6;border-color:rgba(155,107,240,.5)}
 .t-mute{color:var(--text-mute)}
 
@@ -202,7 +204,7 @@ select.inp{cursor:pointer}
   border-radius:0 var(--r) var(--r) 0;margin:14px 0}
 .note b{color:var(--ink)}
 .note.n-ok{border-left-color:var(--honey)}
-.note.n-warn{border-left-color:var(--rose)}
+.note.n-warn{border-left-color:var(--magenta)}
 .note.n-danger{border-left-color:var(--magenta)}
 .note .n-ico{flex:0 0 15px;margin-top:2px;color:inherit}
 
@@ -223,7 +225,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
 
 /* ---------- 进度：3px 细轨 ---------- */
 .prog{height:3px;background:var(--inset);overflow:hidden;flex:1}
-.prog>i{display:block;height:100%;background:linear-gradient(90deg,var(--violet),var(--rose));transition:width .35s ease}
+.prog>i{display:block;height:100%;background:var(--violet);transition:width .35s ease}
 .prog.ok>i{background:var(--honey)}
 .prog-row{display:flex;align-items:center;gap:13px}
 .prog-txt{font-family:var(--mono);font-size:11px;color:var(--text-sub);font-variant-numeric:tabular-nums;
@@ -269,6 +271,9 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
   color:var(--text-mute);gap:12px;letter-spacing:.03em}
 .statusbar .spacer{margin-left:auto}
 .sb-prog{width:120px}
+/* 状态栏进度：任务进行时亮起，空闲淡出 */
+.sb-live{display:flex;align-items:center;gap:12px;opacity:1;transition:opacity .7s ease}
+.sb-live.off{opacity:0}
 
 /* ---------- 通用 ---------- */
 .subtle{font-size:12px;color:var(--text-mute);line-height:1.6}
@@ -390,6 +395,9 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
               </div>
             </div>
             <div class="btn-row" style="margin-top:14px">
+              <button class="btn" onclick="var b=document.getElementById('advBox');b.hidden=!b.hidden;this.textContent=b.hidden?'高级 ▾':'高级 ▴'">高级 ▾</button>
+            </div>
+            <div class="btn-row" id="advBox" hidden style="margin-top:9px">
               <button class="btn">拉取模型列表</button>
               <button class="btn">高级参数</button>
               <button class="btn">编辑提示词</button>
@@ -472,18 +480,31 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
         <div class="sec">
           <div class="sec-label"><span class="idx">01</span>识别结果<br><b>自动判定</b></div>
           <div>
-            <div class="btn-row spread" style="align-items:flex-end">
-              <div style="font-family:var(--serif);font-size:34px;font-weight:700;color:var(--ink);line-height:1.15">Unity (Mono)</div>
-              <span class="tag t-ok" style="margin-bottom:6px">确定性高</span>
+            <!-- 状态 A：未识别 —— 主按钮在此区 -->
+            <div id="scanA" hidden>
+              <div style="font-family:var(--serif);font-size:34px;font-weight:700;color:var(--text-mute);line-height:1.15">未识别</div>
+              <div class="subtle" style="margin-top:8px">扫描游戏目录里的引擎特征文件 —— 全程只读，不改任何东西。</div>
+              <div class="btn-row" style="margin-top:14px">
+                <button class="btn btn-accent btn-lg" id="btnScan" onclick="startScan(this)">开始识别</button>
+                <button class="btn btn-ghost">手动指定引擎 ▾</button>
+              </div>
             </div>
-            <div class="prog-row" style="max-width:420px;margin-top:10px">
-              <div class="prog"><i style="width:79%"></i></div>
-              <div class="prog-txt">置信度 79%</div>
-            </div>
-            <div class="evline" style="margin-top:10px">Assembly-CSharp.dll<i>·</i>UnityPlayer.dll<i>·</i>MonoBleedingEdge/<i>·</i>*_Data/Managed/</div>
-            <div class="btn-row" style="margin-top:8px">
-              <button class="btn btn-ghost">不是这个引擎？手动指定 ▾</button>
-              <button class="btn btn-ghost">看完整扫描报告</button>
+            <!-- 状态 B：已识别 —— 上半区塌缩为只读，主按钮移交到下方工具部署区 -->
+            <div id="scanB">
+              <div class="btn-row spread" style="align-items:flex-end">
+                <div style="font-family:var(--serif);font-size:34px;font-weight:700;color:var(--ink);line-height:1.15">Unity (Mono)</div>
+                <span class="tag t-ok" style="margin-bottom:6px">确定性高</span>
+              </div>
+              <div class="prog-row" style="max-width:420px;margin-top:10px">
+                <div class="prog"><i style="width:79%"></i></div>
+                <div class="prog-txt">置信度 79%</div>
+              </div>
+              <div class="evline" style="margin-top:10px">Assembly-CSharp.dll<i>·</i>UnityPlayer.dll<i>·</i>MonoBleedingEdge/<i>·</i>*_Data/Managed/</div>
+              <div class="btn-row" style="margin-top:8px">
+                <button class="btn btn-ghost" onclick="rescan()">重新识别</button>
+                <button class="btn btn-ghost">不是这个引擎？手动指定 ▾</button>
+                <button class="btn btn-ghost">看完整扫描报告</button>
+              </div>
             </div>
           </div>
         </div>
@@ -492,13 +513,13 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
           <div class="sec-label"><span class="idx">02</span>这条管线<br><b>会怎么跑</b></div>
           <div>
             <div class="evline" style="font-size:13px">
-              <b style="color:var(--ink)">资源字节流提取</b><i>→</i>词典 txt（BepInEx）<i>→</i><b style="color:var(--honey)">运行时替换 · 不改游戏</b>
+              <b style="color:var(--ink)"><i style="margin-right:5px;color:var(--violet)">01</i>资源字节流提取</b><i>→</i><b style="color:var(--ink)"><i style="margin-right:5px;color:var(--violet)">02</i>词典 txt（BepInEx）</b><i>→</i><b style="color:var(--honey)"><i style="margin-right:5px;color:var(--violet)">03</i>运行时替换 · 不改游戏</b>
             </div>
             <div class="subtle" style="margin-top:6px">XUnity 在游戏运行时读词典做替换，<b style="color:var(--text-sub)">游戏本体一个字节都不用改</b>。</div>
           </div>
         </div>
 
-        <div class="sec">
+        <div class="sec" id="secDeploy">
           <div class="sec-label"><span class="idx">03</span>工具部署<br><b>一次性</b></div>
           <div>
             <div class="subtle" style="margin-bottom:10px">优先用本地缓存，缺的才联网；每个包都要过 sha256 校验。</div>
@@ -517,12 +538,9 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
                 <svg width="13" height="13"><use href="#i-down"/></svg> 全部已就位 · 重新校验
               </button>
               <button class="btn btn-ghost">跳过，我手动装</button>
+              <button class="btn btn-accent btn-lg" style="margin-left:auto" onclick="advance()">继续 · 提取文本 →</button>
             </div>
           </div>
-        </div>
-
-        <div class="pg-foot">
-          <button class="btn btn-accent btn-lg" onclick="advance()">继续 · 提取文本 →</button>
         </div>
       </section>
 
@@ -581,7 +599,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
 
         <div class="pg-foot">
           <button class="btn btn-link" onclick="afterExtract()">跳过翻译，直接去保存 →</button>
-          <button class="btn btn-accent btn-lg" onclick="afterExtract()">继续 · 翻译校对 →</button>
+          <button class="btn btn-lg" id="btnNext3" onclick="afterExtract()">继续 · 翻译校对 →</button>
         </div>
       </section>
 
@@ -649,7 +667,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
 
         <div class="pg-foot">
           <button class="btn btn-link" onclick="advance()">先不翻译，直接应用 →</button>
-          <button class="btn btn-accent btn-lg" id="btnNext4" onclick="advance()">继续 · 应用到游戏 →</button>
+          <button class="btn btn-lg" id="btnNext4" onclick="advance()">继续 · 应用到游戏 →</button>
         </div>
       </section>
 
@@ -686,7 +704,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
           <div class="strip" style="margin-top:14px">
             <div><div class="sl">待写入条目</div><div class="sv">14,679</div><div class="sv-n">本轮全部</div></div>
             <div><div class="sl">写入体积</div><div class="sv">1.42<small> MB</small></div><div class="sv-n">1,424,251 B</div></div>
-            <div><div class="sl">改动</div><div class="sv hi">+412</div><div class="sv-n">相比上次保存</div></div>
+            <div><div class="sl">改动</div><div class="sv vi">+412</div><div class="sv-n">相比上次保存</div></div>
           </div>
 
           <div class="sec">
@@ -860,12 +878,14 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
     </main>
   </div>
 
-  <!-- ============ 状态栏 ============ -->
+  <!-- ============ 状态栏（空闲时进度淡出，FR-47） ============ -->
   <div class="statusbar">
     <span id="sbMsg">就绪 · 14,679 条译文在表</span>
     <div class="spacer"></div>
-    <div class="prog sb-prog"><i style="width:62%"></i></div>
-    <span style="width:46px;text-align:right">62%</span>
+    <div class="sb-live off" id="sbLive">
+      <div class="prog sb-prog"><i id="sbBar" style="width:0%"></i></div>
+      <span class="sb-pct" id="sbPct" style="width:46px;text-align:right"></span>
+    </div>
   </div>
 </div>
 
@@ -939,10 +959,13 @@ function pickProv(el){
 function deploy(btn){
   btn.disabled = true;
   btn.textContent = '校验中…';
+  sbLive(70);
   setTimeout(function(){
     btn.textContent = '全部就位 · 校验通过';
     btn.disabled = false;
+    sbLive(100);
     sb('工具包校验通过 · 3 个全部匹配 sha256');
+    setTimeout(sbIdle, 1400);
   }, 1100);
 }
 
@@ -950,11 +973,15 @@ function deploy(btn){
 function runExtract(btn){
   btn.disabled = true; btn.textContent = '扫描中…';
   document.getElementById('p3prog').hidden = false;
+  sbLive(40);
   setTimeout(function(){
     btn.textContent = '重新提取';
     btn.disabled = false;
     document.getElementById('p3result').hidden = false;
+    document.getElementById('btnNext3').classList.add('btn-accent');
+    sbLive(100);
     sb('提取完成 · 新增 3,421 条，护栏拦截 8,045 条');
+    setTimeout(sbIdle, 1600);
   }, 1400);
 }
 
@@ -982,10 +1009,10 @@ var ROWS = [
   ['I have never been this nervous before.','我从没这么紧张过。','fail']
 ];
 var STATMAP = {
-  ok:  '<span class="tag t-ok">已翻译</span>',
-  warn:'<span class="tag t-warn">英文残留</span>',
-  todo:'<span class="tag t-warn">未翻译</span>',
-  fail:'<span class="tag t-danger">失败</span>'
+  ok:  '<span class="tag t-ok">✓ 已翻译</span>',
+  warn:'<span class="tag t-warn">△ 英文残留</span>',
+  todo:'<span class="tag t-warn">○ 未翻译</span>',
+  fail:'<span class="tag t-danger">✕ 失败</span>'
 };
 function fillTable(){
   var tb = document.getElementById('p4tbody');
@@ -1014,6 +1041,7 @@ function runTranslate(btn, retry){
     var done = Math.round(14679 * pct/100);
     bar.firstElementChild.style.width = pct+'%';
     txt.textContent = Math.round(pct)+'%';
+    sbLive(pct);
     document.getElementById('m-done').textContent = done.toLocaleString();
     document.getElementById('m-donepct').textContent = Math.round(pct)+'%';
     document.getElementById('m-todo').textContent = Math.max(0,14679-done-258).toLocaleString();
@@ -1029,6 +1057,7 @@ function runTranslate(btn, retry){
       render();
       sb('翻译完成 · 失败 34 条，可单独重试');
       document.getElementById('btnNext4').classList.add('btn-accent');
+      setTimeout(sbIdle, 2200);
     }
   }, 220);
 }
@@ -1068,17 +1097,47 @@ function setEngine(k, el){
 function doApply(btn){
   btn.disabled = true;
   btn.textContent = '写入中…';
+  sbLive(60);
   setTimeout(function(){
     btn.textContent = '完成 · 14,679 条已落盘';
+    sbLive(100);
     STEPS[5].s = '已写入 14,679 条';
     render();
     sb('写入完成 · 词典 1,424,251 B · 备份已更新');
+    setTimeout(sbIdle, 1800);
     setTimeout(function(){ if(state.cur === 5) advance(); }, 700);
   }, 1300);
 }
 
 /* ---------------- 通用 ---------------- */
 function sb(msg){ document.getElementById('sbMsg').textContent = msg; }
+function sbLive(pct){
+  var l = document.getElementById('sbLive');
+  l.classList.remove('off');
+  document.getElementById('sbBar').style.width = pct+'%';
+  document.getElementById('sbPct').textContent = Math.round(pct)+'%';
+}
+function sbIdle(){ document.getElementById('sbLive').classList.add('off'); }
+
+/* ---------------- 第 2 步状态机：识别前/后主按钮移交（简报硬伤 2） ---------------- */
+function setScan(st){
+  document.getElementById('scanA').hidden = st !== 'A';
+  document.getElementById('scanB').hidden = st !== 'B';
+  document.getElementById('secDeploy').hidden = st === 'A';
+}
+function rescan(){ setScan('A'); sb('重新识别 · 全程只读，不影响已部署的工具'); }
+function startScan(btn){
+  btn.disabled = true; btn.textContent = '扫描中…';
+  sbLive(35);
+  setTimeout(function(){ sbLive(75); }, 600);
+  setTimeout(function(){
+    btn.disabled = false; btn.textContent = '开始识别';
+    sbLive(100);
+    setScan('B');
+    sb('识别完成 · Unity (Mono)，置信度 79%');
+    setTimeout(sbIdle, 1600);
+  }, 1300);
+}
 function resetDemo(){
   state = {cur:0, max:0};
   var bar = document.getElementById('p4bar');
@@ -1089,12 +1148,16 @@ function resetDemo(){
   document.getElementById('m-donepct').textContent = '62%';
   document.getElementById('m-todo').textContent = '5,319';
   document.getElementById('m-fail').textContent = '258';
+  document.getElementById('btnNext3').classList.remove('btn-accent');
+  document.getElementById('btnNext4').classList.remove('btn-accent');
   STEPS[4].s = '已译 9,102 / 14,679';
   STEPS[5].s = '待执行';
   render();
+  sbIdle();
   sb('演示已重置 · 从第 0 步开始');
 }
 
+setScan('B');   /* 默认为已识别状态（与第 2 步识别结果一致） */
 render();
 </script>
 </body>
