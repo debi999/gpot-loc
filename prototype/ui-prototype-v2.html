@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>G-POT 翻译器 v4.0 · UI 原型 v2（台账结构）</title>
+<style>
+:root{
+  /* —— 机身 / 材质（与 v1 同源，主色调不变）—— */
+  --bg:#1A1320; --bg-2:#221831;
+  --surface:#241A32; --inset:#150F1E;
+  --border:#3A2C4E; --hairline:rgba(58,44,78,.62);
+  --edge:rgba(221,160,188,.22);
+  /* —— 光源 —— */
+  --rose:#E8629A; --rose-hi:#F58BC0; --rose-soft:rgba(232,98,154,.16);
+  --violet:#9B6BF0; --violet-soft:rgba(155,107,240,.18);
+  --honey:#E8B45A; --honey-soft:rgba(232,180,90,.14);
+  --magenta:#E0577E;
+  /* —— 文字 —— */
+  --ink:#F6EDF5; --text:#E7DAEE; --text-sub:#BCAAC8; --text-mute:#9A8AA8;
+  --r:3px;
+  --serif:Georgia,'Times New Roman','Songti SC',serif;
+  --mono:'Cascadia Code',Consolas,'Courier New',monospace;
+  --sans:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--sans);font-size:14px;color:var(--text);
+  background:var(--bg);
+  overflow:hidden;-webkit-font-smoothing:antialiased}
+/* 绒面颗粒 + 暗角（保留，属于材质不是模板） */
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:50;
+  background:
+    radial-gradient(130% 120% at 50% 40%,transparent 62%,rgba(10,5,16,.5) 100%),
+    repeating-linear-gradient(0deg,rgba(255,255,255,.02) 0 1px,transparent 1px 3px);
+  mix-blend-mode:soft-light;opacity:.5}
+button{font-family:inherit;cursor:pointer;background:none;border:none;color:inherit}
+[hidden]{display:none!important}
+.app{display:flex;flex-direction:column;height:100vh;position:relative;z-index:1}
+
+/* ---------- 标题栏：一条细线，无底色差 ---------- */
+.titlebar{height:44px;flex:0 0 44px;display:flex;align-items:center;padding:0 16px 0 20px;
+  border-bottom:1px solid var(--hairline);user-select:none}
+.tb-brand{display:flex;align-items:baseline;gap:12px}
+.tb-logo{font-family:var(--serif);font-size:19px;font-weight:700;color:var(--rose)}
+.tb-name{font-family:var(--serif);font-size:15.5px;font-weight:700;letter-spacing:.03em;color:var(--ink)}
+.tb-sub{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;color:var(--text-mute);text-transform:uppercase}
+.tb-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+.tb-ver{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;color:var(--text-mute)}
+.iconbtn{width:30px;height:28px;display:flex;align-items:center;justify-content:center;color:var(--text-mute);border-radius:var(--r)}
+.iconbtn:hover{color:var(--ink)}
+
+/* ---------- 主体 ---------- */
+.body{flex:1;display:flex;min-height:0}
+
+/* ---------- 左侧：流程轨（设备铭牌风） ---------- */
+.rail{width:264px;flex:0 0 264px;display:flex;flex-direction:column;padding:20px 14px 14px;
+  border-right:1px solid var(--hairline);overflow-y:auto}
+.gameblock{padding:0 10px 18px}
+.gk-eyebrow{font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;color:var(--text-mute);text-transform:uppercase}
+.gk-name{font-family:var(--serif);font-size:16.5px;font-weight:700;color:var(--ink);line-height:1.35;margin-top:5px}
+.gk-path{font-family:var(--mono);font-size:10.5px;color:var(--text-mute);margin-top:4px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rail-label{font-family:var(--mono);font-size:9.5px;font-weight:700;color:var(--violet);letter-spacing:.2em;
+  padding:0 10px 10px;text-transform:uppercase}
+
+.steps{display:flex;flex-direction:column}
+.step{position:relative;display:grid;grid-template-columns:26px 1fr;gap:13px;align-items:start;
+  padding:9px 10px;text-align:left;width:100%;border-radius:var(--r)}
+.step:hover:not(:disabled){background:rgba(221,160,188,.06)}
+.step:disabled{cursor:default;opacity:.45}
+/* 竖向导管：穿过序号列中心 */
+.step::before{content:'';position:absolute;left:22px;top:0;bottom:0;width:1px;background:var(--border)}
+.step:first-child::before{top:55%}
+.step:last-child::before{bottom:45%}
+.step-num{position:relative;z-index:1;width:22px;height:22px;margin-top:1px;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:11px;color:var(--text-mute);
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--r)}
+.step.done .step-num{color:var(--text-sub);border-color:var(--border)}
+.step.done .step-num svg{color:var(--honey)}
+.step.current .step-num{background:var(--rose);border-color:var(--rose);color:#2A0F1C;font-weight:700}
+.step.current::before{background:var(--rose);opacity:.35}
+.step.current{background:linear-gradient(90deg,var(--rose-soft),transparent 70%)}
+.step-title{display:block;font-size:13px;font-weight:600;line-height:1.4;color:var(--text-sub)}
+.step.current .step-title{color:var(--ink);font-weight:700}
+.step.done .step-title{color:var(--text)}
+.step-sub{display:block;font-family:var(--mono);font-size:10px;color:var(--text-mute);line-height:1.5;margin-top:2px}
+.step.current .step-sub{color:var(--rose-hi)}
+.rail-foot{margin-top:auto;padding-top:14px;border-top:1px solid var(--hairline);
+  display:flex;flex-direction:column;gap:2px}
+.rail-foot .subtle{font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--text-mute);padding:4px 10px}
+.rail-slogan{font-family:var(--mono);font-size:9.5px;letter-spacing:.28em;color:var(--violet);padding:8px 10px 0;text-transform:uppercase}
+
+/* ---------- 内容区：台账台面 ---------- */
+.content{flex:1;overflow-y:auto;min-width:0}
+.page{display:none;padding:30px 42px 46px;max-width:1080px}
+.page.active{display:block;animation:rise .45s cubic-bezier(.2,.8,.2,1)}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* 页头：eyebrow + 大衬线标题，下面直接进台账 */
+.pg-head{padding-bottom:6px}
+.pg-step{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.18em;
+  color:var(--violet);text-transform:uppercase}
+.pg-title{font-family:var(--serif);font-size:31px;font-weight:700;letter-spacing:.01em;
+  margin:6px 0 6px;color:var(--ink)}
+.pg-desc{font-size:13px;color:var(--text-sub);line-height:1.6;max-width:720px}
+.pg-desc b{color:var(--ink)}
+
+/* ---------- 台账分区：左铭牌 + 右内容，细线分隔（核心结构） ---------- */
+.sec{display:grid;grid-template-columns:158px 1fr;gap:0 30px;padding:19px 0;
+  border-top:1px solid var(--hairline)}
+.sec:first-of-type{border-top:none}
+.sec-label{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;line-height:1.7;
+  color:var(--text-mute);text-transform:uppercase;padding-top:2px}
+.sec-label b{display:block;color:var(--text-sub);font-weight:700}
+.sec-label .idx{color:var(--rose);margin-right:6px}
+.sec-note{font-size:12px;color:var(--text-mute);line-height:1.6;margin-top:8px}
+.sec-note b{color:var(--text-sub)}
+
+/* ---------- 仪表数字条：一条细线框内的数字阵列 ---------- */
+.strip{display:flex;border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  margin:2px 0 4px}
+.strip>div{flex:1;padding:13px 18px 11px;border-left:1px solid var(--hairline)}
+.strip>div:first-child{border-left:none;padding-left:2px}
+.sv{font-family:var(--serif);font-size:28px;font-weight:700;color:var(--ink);
+  font-variant-numeric:tabular-nums;letter-spacing:-.01em;line-height:1.1}
+.sv small{font-size:15px;color:var(--text-sub);font-weight:400}
+.sv.hi{color:var(--rose-hi)}
+.sv.ok{color:var(--honey)}
+.sl{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--text-mute);
+  text-transform:uppercase;margin-bottom:6px}
+.sl b{color:var(--text-sub)}
+.sv-n{font-family:var(--mono);font-size:10px;color:var(--text-mute);margin-top:4px}
+
+/* ---------- 台账行（选择/列表通用） ---------- */
+.lrows{display:flex;flex-direction:column}
+.lrow{display:flex;align-items:center;gap:13px;padding:10px 12px;
+  border-bottom:1px solid var(--hairline);text-align:left;width:100%;border-radius:var(--r)}
+.lrow:last-child{border-bottom:none}
+button.lrow:hover{background:rgba(221,160,188,.06)}
+.lrow.sel{background:var(--rose-soft);box-shadow:inset 2px 0 0 var(--rose)}
+/* 收音点 */
+.rd{flex:0 0 15px;width:15px;height:15px;border:1px solid var(--border);border-radius:50%;
+  position:relative;background:var(--inset)}
+.lrow.sel .rd{border-color:var(--rose)}
+.lrow.sel .rd::after{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--rose)}
+.lr-t{font-size:13px;font-weight:600;color:var(--ink);line-height:1.4}
+.lr-s{font-family:var(--mono);font-size:10.5px;color:var(--text-mute);line-height:1.5;margin-top:2px}
+.lr-side{margin-left:auto;flex:0 0 auto;display:flex;align-items:center;gap:8px}
+
+/* 两列行栅格（提供方等） */
+.lgrid{display:grid;grid-template-columns:1fr 1fr;gap:0 26px}
+.lgrid .lrow{border-bottom:1px solid var(--hairline)}
+
+/* ---------- 方形铭文标签（替代药丸 chip/badge） ---------- */
+.tag{display:inline-block;font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;
+  padding:2px 7px;border:1px solid var(--border);border-radius:var(--r);color:var(--text-sub);
+  white-space:nowrap;line-height:1.6}
+.t-ok{color:var(--honey);border-color:rgba(232,180,90,.45)}
+.t-warn{color:var(--rose-hi);border-color:rgba(232,98,154,.5)}
+.t-danger{color:#F2B9CB;border-color:rgba(224,87,126,.5)}
+.t-info{color:#C9AEF6;border-color:rgba(155,107,240,.5)}
+.t-mute{color:var(--text-mute)}
+
+/* ---------- 按钮：方角、平面、实心玫瑰 = 唯一主光源 ---------- */
+.btn{height:32px;padding:0 15px;border-radius:var(--r);border:1px solid var(--border);
+  color:var(--text);font-size:12.5px;display:inline-flex;align-items:center;gap:7px;
+  white-space:nowrap;transition:border-color .15s,background .15s}
+.btn:hover{border-color:var(--rose);background:rgba(221,160,188,.08)}
+.btn:active{transform:translateY(1px)}
+.btn:disabled{opacity:.4;cursor:default}
+.btn-accent{background:var(--rose);border-color:var(--rose);color:#2A0F1C;font-weight:700}
+.btn-accent:hover{background:var(--rose-hi);border-color:var(--rose-hi)}
+.btn-accent:disabled{opacity:.45}
+.btn-lg{height:38px;padding:0 22px;font-size:13.5px}
+.btn-danger{color:#F2B9CB;border-color:rgba(224,87,126,.5)}
+.btn-danger:hover{background:rgba(224,87,126,.12);border-color:var(--magenta)}
+.btn-ghost{border-color:transparent;color:var(--text-sub)}
+.btn-ghost:hover{background:rgba(221,160,188,.07);border-color:transparent;color:var(--ink)}
+.btn-link{border:none;color:var(--rose-hi);padding:0 4px;height:auto;font-size:13px}
+.btn-link:hover{color:var(--ink);background:none;text-decoration:underline}
+.btn-row{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.btn-row.spread{justify-content:space-between}
+.pg-foot{display:flex;justify-content:flex-end;align-items:center;gap:14px;padding-top:22px;margin-top:2px}
+
+/* ---------- 输入：方角内嵌 ---------- */
+.inp{height:32px;padding:0 11px;border:1px solid var(--border);border-radius:var(--r);
+  background:var(--inset);font-size:13px;font-family:inherit;color:var(--text);min-width:0}
+.inp:focus{outline:none;border-color:var(--rose)}
+.inp::placeholder{color:var(--text-mute)}
+select.inp{cursor:pointer}
+.inp-lg{height:42px;font-family:var(--mono);font-size:13.5px;letter-spacing:.01em}
+.lbl{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--text-mute);
+  text-transform:uppercase;display:block;margin-bottom:6px}
+.drop-hint{font-family:var(--mono);font-size:11px;color:var(--text-mute);padding:9px 2px 0}
+.drop-hint b{color:var(--rose-hi);font-weight:400}
+
+/* ---------- 提示行：细线左标，不再做整块色卡 ---------- */
+.note{display:flex;gap:11px;padding:11px 14px;border-left:2px solid var(--violet);
+  background:rgba(21,15,30,.45);font-size:12.5px;line-height:1.65;color:var(--text-sub);
+  border-radius:0 var(--r) var(--r) 0;margin:14px 0}
+.note b{color:var(--ink)}
+.note.n-ok{border-left-color:var(--honey)}
+.note.n-warn{border-left-color:var(--rose)}
+.note.n-danger{border-left-color:var(--magenta)}
+.note .n-ico{flex:0 0 15px;margin-top:2px;color:inherit}
+
+/* ---------- 表格：账簿式，行线细密 ---------- */
+.tblwrap{border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;table-layout:fixed}
+th{text-align:left;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.14em;
+  color:var(--text-mute);text-transform:uppercase;padding:9px 12px;
+  border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid var(--hairline);font-size:13px;vertical-align:top;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:rgba(221,160,188,.05)}
+.c-num{width:52px;text-align:right;color:var(--text-mute);font-variant-numeric:tabular-nums;font-family:var(--mono)}
+.c-stat{width:96px}
+td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-size:12px;line-height:1.5}
+.mono{font-family:var(--mono);font-size:11.5px;color:var(--text-sub)}
+
+/* ---------- 进度：3px 细轨 ---------- */
+.prog{height:3px;background:var(--inset);overflow:hidden;flex:1}
+.prog>i{display:block;height:100%;background:linear-gradient(90deg,var(--violet),var(--rose));transition:width .35s ease}
+.prog.ok>i{background:var(--honey)}
+.prog-row{display:flex;align-items:center;gap:13px}
+.prog-txt{font-family:var(--mono);font-size:11px;color:var(--text-sub);font-variant-numeric:tabular-nums;
+  width:96px;text-align:right}
+
+/* ---------- 开关 / 复选：方角 ---------- */
+.sw{display:flex;align-items:flex-start;gap:12px;padding:9px 0;font-size:13px;cursor:pointer}
+.sw input{appearance:none;width:34px;height:18px;border-radius:2px;background:#3A2C4E;
+  position:relative;cursor:pointer;transition:background .15s;flex:0 0 34px;margin-top:1px;
+  border:1px solid var(--border)}
+.sw input:checked{background:var(--violet)}
+.sw input::after{content:'';position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:1px;
+  background:var(--ink);transition:transform .15s}
+.sw input:checked::after{transform:translateX(16px)}
+.sw-d{font-family:var(--mono);font-size:10.5px;color:var(--text-mute);line-height:1.5}
+.sw-t{line-height:1.4}
+.ck{display:flex;align-items:flex-start;gap:11px;padding:8px 0;cursor:pointer}
+.ck input{appearance:none;width:16px;height:16px;flex:0 0 16px;border:1px solid var(--border);
+  border-radius:var(--r);background:var(--inset);cursor:pointer;margin-top:2px;position:relative}
+.ck input:checked{background:var(--rose);border-color:var(--rose)}
+.ck input:checked::after{content:'';position:absolute;left:5px;top:1px;width:4px;height:9px;
+  border:solid #2A0F1C;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.ck-t{font-size:13px;line-height:1.4;color:var(--ink)}
+.ck-d{font-family:var(--mono);font-size:10.5px;color:var(--text-mute);line-height:1.5}
+
+/* ---------- 分页 / 工具条 ---------- */
+.toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;padding:11px 0}
+.toolbar .spacer{margin-left:auto}
+.pager{display:flex;gap:7px;align-items:center}
+.pager .btn{height:27px;padding:0 10px;font-family:var(--mono);font-size:12px}
+.pager .pg{font-family:var(--mono);font-size:11px;color:var(--text-mute)}
+
+/* ---------- 平面页签（第 5 步管线预览） ---------- */
+.seg{display:inline-flex;gap:0;border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.seg button{padding:6px 14px;font-size:12px;color:var(--text-mute);border-left:1px solid var(--border)}
+.seg button:first-child{border-left:none}
+.seg button:hover{color:var(--text)}
+.seg button.on{background:var(--rose-soft);color:var(--rose-hi);font-weight:700}
+
+/* ---------- 状态栏 ---------- */
+.statusbar{height:30px;flex:0 0 30px;border-top:1px solid var(--hairline);
+  display:flex;align-items:center;padding:0 18px;font-family:var(--mono);font-size:11px;
+  color:var(--text-mute);gap:12px;letter-spacing:.03em}
+.statusbar .spacer{margin-left:auto}
+.sb-prog{width:120px}
+
+/* ---------- 通用 ---------- */
+.subtle{font-size:12px;color:var(--text-mute);line-height:1.6}
+.nowrap{white-space:nowrap}
+.evline{font-family:var(--mono);font-size:11.5px;color:var(--text-sub);line-height:2}
+.evline i{color:var(--text-mute);font-style:normal;margin:0 7px}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+  .page.active{animation:none}
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-check" viewBox="0 0 16 16"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 16 16"><path d="M8 10.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M13 8a5 5 0 00-.1-1l1.3-1-1.4-2.4-1.5.7a5 5 0 00-1.7-1L9.2 1.6H6.8l-.4 1.7a5 5 0 00-1.7 1L3.2 3.6 1.8 6l1.3 1A5 5 0 003 8c0 .3 0 .7.1 1l-1.3 1 1.4 2.4 1.5-.7a5 5 0 001.7 1l.4 1.7h2.4l.4-1.7a5 5 0 001.7-1l1.5.7 1.4-2.4-1.3-1c.1-.3.1-.7.1-1z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></symbol>
+  <symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 7.2v4M8 4.7v.9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 16 16"><path d="M8 2l6 11H2L8 2z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M8 6v3.4M8 11.3v.9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+  <symbol id="i-play" viewBox="0 0 16 16"><path d="M5 3.5l7 4.5-7 4.5z" fill="currentColor"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 16 16"><path d="M1.5 4.5h4l1.5 2h7.5v7h-13z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></symbol>
+  <symbol id="i-reset" viewBox="0 0 16 16"><path d="M13 8a5 5 0 11-1.6-3.7M13 2v3h-3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-down" viewBox="0 0 16 16"><path d="M8 2.5v8M4.5 7.5l3.5 3.5 3.5-3.5M2.5 13h11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<div class="app">
+
+  <!-- ============ 标题栏 ============ -->
+  <div class="titlebar">
+    <div class="tb-brand">
+      <span class="tb-logo">G</span>
+      <span class="tb-name">G-POT 翻译器</span>
+      <span class="tb-sub">Hook · Extract · Translate</span>
+    </div>
+    <div class="tb-right">
+      <span class="tb-ver">v4.0 PROTOTYPE / LEDGER</span>
+      <button class="iconbtn" title="设置"><svg width="15" height="15"><use href="#i-gear"/></svg></button>
+    </div>
+  </div>
+
+  <div class="body">
+    <!-- ============ 左侧流程轨 ============ -->
+    <nav class="rail">
+      <div class="gameblock">
+        <div class="gk-eyebrow">Current Game</div>
+        <div class="gk-name">Starmaker Story 1.8e</div>
+        <div class="gk-path" title="F:\erogame\Starmaker_Story\…">F:\erogame\Starmaker_Story\…</div>
+      </div>
+      <div class="rail-label">汉化流程</div>
+      <div class="steps" id="steps"></div>
+      <div class="rail-foot">
+        <button class="btn btn-ghost" style="justify-content:flex-start" onclick="advance()">
+          <svg width="12" height="12"><use href="#i-check"/></svg> 完成本步
+        </button>
+        <button class="btn btn-ghost" style="justify-content:flex-start" onclick="resetDemo()">
+          <svg width="12" height="12"><use href="#i-reset"/></svg> 重置演示
+        </button>
+        <div class="rail-slogan">炼香工坊</div>
+      </div>
+    </nav>
+
+    <!-- ============ 内容区 ============ -->
+    <main class="content">
+
+      <!-- ---------- Step 0 ---------- -->
+      <section class="page" data-page="0">
+        <div class="pg-head">
+          <div class="pg-step">Step 0 / 一次性准备</div>
+          <h1 class="pg-title">配置翻译服务</h1>
+          <p class="pg-desc">接通一个翻译后端，后面才跑得动。</p>
+        </div>
+
+        <div class="sec">
+          <div class="sec-label"><span class="idx">01</span>提供方<br><b>单选</b></div>
+          <div>
+            <div class="lgrid">
+              <button class="lrow sel" onclick="pickProv(this)">
+                <span class="rd"></span>
+                <span><span class="lr-t">本地 Ollama</span><br><span class="lr-s">免费 · 离线 · hy-mt2-30b-a3b-apex</span></span>
+              </button>
+              <button class="lrow" onclick="pickProv(this)">
+                <span class="rd"></span>
+                <span><span class="lr-t">OpenAI 兼容</span><br><span class="lr-s">任意端点 · DeepSeek / 通义 / 月之暗面</span></span>
+              </button>
+              <button class="lrow" onclick="pickProv(this)">
+                <span class="rd"></span>
+                <span><span class="lr-t">Google 免费</span><br><span class="lr-s">免 Key · 限 5000 字符/分钟</span></span>
+              </button>
+              <button class="lrow" onclick="pickProv(this)">
+                <span class="rd"></span>
+                <span><span class="lr-t">Claude</span><br><span class="lr-s">质量最好 · 费用最高</span></span>
+              </button>
+              <button class="lrow" onclick="pickProv(this)">
+                <span class="rd"></span>
+                <span><span class="lr-t">Gemini</span><br><span class="lr-s">Google 官方 · 有免费额度</span></span>
+              </button>
+              <button class="lrow" onclick="pickProv(this)">
+                <span class="rd"></span>
+                <span><span class="lr-t">DeepL · 百度</span><br><span class="lr-s">术语准 · 游戏语境差，建议兜底</span></span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-label"><span class="idx">02</span>本地模型<br><b>连接参数</b></div>
+          <div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 26px;max-width:640px">
+              <div>
+                <label class="lbl">服务地址</label>
+                <input class="inp" style="width:100%" value="http://127.0.0.1:11434">
+              </div>
+              <div>
+                <label class="lbl">模型</label>
+                <select class="inp" style="width:100%">
+                  <option>hy-mt2-30b-a3b-apex:nano</option>
+                  <option>qwen2.5:14b</option>
+                </select>
+              </div>
+            </div>
+            <div class="btn-row" style="margin-top:14px">
+              <button class="btn">拉取模型列表</button>
+              <button class="btn">高级参数</button>
+              <button class="btn">编辑提示词</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-label"><span class="idx">03</span>连接状态</div>
+          <div>
+            <div class="evline" style="color:var(--honey)">
+              <svg width="13" height="13" style="vertical-align:-2px"><use href="#i-check"/></svg>
+              连接正常 <i>·</i> 已注入 <span style="color:var(--text-sub)">hy-mt2-30b-a3b-apex:nano</span> <i>·</i> 实测单条平均 1.9 秒
+            </div>
+            <div class="btn-row" style="margin-top:10px">
+              <button class="btn">重新测试连接</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="pg-foot">
+          <button class="btn btn-accent btn-lg" onclick="advance()">保存并继续 · 选择游戏 →</button>
+        </div>
+      </section>
+
+      <!-- ---------- Step 1 ---------- -->
+      <section class="page" data-page="1">
+        <div class="pg-head">
+          <div class="pg-step">Step 1 / 一次性准备</div>
+          <h1 class="pg-title">选择游戏目录</h1>
+          <p class="pg-desc">选游戏的<b>根目录</b>：放 .exe 的那一层。</p>
+        </div>
+
+        <div class="sec">
+          <div class="sec-label"><span class="idx">01</span>游戏位置<br><b>根目录</b></div>
+          <div>
+            <div class="btn-row" style="gap:9px">
+              <input class="inp inp-lg" style="flex:1" value="F:\erogame\Starmaker_Story\Starmaker Story(1.8e\Starmaker 1.8E">
+              <button class="btn btn-lg" style="height:42px"><svg width="14" height="14"><use href="#i-folder"/></svg> 浏览</button>
+            </div>
+            <div class="drop-hint">把文件夹拖进窗口任意位置也可以 · 或点上方 <b>浏览</b></div>
+          </div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-label"><span class="idx">02</span>最近使用</div>
+          <div>
+            <div class="lrows">
+              <button class="lrow">
+                <span class="lr-t">Starmaker Story 1.8e</span>
+                <span class="lr-s">F:\erogame\…\Starmaker 1.8E · 已有 14,679 条译文 · 今天 00:21</span>
+                <span class="lr-side"><span class="tag t-ok">已配置</span></span>
+              </button>
+              <button class="lrow">
+                <span class="lr-t">Project Sekai Demo</span>
+                <span class="lr-s">G:\games\pjsekai · 未开始</span>
+                <span class="lr-side"><span class="tag t-mute">新</span></span>
+              </button>
+            </div>
+            <div class="note">
+              <svg class="n-ico" width="15" height="15"><use href="#i-info"/></svg>
+              <div>已有 <b>14,679</b> 条译文 · 继续只做增量，不覆盖。</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pg-foot">
+          <button class="btn btn-accent btn-lg" onclick="advance()">继续 · 识别引擎 →</button>
+        </div>
+      </section>
+
+      <!-- ---------- Step 2 ---------- -->
+      <section class="page" data-page="2">
+        <div class="pg-head">
+          <div class="pg-step">Step 2 / 一次性准备</div>
+          <h1 class="pg-title">识别引擎并部署注入工具</h1>
+          <p class="pg-desc">引擎决定了后面<b>全部</b>怎么走。</p>
+        </div>
+
+        <div class="sec">
+          <div class="sec-label"><span class="idx">01</span>识别结果<br><b>自动判定</b></div>
+          <div>
+            <div class="btn-row spread" style="align-items:flex-end">
+              <div style="font-family:var(--serif);font-size:34px;font-weight:700;color:var(--ink);line-height:1.15">Unity (Mono)</div>
+              <span class="tag t-ok" style="margin-bottom:6px">确定性高</span>
+            </div>
+            <div class="prog-row" style="max-width:420px;margin-top:10px">
+              <div class="prog"><i style="width:79%"></i></div>
+              <div class="prog-txt">置信度 79%</div>
+            </div>
+            <div class="evline" style="margin-top:10px">Assembly-CSharp.dll<i>·</i>UnityPlayer.dll<i>·</i>MonoBleedingEdge/<i>·</i>*_Data/Managed/</div>
+            <div class="btn-row" style="margin-top:8px">
+              <button class="btn btn-ghost">不是这个引擎？手动指定 ▾</button>
+              <button class="btn btn-ghost">看完整扫描报告</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-label"><span class="idx">02</span>这条管线<br><b>会怎么跑</b></div>
+          <div>
+            <div class="evline" style="font-size:13px">
+              <b style="color:var(--ink)">资源字节流提取</b><i>→</i>词典 txt（BepInEx）<i>→</i><b style="color:var(--honey)">运行时替换 · 不改游戏</b>
+            </div>
+            <div class="subtle" style="margin-top:6px">XUnity 在游戏运行时读词典做替换，<b style="color:var(--text-sub)">游戏本体一个字节都不用改</b>。</div>
+          </div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-label"><span class="idx">03</span>工具部署<br><b>一次性</b></div>
+          <div>
+            <div class="subtle" style="margin-bottom:10px">优先用本地缓存，缺的才联网；每个包都要过 sha256 校验。</div>
+            <div class="tblwrap">
+              <table>
+                <thead><tr><th>工具</th><th style="width:110px">版本</th><th style="width:80px">大小</th><th style="width:88px">校验</th><th style="width:88px">状态</th></tr></thead>
+                <tbody>
+                  <tr><td>BepInEx 5</td><td class="mono">5.4.23.5</td><td class="mono">2.7 MB</td><td><span class="tag t-ok">已验证</span></td><td><span class="tag t-ok">已就位</span></td></tr>
+                  <tr><td>XUnity.AutoTranslator</td><td class="mono">5.6.2</td><td class="mono">1.8 MB</td><td><span class="tag t-ok">已验证</span></td><td><span class="tag t-ok">已就位</span></td></tr>
+                  <tr><td>ResourceRedirector</td><td class="mono">2.1.0</td><td class="mono">0.4 MB</td><td><span class="tag t-ok">已验证</span></td><td><span class="tag t-ok">已就位</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="btn-row" style="margin-top:14px">
+              <button class="btn" onclick="deploy(this)">
+                <svg width="13" height="13"><use href="#i-down"/></svg> 全部已就位 · 重新校验
+              </button>
+              <button class="btn btn-ghost">跳过，我手动装</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="pg-foot">
+          <button class="btn btn-accent btn-lg" onclick="advance()">继续 · 提取文本 →</button>
+        </div>
+      </section>
+
+      <!-- ---------- Step 3 ---------- -->
+      <section class="page" data-page="3">
+        <div class="pg-head">
+          <div class="pg-step">Step 3 / 游戏更新后才重跑</div>
+          <h1 class="pg-title">提取待翻译文本</h1>
+          <p class="pg-desc">不用运行游戏，直接从资源里扫出原文。</p>
+        </div>
+
+        <div class="sec">
+          <div class="sec-label"><span class="idx">01</span>扫描模式<br><b>单选</b></div>
+          <div>
+            <label class="ck"><input type="radio" name="mode" checked><div><div class="ck-t">增量合并（推荐）</div><div class="ck-d">保留已有译文，只补新条目</div></div></label>
+            <label class="ck"><input type="radio" name="mode"><div><div class="ck-t">重建</div><div class="ck-d">丢弃现表，重新扫一遍</div></div></label>
+            <label class="ck"><input type="radio" name="mode"><div><div class="ck-t">仅标签模式</div><div class="ck-d">慢 3 倍，但能拿到对象类型，长对话命中更好</div></div></label>
+          </div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-label"><span class="idx">02</span>护栏<br><b>默认全开</b></div>
+          <div>
+            <label class="sw"><input type="checkbox" checked><div><div class="sw-t">过滤截断碎片</div><div class="sw-d">上一轮拦掉 8,045 条（占 35.4%），0 误伤</div></div></label>
+            <label class="sw"><input type="checkbox" checked><div><div class="sw-t">过滤污染词条</div><div class="sw-d">上一轮拦掉 80 / 95，0 误伤</div></div></label>
+            <label class="sw"><input type="checkbox" checked><div><div class="sw-t">排除 resS / .resource</div><div class="sw-d">占 _Data 的 91.3%，实测 0 条真文本</div></div></label>
+          </div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-label"><span class="idx">03</span>扫描范围<br><b>自动推断</b></div>
+          <div>
+            <div class="evline">Starmaker 1.8E_Data<i>·</i>排除 StreamingAssets / resS<i>·</i>预计扫 1,240 个文件</div>
+            <div class="btn-row" style="margin-top:8px">
+              <button class="btn btn-accent btn-lg" onclick="runExtract(this)">开始提取</button>
+              <button class="btn">改范围</button>
+            </div>
+            <div class="prog-row" id="p3prog" hidden style="margin-top:14px;max-width:520px">
+              <div class="prog"><i style="width:100%"></i></div>
+              <div class="prog-txt">1,240 / 1,240</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="strip" id="p3result" hidden>
+          <div><div class="sl">本轮新增</div><div class="sv hi">3,421</div><div class="sv-n">新提取到的原文</div></div>
+          <div><div class="sl">已存在</div><div class="sv">11,258</div><div class="sv-n">跳过，不覆盖原译文</div></div>
+          <div><div class="sl">护栏拦截</div><div class="sv">8,045</div><div class="sv-n">疑似碎片/污染</div></div>
+          <div><div class="sl">在表总数</div><div class="sv ok">14,679</div><div class="sv-n">当前全部条目</div></div>
+        </div>
+
+        <div class="note n-warn">
+          <svg class="n-ico" width="15" height="15"><use href="#i-warn"/></svg>
+          <div>已知缺口：约 <b>1,000 条长段对话</b>拿不到（类型树被剥离），要补得走 IL 级 hook。</div>
+        </div>
+
+        <div class="pg-foot">
+          <button class="btn btn-link" onclick="afterExtract()">跳过翻译，直接去保存 →</button>
+          <button class="btn btn-accent btn-lg" onclick="afterExtract()">继续 · 翻译校对 →</button>
+        </div>
+      </section>
+
+      <!-- ---------- Step 4 ---------- -->
+      <section class="page" data-page="4">
+        <div class="pg-head" style="margin-bottom:14px">
+          <div class="pg-step">Step 4 / 每轮迭代</div>
+          <h1 class="pg-title" style="font-size:27px">翻译与人工校对</h1>
+          <p class="pg-desc">机器先跑一遍，然后人工过一遍 —— 口吻、称谓、双关，翻错比没翻更伤。</p>
+        </div>
+
+        <div class="strip">
+          <div><div class="sl">总条目</div><div class="sv">14,679</div><div class="sv-n">1,424,251 B</div></div>
+          <div><div class="sl">已翻译</div><div class="sv hi" id="m-done">9,102</div><div class="sv-n" id="m-donepct">62%</div></div>
+          <div><div class="sl">未翻译</div><div class="sv" id="m-todo">5,319</div><div class="sv-n">本次目标</div></div>
+          <div><div class="sl">失败</div><div class="sv" id="m-fail">258</div><div class="sv-n">多为超长/超时</div></div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-label"><span class="idx">01</span>批量翻译<br><b>机器过一遍</b></div>
+          <div>
+            <div class="prog-row" style="max-width:560px">
+              <div class="prog" id="p4bar"><i style="width:62%"></i></div>
+              <div class="prog-txt" id="p4txt">62%</div>
+            </div>
+            <div class="btn-row" style="margin-top:13px">
+              <button class="btn btn-accent" id="btnTrans" onclick="runTranslate(this)">翻译未译条目 ▾</button>
+              <button class="btn" onclick="runTranslate(this,true)">仅重试失败</button>
+              <button class="btn">停止</button>
+              <span class="subtle nowrap" style="margin-left:8px">并发 4 · 预计 22 分钟 · 上次平均 1.9 秒/条 · 已译文不会被覆盖</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sec" style="grid-template-columns:158px 1fr">
+          <div class="sec-label"><span class="idx">02</span>校对<br><b>人工过一遍</b></div>
+          <div>
+            <div class="toolbar">
+              <input class="inp" style="width:210px" placeholder="搜索原文或译文…">
+              <select class="inp"><option>全部</option><option>未翻译</option><option>英文残留</option><option>已翻译</option></select>
+              <span class="subtle nowrap" id="p4count">筛选后 14,679 条</span>
+              <div class="spacer"></div>
+              <button class="btn btn-ghost">导入 CSV</button>
+              <button class="btn btn-ghost">导出 CSV</button>
+              <button class="btn btn-ghost">查找替换</button>
+              <button class="btn btn-ghost">清理重复</button>
+            </div>
+            <div class="tblwrap">
+              <table>
+                <thead><tr><th class="c-num">#</th><th class="c-stat">状态</th><th>原文</th><th>译文</th></tr></thead>
+                <tbody id="p4tbody"></tbody>
+              </table>
+            </div>
+            <div class="btn-row spread" style="margin-top:11px">
+              <span class="subtle">双击任意行可直接改译文</span>
+              <div class="pager">
+                <button class="btn">‹‹</button><button class="btn">‹</button>
+                <span class="pg">1 / 294</span>
+                <button class="btn">›</button><button class="btn">››</button>
+                <input class="inp" style="width:52px;height:27px" value="1">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pg-foot">
+          <button class="btn btn-link" onclick="advance()">先不翻译，直接应用 →</button>
+          <button class="btn btn-accent btn-lg" id="btnNext4" onclick="advance()">继续 · 应用到游戏 →</button>
+        </div>
+      </section>
+
+      <!-- ---------- Step 5 ---------- -->
+      <section class="page" data-page="5">
+        <div class="pg-head">
+          <div class="pg-step">Step 5 / 每轮迭代</div>
+          <h1 class="pg-title">保存并应用到游戏</h1>
+          <p class="pg-desc">这一步的样子由<b>引擎</b>决定 —— 按第 2 步的识别结果自动显示。</p>
+        </div>
+
+        <div class="sec">
+          <div class="sec-label"><span class="idx">01</span>当前管线<br><b>自动锁定</b></div>
+          <div>
+            <div class="btn-row spread" style="align-items:flex-end">
+              <div style="font-family:var(--serif);font-size:26px;font-weight:700;color:var(--ink)" id="p5engineName">Unity (Mono)</div>
+              <div class="seg" id="engSeg">
+                <button class="on" onclick="setEngine('unity',this)">Unity Mono</button>
+                <button onclick="setEngine('rm',this)">RPG Maker MV</button>
+                <button onclick="setEngine('manual',this)">无方案引擎</button>
+              </div>
+            </div>
+            <div class="subtle" style="margin-top:8px">默认锁定当前游戏识别出的管线（<span id="p5lockedTo">Unity (Mono)</span>）；切到其它管线仅作预览，「保存并写入」会禁用。</div>
+          </div>
+        </div>
+
+        <div class="note n-warn" id="engLockNote" hidden>
+          <svg class="n-ico" width="15" height="15"><use href="#i-warn"/></svg>
+          <div id="engLockText"></div>
+        </div>
+
+        <!-- Unity -->
+        <div id="eng-unity">
+          <div class="strip" style="margin-top:14px">
+            <div><div class="sl">待写入条目</div><div class="sv">14,679</div><div class="sv-n">本轮全部</div></div>
+            <div><div class="sl">写入体积</div><div class="sv">1.42<small> MB</small></div><div class="sv-n">1,424,251 B</div></div>
+            <div><div class="sl">改动</div><div class="sv hi">+412</div><div class="sv-n">相比上次保存</div></div>
+          </div>
+
+          <div class="sec">
+            <div class="sec-label"><span class="idx">02</span>写入位置<br><b>仅 2 处</b></div>
+            <div>
+              <div class="lrows">
+                <div class="lrow">
+                  <span><span class="mono">BepInEx/Translation/zh-CN/Text/_AutoGeneratedTranslations.txt</span><br><span class="lr-s">由 XUnity.AutoTranslator 在运行时读取替换</span></span>
+                  <span class="lr-side"><span class="tag t-ok">存在</span></span>
+                </div>
+                <div class="lrow">
+                  <span><span class="mono">config.ini</span><br><span class="lr-s">记录游戏目录、语言对、上次所用的翻译后端</span></span>
+                  <span class="lr-side"><span class="tag t-mute">只写这 2 处</span></span>
+                </div>
+              </div>
+              <div class="note n-ok">
+                <svg class="n-ico" width="15" height="15"><use href="#i-check"/></svg>
+                <div><b>游戏本体一个字节都不动。</b>写坏了删掉词典文件就能回到原样。</div>
+              </div>
+              <div class="btn-row spread" style="margin-top:14px">
+                <span class="subtle">原子写入 · 自动留 3 代备份</span>
+                <button class="btn btn-accent btn-lg" onclick="doApply(this)">保存并写入词典</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RPG Maker -->
+        <div id="eng-rm" hidden>
+          <div class="strip" style="margin-top:14px">
+            <div><div class="sl">待回写条目</div><div class="sv">3,102</div><div class="sv-n">分布在 47 个 json</div></div>
+            <div><div class="sl">跳过字段</div><div class="sv">6<small> 类</small></div><div class="sv-n">翻了会崩溃</div></div>
+            <div><div class="sl">备份</div><div class="sv ok" style="font-size:22px;padding-top:5px">已就绪</div><div class="sv-n">_原文备份/data-…/</div></div>
+          </div>
+
+          <div class="note n-warn">
+            <svg class="n-ico" width="15" height="15"><use href="#i-warn"/></svg>
+            <div><b>这一步会改真实游戏文件。</b>执行前自动备份原文，随时可一键还原。</div>
+          </div>
+
+          <div class="sec">
+            <div class="sec-label"><span class="idx">02</span>回写位置<br><b>真实文件</b></div>
+            <div>
+              <div class="lrows">
+                <div class="lrow">
+                  <span><span class="mono">www/data/Actors.json, Map001.json, CommonEvents.json …</span><br><span class="lr-s">共 47 个数据文件</span></span>
+                  <span class="lr-side"><span class="tag t-warn">将被修改</span></span>
+                </div>
+                <div class="lrow">
+                  <span><span class="mono">www/data/_原文备份/data-20261009-0031/</span><br><span class="lr-s">按时间戳的一次性还原点</span></span>
+                  <span class="lr-side"><span class="tag t-info">还原用</span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sec">
+            <div class="sec-label"><span class="idx">03</span>字段白名单<br><b>翻什么</b></div>
+            <div>
+              <div class="evline">name<i>·</i>description<i>·</i>message(s) 对话<i>·</i>nickname<i>·</i>profile<i>·</i>terms 用语</div>
+              <div class="subtle" style="margin-top:6px"><b>不翻：</b>characterName / faceName / battlerName（图集名）· switches / variables（插件按名查找）· 事件命令码 355/655 的 JS 脚本 · 注释 108 · note</div>
+              <div class="btn-row spread" style="margin-top:14px">
+                <button class="btn btn-danger">还原原文</button>
+                <button class="btn btn-accent btn-lg" onclick="doApply(this)">备份原文并回写游戏</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 手动 -->
+        <div id="eng-manual" hidden>
+          <div class="note n-danger" style="margin-top:14px">
+            <svg class="n-ico" width="15" height="15"><use href="#i-warn"/></svg>
+            <div><b>这个引擎没有可靠的自动注入方案。</b>译文不会丢，但要人工或改用通用钩子。</div>
+          </div>
+
+          <div class="sec">
+            <div class="sec-label"><span class="idx">02</span>为什么<br><b>做不了</b></div>
+            <div>
+              <div class="lrows">
+                <div class="lrow">
+                  <span><span class="lr-t">找不到稳定的 Windows 发布包</span><br><span class="lr-s">社区工具多为停更的单文件、非标准打包，无法可靠校验与自动部署</span></span>
+                  <span class="lr-side"><span class="tag t-danger">阻断</span></span>
+                </div>
+                <div class="lrow">
+                  <span><span class="lr-t">文本与代码混排，缺乏结构化落点</span><br><span class="lr-s">无法确定译文该写到哪个文件的哪个位置</span></span>
+                  <span class="lr-side"><span class="tag t-danger">阻断</span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sec">
+            <div class="sec-label"><span class="idx">03</span>能做的<br><b>替代</b></div>
+            <div>
+              <div class="lrows">
+                <div class="lrow">
+                  <span><span class="lr-t">导出 CSV 人工回填</span><br><span class="lr-s">已备译文格式标准，导入 XUnity / 同类工具即可</span></span>
+                  <span class="lr-side"><button class="btn">导出</button></span>
+                </div>
+                <div class="lrow">
+                  <span><span class="lr-t">改用通用文本钩子</span><br><span class="lr-s">Textractor / LunaTranslator：截取显示层的文本实时翻译，不动任何游戏文件</span></span>
+                  <span class="lr-side"><span class="tag t-info">推荐</span></span>
+                </div>
+              </div>
+              <div class="btn-row spread" style="margin-top:14px">
+                <span class="subtle">译文已存为本地草稿，不会丢</span>
+                <button class="btn">导出 CSV</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- Step 6 ---------- -->
+      <section class="page" data-page="6">
+        <div class="pg-head">
+          <div class="pg-step">Step 6 / 每次应用后</div>
+          <h1 class="pg-title">启动验证</h1>
+          <p class="pg-desc">确认译文已生效，出问题可回滚。</p>
+        </div>
+
+        <div class="note" id="p6note">
+          <svg class="n-ico" width="15" height="15"><use href="#i-info"/></svg>
+          <div id="p6hint"><b>Unity 需要重启游戏才会加载新词典。</b>如果游戏已经在跑，先退干净再启动。</div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-label"><span class="idx">01</span>写入结果<br><b>自检</b></div>
+          <div>
+            <div class="lrows">
+              <div class="lrow">
+                <span><span class="lr-t">词典文件存在</span><br><span class="lr-s">BepInEx/Translation/zh-CN/Text/_AutoGeneratedTranslations.txt</span></span>
+                <span class="lr-side"><span class="tag t-ok">通过</span></span>
+              </div>
+              <div class="lrow">
+                <span><span class="lr-t">条目数匹配</span><br><span class="lr-s">写入 14,679 条 · 期望 14,679 条</span></span>
+                <span class="lr-side"><span class="tag t-ok">通过</span></span>
+              </div>
+              <div class="lrow">
+                <span><span class="lr-t">格式合法</span><br><span class="lr-s">原文=译文 逐行，无孤立等号、无重复键</span></span>
+                <span class="lr-side"><span class="tag t-ok">通过</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-label"><span class="idx">02</span>启动游戏<br><b>人工确认</b></div>
+          <div>
+            <div class="btn-row">
+              <button class="btn btn-accent btn-lg">
+                <svg width="14" height="14"><use href="#i-play"/></svg> 启动游戏验证
+              </button>
+              <button class="btn btn-lg">
+                <svg width="14" height="14"><use href="#i-folder"/></svg> 打开译文目录
+              </button>
+            </div>
+            <div class="subtle" style="margin-top:12px">进游戏看两处就够：开头一段对话 + 一条菜单项。字变了就是通了。</div>
+          </div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-label"><span class="idx">03</span>日常迭代</div>
+          <div>
+            <div class="evline">下次改一句台词：<b style="color:var(--ink)">点左侧「4 翻译与人工校对」→ 改 → 走第 5 步保存</b></div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ============ 状态栏 ============ -->
+  <div class="statusbar">
+    <span id="sbMsg">就绪 · 14,679 条译文在表</span>
+    <div class="spacer"></div>
+    <div class="prog sb-prog"><i style="width:62%"></i></div>
+    <span style="width:46px;text-align:right">62%</span>
+  </div>
+</div>
+
+<script>
+/* ---------------- 步骤定义 ---------------- */
+var STEPS = [
+  {t:'配置翻译服务',     s:'本地 Ollama · 已连接'},
+  {t:'选择游戏目录',     s:'Starmaker Story 1.8e'},
+  {t:'识别引擎与部署工具', s:'Unity (Mono) · 3 个已就位'},
+  {t:'提取待翻译文本',   s:'14,679 条'},
+  {t:'翻译与人工校对',   s:'已译 9,102 / 14,679'},
+  {t:'保存并应用到游戏', s:'待执行'},
+  {t:'启动验证',         s:'待执行'}
+];
+
+var state = { cur:4, max:4 };
+
+function render(){
+  var html = '';
+  for(var i=0;i<STEPS.length;i++){
+    var cls = i < state.cur ? 'done' : (i === state.cur ? 'current' : '');
+    var locked = i > state.max;
+    var mark = i < state.cur
+      ? '<svg width="11" height="11"><use href="#i-check"/></svg>'
+      : i;  /* 序号与内容区「Step N」对齐：0~6 */
+    html += '<button class="step '+cls+'" data-i="'+i+'"'+(locked?' disabled':'')+
+            ' onclick="goto('+i+')">'+
+            '<span class="step-num">'+mark+'</span>'+
+            '<span><span class="step-title">'+STEPS[i].t+'</span>'+
+            '<span class="step-sub">'+STEPS[i].s+'</span></span></button>';
+  }
+  document.getElementById('steps').innerHTML = html;
+
+  var pages = document.querySelectorAll('.page');
+  for(var p=0;p<pages.length;p++){
+    if(+pages[p].dataset.page === state.cur) pages[p].classList.add('active');
+    else pages[p].classList.remove('active');
+  }
+  document.querySelector('.content').scrollTop = 0;
+}
+
+function goto(i){
+  if(i < 0 || i > state.max) return;
+  state.cur = i;
+  render();
+}
+function advance(){
+  if(state.cur >= STEPS.length-1) return;
+  state.cur++;
+  if(state.cur > state.max) state.max = state.cur;
+  if(state.cur === 4) fillTable();
+  render();
+}
+function afterExtract(){
+  state.cur = 4;
+  state.max = Math.max(state.max, 5);   /* FR-49：提取同时解锁第 4 步与第 5 步 */
+  if(state.cur === 4) fillTable();
+  render();
+  document.getElementById('p3result').hidden = false;
+  sb('提取完成。翻译可选：可直接点第 5 步保存，不必先翻译');
+}
+
+/* ---------------- 第 0 步 ---------------- */
+function pickProv(el){
+  var all = document.querySelectorAll('.lgrid .lrow');
+  for(var i=0;i<all.length;i++) all[i].classList.remove('sel');
+  el.classList.add('sel');
+}
+
+/* ---------------- 第 2 步 ---------------- */
+function deploy(btn){
+  btn.disabled = true;
+  btn.textContent = '校验中…';
+  setTimeout(function(){
+    btn.textContent = '全部就位 · 校验通过';
+    btn.disabled = false;
+    sb('工具包校验通过 · 3 个全部匹配 sha256');
+  }, 1100);
+}
+
+/* ---------------- 第 3 步 ---------------- */
+function runExtract(btn){
+  btn.disabled = true; btn.textContent = '扫描中…';
+  document.getElementById('p3prog').hidden = false;
+  setTimeout(function(){
+    btn.textContent = '重新提取';
+    btn.disabled = false;
+    document.getElementById('p3result').hidden = false;
+    sb('提取完成 · 新增 3,421 条，护栏拦截 8,045 条');
+  }, 1400);
+}
+
+/* ---------------- 第 4 步 ---------------- */
+var ROWS = [
+  ['Are you sure you want to save the game?','确定要保存游戏进度吗？','ok'],
+  ['I never thought I would see this place again.','我从没想过还能再回到这个地方。','ok'],
+  ['The audition starts in ten minutes.','试镜十分钟后开始。','ok'],
+  ['Thanks for waiting. Let us begin.','让大家久等了，我们开始吧。','ok'],
+  ['You have unlocked a new outfit.','解锁了新服装。','ok'],
+  ['Her voice echoed through the empty hall.','她的声音在空荡的大厅里回响。','ok'],
+  ['Not bad. But you can do better.','还不错，不过你还能做得更好。','warn'],
+  ['[System] Insufficient funds.','[系统] 资金不足。','ok'],
+  ['Stage 3 - Clear!','第 3 关 —— 通关！','ok'],
+  ['Do you really think you have what it takes?','你真的觉得自己够格吗？','todo'],
+  ['I will be waiting at the usual place.','老地方等你。','ok'],
+  ['Fame does not come cheap, you know.','要知道，成名的代价可不低。','warn'],
+  ['Let me think about it for a moment...','让我再想想……','ok'],
+  ['The producer wants to see you right now.','制作人现在就要见你。','todo'],
+  ['Congratulations! You ranked first this week!','恭喜！本周排名第一！','ok'],
+  ['Hmph. Typical.','哼，果然是这样。','ok'],
+  ['Save completed successfully.','保存成功。','ok'],
+  ['Are you sure? This cannot be undone.','确定吗？这一步无法撤销。','todo'],
+  ['Maybe next time then.','那么下次吧。','warn'],
+  ['I have never been this nervous before.','我从没这么紧张过。','fail']
+];
+var STATMAP = {
+  ok:  '<span class="tag t-ok">已翻译</span>',
+  warn:'<span class="tag t-warn">英文残留</span>',
+  todo:'<span class="tag t-warn">未翻译</span>',
+  fail:'<span class="tag t-danger">失败</span>'
+};
+function fillTable(){
+  var tb = document.getElementById('p4tbody');
+  if(tb.dataset.filled) return;
+  var html = '';
+  for(var i=0;i<ROWS.length;i++){
+    var src = ROWS[i][0], dst = ROWS[i][1], st = ROWS[i][2];
+    if(st === 'todo' || st === 'fail') dst = '<span style="color:#9A8AA8">（未翻译）</span>';
+    html += '<tr><td class="c-num">'+(i+1)+'</td>'+
+            '<td class="c-stat">'+STATMAP[st]+'</td>'+
+            '<td>'+src+'</td><td>'+dst+'</td></tr>';
+  }
+  tb.innerHTML = html;
+  tb.dataset.filled = '1';
+}
+fillTable();
+
+function runTranslate(btn, retry){
+  btn.disabled = true;
+  var bar = document.getElementById('p4bar'), txt = document.getElementById('p4txt');
+  var pct = 62;
+  btn.textContent = retry ? '重试中…' : '翻译中… 0 / 5,319';
+  var iv = setInterval(function(){
+    pct += Math.random()*7 + 3;
+    if(pct >= 100) pct = 100;
+    var done = Math.round(14679 * pct/100);
+    bar.firstElementChild.style.width = pct+'%';
+    txt.textContent = Math.round(pct)+'%';
+    document.getElementById('m-done').textContent = done.toLocaleString();
+    document.getElementById('m-donepct').textContent = Math.round(pct)+'%';
+    document.getElementById('m-todo').textContent = Math.max(0,14679-done-258).toLocaleString();
+    btn.textContent = '翻译中… '+done.toLocaleString()+' / 14,679';
+    sb('翻译进行中 · '+done.toLocaleString()+' / 14,679');
+    if(pct >= 100){
+      clearInterval(iv);
+      bar.classList.add('ok');
+      btn.textContent = '已全部翻译';
+      document.getElementById('m-fail').textContent = '34';
+      STEPS[4].s = '已译 14,679 / 14,679';
+      STEPS[5].s = '可执行';
+      render();
+      sb('翻译完成 · 失败 34 条，可单独重试');
+      document.getElementById('btnNext4').classList.add('btn-accent');
+    }
+  }, 220);
+}
+
+/* ---------------- 第 5 步 ---------------- */
+var ENGINES = {
+  unity:  {name:'Unity (Mono)',
+           hint:'Unity 需要重启游戏才会加载新词典。'},
+  rm:     {name:'RPG Maker MV',
+           hint:'RPG Maker 的数据已回写。如发现立绘丢失，用「还原原文」回滚到备份。'},
+  manual: {name:'TyranoScript（无自动方案）',
+           hint:'这个引擎没有注入方案，译文存为本地草稿，导出后人工处理。'}
+};
+var DETECTED = 'unity';   /* 第 2 步识别出的当前游戏管线（原型默认 Unity） */
+function setEngine(k, el){
+  document.getElementById('eng-unity').hidden  = k !== 'unity';
+  document.getElementById('eng-rm').hidden     = k !== 'rm';
+  document.getElementById('eng-manual').hidden = k !== 'manual';
+  document.getElementById('p5engineName').textContent = ENGINES[k].name;
+  document.getElementById('p6hint').innerHTML = '<b>'+ENGINES[k].hint+'</b>';
+  /* 锁死到当前游戏识别出的管线：选其它引擎仅可预览，保存按钮禁用 */
+  var locked = (k !== DETECTED);
+  document.getElementById('p5lockedTo').textContent = ENGINES[DETECTED].name;
+  var note = document.getElementById('engLockNote');
+  if(locked){
+    note.hidden = false;
+    document.getElementById('engLockText').innerHTML =
+      '当前游戏识别为 <b>'+ENGINES[DETECTED].name+'</b>，不能按 <b>'+ENGINES[k].name+'</b> 管线写入。点回上方「'+ENGINES[DETECTED].name+'」即可解锁保存。';
+  } else { note.hidden = true; }
+  var abs = document.querySelectorAll('button[onclick^="doApply"]');
+  for(var i=0;i<abs.length;i++) abs[i].disabled = locked;
+  var bs = document.querySelectorAll('#engSeg button');
+  for(var i=0;i<bs.length;i++) bs[i].classList.remove('on');
+  el.classList.add('on');
+  sb(locked ? ('仅预览 '+ENGINES[k].name+' · 保存已锁定') : ('已切换到 '+ENGINES[k].name+' 的落地方式'));
+}
+function doApply(btn){
+  btn.disabled = true;
+  btn.textContent = '写入中…';
+  setTimeout(function(){
+    btn.textContent = '完成 · 14,679 条已落盘';
+    STEPS[5].s = '已写入 14,679 条';
+    render();
+    sb('写入完成 · 词典 1,424,251 B · 备份已更新');
+    setTimeout(function(){ if(state.cur === 5) advance(); }, 700);
+  }, 1300);
+}
+
+/* ---------------- 通用 ---------------- */
+function sb(msg){ document.getElementById('sbMsg').textContent = msg; }
+function resetDemo(){
+  state = {cur:0, max:0};
+  var bar = document.getElementById('p4bar');
+  bar.classList.remove('ok');
+  bar.firstElementChild.style.width = '62%';
+  document.getElementById('p4txt').textContent = '62%';
+  document.getElementById('m-done').textContent = '9,102';
+  document.getElementById('m-donepct').textContent = '62%';
+  document.getElementById('m-todo').textContent = '5,319';
+  document.getElementById('m-fail').textContent = '258';
+  STEPS[4].s = '已译 9,102 / 14,679';
+  STEPS[5].s = '待执行';
+  render();
+  sb('演示已重置 · 从第 0 步开始');
+}
+
+render();
+</script>
+</body>
+</html>
