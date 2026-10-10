@@ -117,6 +117,29 @@ function setSbProg(pct) {
   _sbIdleTimer = setTimeout(() => live.classList.add('off'), 2600);
 }
 
+/* ---------------- 明暗模式切换（默认暗色，localStorage 记忆；纯呈现层） ---------------- */
+function applyThemeIcon() {
+  const btn = document.querySelector('#themeBtn use');
+  if (!btn) return;
+  const light = document.documentElement.getAttribute('data-theme') === 'light';
+  btn.setAttribute('href', light ? '#i-moon' : '#i-sun');
+}
+function toggleTheme() {
+  const r = document.documentElement;
+  const t = r.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+  if (t === 'dark') r.removeAttribute('data-theme');
+  else r.setAttribute('data-theme', 'light');
+  try { localStorage.setItem('gpot-theme', t); } catch (e) {}
+  applyThemeIcon();
+  sb(t === 'light' ? '已切换到明亮模式（白粉基调）' : '已切换到暗色模式');
+}
+(function () {
+  try {
+    if (localStorage.getItem('gpot-theme') === 'light') document.documentElement.setAttribute('data-theme', 'light');
+  } catch (e) {}
+  applyThemeIcon();
+})();
+
 /* ---------------- 状态加载与渲染 ---------------- */
 async function loadState() {
   STATE = await api('GET', '/api/state');

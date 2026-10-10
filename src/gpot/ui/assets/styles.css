@@ -51,6 +51,40 @@
   --font-mono:'Cascadia Code','Cascadia Mono',Consolas,ui-monospace,monospace;
 }
 
+/* ---------- 明亮模式：白粉基调（html[data-theme="light"]，默认暗色） ---------- */
+html[data-theme="light"]{
+  --bg:#FBF5F8; --bg-2:#F6ECF2;
+  --surface:#FFFFFF; --surface-alt:#FFFFFF; --elevated:#FFFFFF;
+  --inset:#F7EBF1;
+  --border:#E4CCD9; --border-str:#D9BCCA;
+  --hairline:#F0DFE9;
+  --edge:rgba(224,85,144,.35);
+  --ink:#2B1B27; --text:#4A3546; --text-sub:#6E586A; --text-mute:#9C8696;
+  --rose:#E05590; --rose-hi:#C93B7C; --rose-dim:rgba(224,85,144,.6);
+  --rose-soft:rgba(224,85,144,.12);
+  --violet:#8A55E8; --violet-hi:#6F3BD0; --violet-soft:rgba(138,85,232,.12);
+  --honey:#B07A1E; --honey-hi:#8F611A; --honey-soft:rgba(176,122,30,.14);
+  --magenta:#D63A66;
+  --ok:#B07A1E; --warn:#D63A66; --danger:#D63A66; --info:#8A55E8;
+}
+/* 明亮模式下的对比度/硬编码色修正 */
+html[data-theme="light"] body::after{opacity:.18}
+html[data-theme="light"] .step:hover:not(:disabled),
+html[data-theme="light"] .prov:hover,
+html[data-theme="light"] .btn:hover,
+html[data-theme="light"] .btn-ghost:hover{background:rgba(224,85,144,.08)}
+html[data-theme="light"] .infobar,
+html[data-theme="light"] .ib-info,
+html[data-theme="light"] .ib-warn,
+html[data-theme="light"] .ib-ok,
+html[data-theme="light"] .ib-danger{background:#FFFFFF;box-shadow:0 0 0 1px var(--hairline)}
+html[data-theme="light"] .b-warn{color:#C23A5F}
+html[data-theme="light"] .b-danger{color:#8F1D3C;background:rgba(214,58,102,.12)}
+html[data-theme="light"] .btn-danger{color:#C23A5F}
+html[data-theme="light"] .seg button.on{color:#C93B7C}
+html[data-theme="light"] .content::-webkit-scrollbar-thumb,
+html[data-theme="light"] .rail::-webkit-scrollbar-thumb{background:#DCC4D3;background-clip:content-box}
+
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
 body{font-family:var(--font);font-size:14px;color:var(--text);
