@@ -55,7 +55,7 @@ GUI 模式下若进程自带控制台（假 pythonw / 控制台直跑），`main
 | GET  | `/api/providers`        | 翻译后端目录 |
 | GET  | `/api/models`           | 获取模型列表（OpenAI /models + Ollama /api/tags 兜底，FR-54） |
 | POST | `/api/config`           | 保存并测试翻译服务配置（含 src/dst/prompt/并发间隔；本地 Ollama 族连通后自动同步 server_config.ini，FR-53/55/58/59） |
-| POST | `/api/game`             | 选定游戏目录（含 BepInEx 下钻 `resolve_game_root`） |
+| POST | `/api/game`             | 选定游戏目录（含 BepInEx 下钻 `resolve_game_root`；**换目录强制重认引擎**，FR-65） |
 | POST | `/api/detect`           | 识别引擎 + 准备工具清单 |
 | POST | `/api/deploy`           | 部署注入工具 |
 | POST | `/api/extract`          | 提取待翻译文本 |
@@ -74,7 +74,7 @@ GUI 模式下若进程自带控制台（假 pythonw / 控制台直跑），`main
 | POST | `/api/restore`          | 还原原文（RPG Maker 备份点） |
 | POST | `/api/nav`              | 导航跳转（**双闸门**：数字 max_step + 前置事实 `prereq_ok`；被拦回 400 + `blocked_reason` 说清缺哪步，FR-63） |
 | POST | `/api/reset`            | 重置流程状态（回到第 0 步，译文词典不删） |
-| GET  | `/api/kit/check`        | 齿轮「校验注入工具」——只读，不写盘（FR-62） |
+| GET  | `/api/kit/check`        | 齿轮「校验注入工具」——只读，不写盘。逐项返回 状态/落点/marker判定文件/缓存（FR-62/FR-64） |
 | GET  | `/api/logs`             | 齿轮「运行日志」——只读诊断文本（FR-62） |
 | POST | `/api/export-csv`       | 导出 CSV（UTF-8-sig） |
 | POST | `/api/import-csv`       | 导入 CSV（merge 合并） |

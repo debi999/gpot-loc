@@ -326,6 +326,40 @@ def deploy_file(src, dst, force=False, log=None):
     return 'copied'
 
 
+def _norm_show(path):
+    """FR-64：把展示用的路径斜杠统一成 `\\`。
+
+    ⚠️ 顺序很关键：**先**把 `/` 全换成 `os.sep`，**再** normpath。
+    反过来（先 normpath 后 replace）在「已混用」的路径上会翻车：
+    `os.path.normpath` 只把 `/` 当分隔符，混进来的 `\\` 被当普通字符，
+    之后再 `.replace('/', '\\')` 就成了 `F://game//BepInEx//…`（真机截图里那屏 `/////`）。
+
+    ⚠️ **只用于展示字段**（plan 里的 sink_path / marker / dest）。
+    `catalog.sink_path` 本身不能改 —— 它被 sink.py 拿去**真实写盘**，
+    在那里改斜杠等于动写盘路径，风险不值当。
+    """
+    if not path:
+        return path
+    return os.path.normpath(path.replace('/', os.sep))
+
+
+def _marker_dest(pack, kind, target, game_dir):
+    """FR-64：把「判定该包是否就位的特征文件」拼成可读绝对路径（仅用于展示）。
+
+    `game_root` 类（Unity/BepInEx 这类整包装到游戏根的）落点只能给出游戏根目录，
+    光看落点不知道该期待哪个文件出现；`already_installed` 判的却是 marker 文件。
+    这里把同一个判据显式化，让校验界面说的和实际判定**永远一致**（不搞第二套口径）。
+
+    ⚠️ `os.path.join` 在 Windows 上只替换最后一段的反斜杠，前导段里的 `/` 原样留着
+    → 拼出 `F:/a/b\\c/d` 这种斜杠混用的路径。展示前统一（见 _norm_show，FR-64 真机截图发现）。
+    """
+    m = pack.get('marker')
+    if not m:
+        return ''
+    base = game_dir if kind == 'game_root' else target
+    return _norm_show(os.path.join(base, m))
+
+
 def _dest_for(pack, game_dir, tool_dir=None):
     """算出某个包的落点。返回 (kind, target_root_or_file)。
 
@@ -388,9 +422,12 @@ def plan_install(engine, game_dir, cache_dir=None, tool_dir=None,
             reason = ''
         packs.append({
             'id': p['id'], 'title': p['title'], 'kind': kind,
-            'dest': target, 'cached': cached, 'action': action, 'reason': reason,
+            'dest': _norm_show(target), 'cached': cached, 'action': action, 'reason': reason,
             'size': p.get('size'), 'verified': p.get('verified', False),
             'optional': p.get('optional', False),
+            # FR-64：`game_root` 类落点只能给出游戏根目录，校验界面需要知道
+            # 「到底靠哪个文件判定就位」——把判据文件拼出来给前端展示。
+            'marker': _marker_dest(p, kind, target, game_dir),
         })
     optional_skipped = len(catalog.required_tools(engine, True)) - len(packs)
     return {
@@ -400,7 +437,7 @@ def plan_install(engine, game_dir, cache_dir=None, tool_dir=None,
         'cache_dir': os.path.abspath(cache_dir or default_cache_dir()),
         'tool_dir': os.path.abspath(tool_dir or default_tool_dir()),
         'lang': lang,
-        'sink_path': catalog.sink_path(engine, game_dir, lang),
+        'sink_path': _norm_show(catalog.sink_path(engine, game_dir, lang)),
         'sink_fmt': catalog.get_sink(engine).get('fmt'),
         'sink_desc': catalog.get_sink(engine).get('desc'),
         'packs': packs,

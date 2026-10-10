@@ -25,7 +25,7 @@ _STATE = _store.Store()
 
 # 应用版本（FR-51: 版本唯一真源，随 /api/state 暴露、状态栏常显、双开复用前比对——
 # 旧版本实例不复用，避免「双击 bat 还是老版本」；老板 2026-10-10 指定 V0.4* 起编号）
-APP_VERSION = "0.5.1"
+APP_VERSION = "0.5.2"
 
 # 旧库格式 config.ini（随 kernel 落在 core/ 目录）—— 提供方/游戏目录记忆
 _CFG = kernel.load_config()
@@ -478,30 +478,44 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send(200 if j else 404, j or {"error": "no such job"})
         if path == "/api/recent":  # FR-39: 最近使用列表
             return self._send(200, {"recent": _recent_list()})
-        if path == "/api/kit/check":  # FR-62: 齿轮「校验注入工具」（只读，必须走 GET）
+        if path == "/api/kit/check":  # FR-62/FR-64: 齿轮「校验注入工具」（只读，不写盘）
             eng = (_STATE.engine or {}).get("engine")
             gdir = _STATE.game.get("path", "")
             if not eng or not gdir:
-                return self._send(200, {"ok": False, "tools": [],
+                return self._send(200, {"ok": False, "error": "no_engine",
+                                        "tools": [],
                                         "message": "还没识别引擎或没选游戏目录"})
             try:
                 plan = kit_installer.plan_install(eng, gdir)
             except Exception as e:
-                return self._send(200, {"ok": False, "tools": [],
+                return self._send(200, {"ok": False, "error": "check_failed",
+                                        "tools": [],
                                         "message": "校验失败：%s" % str(e)[:150]})
             packs = plan.get("packs") or []
             missing = [p for p in packs if p.get("action") == "install"]
+            ready = [p for p in packs if p.get("action") == "skip_exists"]
+            # FR-64：逐项摆出落点/是否已装/是否有下载缓存 —— 后续接更多引擎时
+            # 这份口径就是统一核对表，不靠每个引擎各写一套说明文字。
             return self._send(200, {
                 "ok": not missing,
                 "engine": plan.get("display", eng),
+                "sink_path": plan.get("sink_path") or "",
+                "sink_desc": plan.get("sink_desc") or "",
+                "notes": plan.get("notes") or "",
+                "reason": plan.get("reason") or "",
                 "tools": [{"id": p["id"], "title": p.get("title", ""),
                            "action": p.get("action", ""),
                            "dest": p.get("dest", ""),
+                           "marker": p.get("marker", ""),
+                           "cached": bool(p.get("cached")),
+                           "verified": bool(p.get("verified")),
                            "reason": p.get("reason", "")} for p in packs],
                 "message": ("工具齐备 · 共 %d 项" % len(packs)) if not missing
-                else ("缺 %d 项：%s" % (len(missing),
-                                        "、".join(p.get("title") or p["id"]
-                                                  for p in missing)))})
+                else ("缺 %d 项（共 %d）：%s" % (len(missing), len(packs),
+                                                "、".join(p.get("title") or p["id"]
+                                                          for p in missing))),
+                "summary": {"total": len(packs), "missing": len(missing),
+                            "ready": len(ready)}})
         if path == "/api/logs":  # FR-62: 齿轮「运行日志」（只读，必须走 GET）
             t = _STATE.tstore
             st = t.stats()
@@ -628,7 +642,13 @@ class _Handler(BaseHTTPRequestHandler):
             pipeline.complete_step(_STATE, 1)
             # FR-63: 选了游戏就把引擎一起认回来（否则重启后第 2 步前置不成立、
             # 用户会被挡在第 2 步外，明明这个游戏上次就识别过）
-            if _STATE.engine is None and _ensure_engine(gp):
+            # FR-63/FR-65: **换了游戏目录就必须重认引擎**，不能因为上一局
+            # 认过就沿用 —— 否则「先选 RPG Maker 再选 Unity」会一直拿着
+            # RPGMakerMZ 的管线去做校验，第 5 步也会按错的引擎落盘。
+            # （幂等「不覆盖」只适用于 core/extract 里同一目录内的补认场景。）
+            _STATE.kit = {"deployed": False, "tools": [], "skipped": False}
+            _STATE.engine = None
+            if _ensure_engine(gp):
                 pipeline.complete_step(_STATE, 2)
             _persist_flow()   # FR-37
             return self._send(200, _STATE.game)

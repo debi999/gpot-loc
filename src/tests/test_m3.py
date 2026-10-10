@@ -350,3 +350,57 @@ def test_recent_list(tmp_path):
     assert out[0]["path"] == gdir
     assert out[0]["name"] == "MyRPGGame"
     assert out[0]["configured"] is False       # 没有词典文件 → 未配置
+
+
+# ---------------------------------------------------------------------------
+# FR-65: 换游戏目录必须重认引擎（v0.5.2 真 bug：先选 RPG Maker 再选 Unity
+#  → 引擎一直沿用 RPGMakerMZ，校验/第5步落盘全按错的引擎走）
+# ---------------------------------------------------------------------------
+def test_switch_game_redetects_engine_m3(tmp_path, monkeypatch):
+    import gpot.api.server as server
+    monkeypatch.setattr(kernel, "CONFIG_PATH", str(tmp_path / "config.ini"))
+
+    def _mk_rm(d):
+        os.makedirs(os.path.join(d, "www", "data"), exist_ok=True)
+        os.makedirs(os.path.join(d, "js"), exist_ok=True)
+        open(os.path.join(d, "js", "rpg_core.js"), "w").close()
+        open(os.path.join(d, "www", "data", "Actors.json"), "w",
+             encoding="utf-8").write("[]")
+
+    def _mk_unity(d):
+        os.makedirs(d, exist_ok=True)
+        open(os.path.join(d, "UnityPlayer.dll"), "w").close()
+        open(os.path.join(d, "UnityCrashHandler64.exe"), "w").close()
+
+    d1, d2 = str(tmp_path / "rm"), str(tmp_path / "unity")
+    _mk_rm(d1)
+    _mk_unity(d2)
+
+    server._ensure_engine(d1)
+    first = server._STATE.engine["engine"]
+    server._ensure_engine(d2)
+    second = server._STATE.engine["engine"]
+    assert first != second, "换目录后引擎必须重认，不能沿用上一个"
+    assert second == "Unity"
+
+
+def test_extract_engine_writeback_is_idempotent_m3(tmp_path):
+    """extract 的回写只在 engine 为空时补认，不覆盖第 2 步手动选定的结果。"""
+    from gpot.core import extract as ex
+    g = tmp_path / "G"
+    (g / "www" / "data").mkdir(parents=True)
+    (g / "js").mkdir()
+    open(g / "js" / "rpg_core.js", "w").close()
+    (g / "www" / "data" / "Actors.json").write_text(
+        json.dumps([{"id": 1, "name": "A", "description": "hi"}],
+                   ensure_ascii=False), encoding="utf-8")
+    s = store.Store()
+    s.game = {"path": str(g), "name": "G", "existing": 0}
+    s.engine = {"engine": "ManualChoice", "key": "manual"}   # 用户第 2 步手选
+    ex.extract(s, {})
+    assert s.engine["engine"] == "ManualChoice", "不该覆盖用户手选"
+    # 反之：engine 为空时要自动补认出来
+    s2 = store.Store()
+    s2.game = {"path": str(g), "name": "G", "existing": 0}
+    ex.extract(s2, {})
+    assert s2.engine and s2.engine.get("engine")

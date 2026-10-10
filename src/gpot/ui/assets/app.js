@@ -1122,21 +1122,67 @@ function toggleSettings() {
     const w = 264, top = r.bottom + 6;
     m.style.top = Math.min(top, innerHeight - 340) + 'px';
     m.style.left = Math.max(8, Math.min(r.right - w, innerWidth - w - 8)) + 'px';
+    // 版本号：STATE 可能尚未载入（离线预览时更永远拿不到）——
+    // 直接读会显示成「v—」让老板一头雾水。这里补拉一次，仍拿不到就说实话。
     const v = document.getElementById('gearVer');
-    if (v) v.textContent = 'v' + ((STATE && STATE.app_version) || '—');
-    const th = document.getElementById('gearThemeHint');
-    if (th) th.textContent =
-      document.documentElement.getAttribute('data-theme') === 'light'
-        ? '当前：明亮模式 · 点击切换' : '当前：暗色模式 · 点击切换';
+    if (v && !(STATE && STATE.app_version)) {
+      api('GET', '/api/state').then(s => {
+        if (s && s.app_version) v.textContent = 'v' + s.app_version;
+        else v.textContent = '版本未知（未连接后端）';
+      });
+    } else if (v) {
+      v.textContent = 'v' + STATE.app_version;
+    }
   }
 }
 /* 齿轮菜单各项动作 */
-function gotoCfg() { goto(0); }
 async function checkKit() {
+  /* FR-64：按当前引擎逐项核对注入工具与译文落点。
+     目的不是「一句话结论」，而是让后续接更多引擎时有一套统一的核对口径：
+     每项都摆出 落点 / 是否已装 / 是否已有下载缓存 / 缺了会怎样。 */
+  const head = document.getElementById('kitHead');
+  const body = document.getElementById('kitBody');
+  head.textContent = '正在核对…';
+  body.innerHTML = '';
+  document.getElementById('kitModal').classList.remove('hidden');
   const r = await api('GET', '/api/kit/check');
-  if (r && r.ok) sb('注入工具校验：' + r.message);
-  else sb('注入工具校验：' + ((r && r.message) || '失败'));
+  if (!r) { head.textContent = '校验失败：后端无响应'; return; }
+  if (r.error === 'no_engine' || r.error === 'no_game') {
+    head.textContent = r.message || '还没识别引擎或没选游戏目录';
+    body.innerHTML = `<div class="subtle" style="padding:14px 2px;line-height:1.8">
+      请先在流程里完成：<br>① 第 1 步 · 选择游戏目录<br>② 第 2 步 · 识别引擎</div>`;
+    sb('注入工具校验：' + (r.message || '前置未满足'));
+    return;
+  }
+  const P = { install: ['待部署', 'warn'], skip_exists: ['已就位', 'ok'],
+              skip_optional: ['可选 · 未选装', 'muted'], 'no-pack': ['无可靠包', 'danger'] };
+  const rows = (r.tools || []).map(t => {
+    const meta = P[t.action] || ['未知', 'muted'];
+    const bits = [];
+    // 落点：game_root 类只能给到游戏根，必须再补「判定就位的特征文件」，
+    // 否则看半天只知道「放在游戏目录」，不知道该期待哪个文件冒出来。
+    bits.push(t.dest ? '落点：' + t.dest : '');
+    if (t.marker) bits.push('判定文件：' + t.marker);
+    bits.push(t.cached ? '下载缓存已有' : '下载缓存为空（部署时会现拉）');
+    if (t.reason) bits.push(t.reason);
+    return `<div class="rowitem" style="align-items:flex-start">
+      <div class="ri-main">
+        <div class="ri-t">${t.title || t.id}</div>
+        ${bits.filter(Boolean).map(b => `<div class="ri-s mono" style="word-break:break-all">${b}</div>`).join('')}
+      </div>
+      <div class="ri-side"><span class="badge b-${meta[1]}">${meta[0]}</span></div>
+    </div>`;
+  });
+  head.innerHTML = `<b>${r.engine || '未知引擎'}</b> · ${r.message || ''}
+    ${r.sink_path ? `<div class="subtle" style="margin-top:4px">译文落点：<span class="mono">${r.sink_path}</span></div>` : ''}
+    ${r.sink_desc ? `<div class="subtle">${r.sink_desc}</div>` : ''}
+    ${r.notes ? `<div class="subtle" style="margin-top:4px">${r.notes}</div>` : ''}`;
+  body.innerHTML = rows.length ? rows.join('')
+    : `<div class="subtle" style="padding:14px 2px;line-height:1.8">
+        该引擎没有需要部署的注入工具${r.reason ? '：' + r.reason : '（原生机制或仅支持导出）'}。</div>`;
+  sb('注入工具校验：' + (r.message || ''));
 }
+function closeKit() { document.getElementById('kitModal').classList.add('hidden'); }
 async function openLogs() {
   const r = await api('GET', '/api/logs');
   const t = r && r.text ? r.text : '（暂无日志）';

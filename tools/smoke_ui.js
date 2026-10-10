@@ -78,7 +78,7 @@ const { chromium } = require('playwright-core');
   await page.screenshot({ path: 'I:/AIcoding/gpot-loc/_smoke_m4.png', fullPage: false });
 
   // ===================================================================
-  // v0.5.1：本轮 4 项修复（FR-62/FR-63）
+  // v0.5.1/0.5.2：FR-62/FR-63 修复 + FR-64 校验弹窗（版本断言用正则，升版不必改测试）
   // ===================================================================
   // 11. 齿轮菜单：点得开、6 项齐全、能真拉到数据（v0.5.0 事故：设置菜单点不开没内容）
   await page.evaluate(() => showPage(0));
@@ -88,9 +88,17 @@ const { chromium } = require('playwright-core');
   await page.waitForTimeout(200);
   check('gearMenu opens on click', await page.evaluate(() => getComputedStyle(document.getElementById('gearMenu')).display) !== 'none');
   const gearTxt = await page.textContent('#gearMenu');
-  for (const item of ['翻译提示词', '回到配置翻译服务', '校验注入工具', '运行日志', '明暗模式', '重置流程'])
+  // 版本号曾显示成「v—」（打开菜单那一刻 STATE 还没载入完）——FR-62 修
+  await page.waitForTimeout(300);
+  const gearVer = (await page.textContent('#gearVer')).trim();
+  // v0.5.2 起齿轮只留 4 项：「回到配置翻译服务」与「明暗模式」已删
+  // （前者是导航不是设置；后者与标题栏 #themeBtn 功能重叠）
+  for (const item of ['翻译提示词', '校验注入工具', '运行日志', '重置流程'])
     check(`gear menu has ${item}`, gearTxt.includes(item));
-  check('gear menu shows version', /v0\.5\.1/.test(gearTxt));
+  for (const gone of ['回到配置翻译服务', '明暗模式'])
+    check(`gear menu dropped ${gone}`, !gearTxt.includes(gone));
+  check('themeBtn kept in titlebar', await page.locator('#themeBtn').count() === 1);
+  check('gear version is a real semver (not v—): ' + gearVer, /^v\d+\.\d+\.\d+$/m.test(gearVer));
   // 点别处应收起（避免遮挡操作）
   await page.mouse.click(400, 500);
   await page.waitForTimeout(200);
@@ -102,19 +110,26 @@ const { chromium } = require('playwright-core');
   await page.waitForTimeout(500);
   check('logModal opens', await page.evaluate(() => getComputedStyle(document.getElementById('logModal')).display) === 'flex');
   const logTxt = await page.textContent('#logTxt');
-  check('log has version line', /G-POT 翻译器 v0\.5\.1/.test(logTxt));
+  check('log has version line', /G-POT 翻译器 v\d+\.\d+\.\d+/.test(logTxt));
   check('log has game dir line', logTxt.includes('游戏目录'));
   check('log has dictionary line', logTxt.includes('译文词典'));
   await page.click('#logModal button:has-text("关闭")');
   await page.waitForTimeout(200);
   check('logModal closes', await page.evaluate(() => getComputedStyle(document.getElementById('logModal')).display) === 'none');
 
-  // 13. 「校验注入工具」也走 GET（同样修过方法错位）
+  // 13. 「校验注入工具」开弹窗（FR-64：按引擎逐项核对，不是一句话结论）
   await page.click('#gearBtn');
   await page.click('#gearMenu button:has-text("校验注入工具")');
-  await page.waitForTimeout(600);
-  const sbAfterKit = await page.textContent('#sbMsg');
-  check('kit check reports a verdict', sbAfterKit.length > 0 && !sbAfterKit.includes('404'));
+  await page.waitForTimeout(900);
+  check('kitModal opens', await page.evaluate(() => getComputedStyle(document.getElementById('kitModal')).display) === 'flex');
+  const kitHead = await page.textContent('#kitHead');
+  const kitBody = await page.textContent('#kitBody');
+  check('kitModal states engine or missing prereq', /Unity|RPG|未识别|还没/.test(kitHead));
+  check('kitModal lists per-tool rows', /落点|判定文件|没有需要部署/.test(kitBody));
+  check('kitModal shows no path slash mess', !kitBody.includes('//') && !kitBody.includes('\\\\'));
+  await page.click('#kitModal button:has-text("关闭")');
+  await page.waitForTimeout(200);
+  check('kitModal closes', await page.evaluate(() => getComputedStyle(document.getElementById('kitModal')).display) === 'none');
 
   // 14. 跳步被拦时状态栏说真实原因（FR-63 事实闸）
   // 必须打**后端**（页面里改 STATE 是假象，后端 prereq_ok 仍看真目录/引擎）
