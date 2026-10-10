@@ -25,7 +25,7 @@ _STATE = _store.Store()
 
 # 应用版本（FR-51: 版本唯一真源，随 /api/state 暴露、状态栏常显、双开复用前比对——
 # 旧版本实例不复用，避免「双击 bat 还是老版本」；老板 2026-10-10 指定 V0.4* 起编号）
-APP_VERSION = "0.4.4"
+APP_VERSION = "0.4.5"
 
 # 旧库格式 config.ini（随 kernel 落在 core/ 目录）—— 提供方/游戏目录记忆
 _CFG = kernel.load_config()
@@ -108,100 +108,23 @@ def _kit_tools(engine: dict | None, deployed: bool = False) -> list:
     return out
 
 
-def _recent_list() -> list:  # FR-39: 最近使用列表（游戏名+路径+已积累条数+已配置徽章）
-    out = []
-    for d in (_CFG.get("recent_dirs") or [])[:5]:
-        if not d or not os.path.isdir(d):
-            continue
-        root, _rel = detection.resolve_game_root(d)
-        tp = kernel.translation_file_path(root) if root else ""
-        n = 0
-        if tp and os.path.isfile(tp):
-            probe = kernel.TranslationStore()
-            try:
-                probe.load(tp)
-                n = len(probe.entries)
-            except Exception:
-                n = 0
-        out.append({"path": d, "name": _name_from_path(root or d),
-                    "entries": n, "configured": n > 0})
-    return out
+def _recent_list() -> list:  # FR-39: 最近使用列表（HTTP 薄委托；实现唯一真源 core/store.recent_games）
+    return _store.recent_games(_CFG.get("recent_dirs") or [])
 
 
 def _name_from_path(p: str) -> str:
-    p = (p or "").rstrip("/\\")
-    return p.split("/")[-1].split("\\")[-1] or "未命名游戏"
+    return _store.name_from_path(p)
 
 
-# ----------------------------- 第 4 步表格工具（FR-43） -----------------------------
-def _replace_rows(find: str, repl: str, field: str = "translation") -> int:
-    """查找替换：field = translation | original | both。返回改动的条数。"""
-    if not find:
-        return 0
-    fields = {"translation", "original"} if field == "both" else {field}
-    n = 0
-    for e in _STATE.tstore.entries:
-        hit = False
-        for f in fields:
-            if find in (e.get(f) or ""):
-                e[f] = (e.get(f) or "").replace(find, repl)
-                hit = True
-        if hit:
-            _STATE.tstore.update_status(e)
-            n += 1
-    if n:
-        _STATE.tstore.save(_STATE.tstore.path)
-    return n
+def _sync_translate_metrics() -> None:
+    """第 4 步指标 = tstore 真实统计。
 
-
-def _dedup_rows() -> int:
-    """清理重复：同原文多条 → 保留有译文的一条，返回删除条数。"""
-    t = _STATE.tstore
-    keep: list = []
-    idx: dict = {}
-    removed = 0
-    for e in t.entries:
-        k = kernel.normalize(e["original"])
-        if k not in idx:
-            idx[k] = e
-            keep.append(e)
-            continue
-        removed += 1
-        old = idx[k]
-        if not old.get("translation") and e.get("translation"):
-            keep[keep.index(old)] = e   # 换成带译文的那条
-            idx[k] = e
-    if removed:
-        t.entries = keep
-        t.dirty = True
-        t.save(t.path)
-    return removed
-
-
-# 游戏目录里不算「游戏本体」的 exe（按名字排除）
-_EXE_EXCLUDE = ("crash", "unity", "uninst", "setup", "install", "vcredist",
-                "dxsetup", "dotnet", "update", "patch", "xunity", "bepinex")
-
-
-def _find_game_exe(gdir: str) -> str | None:
-    """在游戏根目录找游戏本体 exe：排除工具类名字后取最大的（本体通常最大）。"""
-    if not gdir or not os.path.isdir(gdir):
-        return None
-    try:
-        cands = [(p.stat().st_size, str(p))
-                 for p in Path(gdir).glob("*.exe")
-                 if not any(b in p.name.lower() for b in _EXE_EXCLUDE)
-                 and p.stat().st_size > 0]
-    except OSError:
-        return None
-    if not cands:   # 极端情况：全是被排除的名字 → 放宽到只排除崩溃报告器
-        try:
-            cands = [(p.stat().st_size, str(p))
-                     for p in Path(gdir).glob("*.exe")
-                     if "crash" not in p.name.lower() and p.stat().st_size > 0]
-        except OSError:
-            return None
-    return max(cands)[1] if cands else None
+    任何改表操作（行编辑/替换/去重/导入）之后都必须同步——2026-10-10
+    codegraph 评估 P1：replace/dedup 后指标曾停留旧值。
+    """
+    st = _STATE.tstore.stats()
+    _STATE.translate.update({"total": st["total"], "done": st["translated"],
+                             "failed": st["untranslated"]})
 
 
 _CLSID_FILE_OPEN_DIALOG = "DC1C5A9C-E88A-4DDE-A5A1-60F82A20AEF7"
@@ -506,48 +429,34 @@ class _Handler(BaseHTTPRequestHandler):
     @staticmethod
     def _rows(q: dict) -> dict:
         t = _STATE.tstore
-        status = (q.get("status", ["all"])[0])
-        kw = (q.get("q", [""])[0] or "").strip().lower()
         limit = min(5000, max(1, int(q.get("limit", ["5000"])[0])))
         offset = max(0, int(q.get("offset", ["0"])[0]))
-        _SMAP = {"translated": "ok", "english": "warn", "untranslated": "todo"}
-        # 请求里的状态键也要过同一张映射表（untranslated→todo…），否则永远筛不中
-        want = _SMAP.get(status, status)
-        matched = []
-        for i, e in enumerate(t.entries):
-            s = _SMAP.get(e["status"], e["status"])
-            if want != "all" and s != want:
-                continue
-            if kw and kw not in e["original"].lower() \
-                    and kw not in e["translation"].lower():
-                continue
-            matched.append({"i": i, "o": e["original"], "t": e["translation"], "s": s})
+        # FR-43: 筛选（SMAP 映射/搜索/状态）唯一实现在 core/translate.filter_entries
+        # —— 不在此复制第二份（2026-10-10 评估 P1：双份映射表是「筛不中」bug 的温床）
+        matched = [{"i": i, "o": e["original"], "t": e["translation"],
+                    "s": translate.SMAP.get(e["status"], e["status"])}
+                   for i, e in translate.filter_entries(t, {
+                       "q": q.get("q", [""])[0],
+                       "status": q.get("status", ["all"])[0]})]
         page = matched[offset:offset + limit]
         return {"total": len(t.entries), "matched": len(matched),
                 "shown": len(page), "rows": page}
 
     def _row_edit(self, b: dict) -> tuple:
-        """双击行内编辑译文（i = tstore 条目序号；原文不可改）。"""
-        t = _STATE.tstore
+        """双击行内编辑译文（HTTP 映射；逻辑在 core/store.edit_row，i = 条目序号）。"""
         try:
             i = int(b.get("i", -1))
         except (TypeError, ValueError):
             return 400, {"error": "bad_index", "message": "条目序号无效"}
-        if i < 0 or i >= len(t.entries) or t.entries[i] is None:
+        e = _store.edit_row(_STATE.tstore, i, str(b.get("translation", "")))
+        if e is None:
             return 400, {"error": "bad_index", "message": "条目序号无效"}
-        tr = str(b.get("translation", "")).replace("\r", "").replace("\n", "\\n")
-        e = t.entries[i]
-        e["translation"] = tr
-        t.update_status(e)
-        t.dirty = True
         try:
-            t.save(t.path)
+            _STATE.tstore.save(_STATE.tstore.path)
         except Exception as ex:
             return 500, {"error": "save_failed", "message": "写盘失败：%s" % str(ex)[:180]}
-        st = t.stats()
-        _STATE.translate.update({"total": st["total"], "done": st["translated"],
-                                 "failed": st["untranslated"]})
-        return 200, {"ok": True, "status": e["status"], "stats": st}
+        _sync_translate_metrics()
+        return 200, {"ok": True, "status": e["status"], "stats": _STATE.tstore.stats()}
 
     # -------------------- POST --------------------
     def do_POST(self):
@@ -691,7 +600,7 @@ class _Handler(BaseHTTPRequestHandler):
             if not gdir or not os.path.isdir(gdir):
                 return self._send(400, {"error": "no_game",
                                         "message": "先在第 1 步选择游戏目录"})
-            exe = _find_game_exe(gdir)
+            exe = detection.find_game_exe(gdir)
             if not exe:
                 return self._send(400, {"error": "no_exe",
                                         "message": "游戏目录里没找到可执行的游戏 .exe"})
@@ -752,20 +661,43 @@ class _Handler(BaseHTTPRequestHandler):
                                         "message": str(e)[:200]})
             if n:
                 _STATE.tstore.save(_STATE.tstore.path)   # 立即落盘
+            _sync_translate_metrics()
             st = _STATE.tstore.stats()
-            _STATE.translate.update({"total": st["total"], "done": st["translated"]})
             return self._send(200, {"ok": True, "updated": n, "path": ip,
                                     "total": st["total"], "translated": st["translated"]})
 
-        if path == "/api/replace":  # FR-43: 查找替换（立即落盘）
-            n = _replace_rows(b.get("find", ""), b.get("replace", ""),
-                              b.get("field", "translation"))
-            return self._send(200, {"ok": True, "replaced": n})
+        if path == "/api/replace":  # FR-43: 查找替换（core 实现，立即落盘 + 指标同步）
+            n = _store.replace_rows(_STATE.tstore, b.get("find", ""),
+                                    b.get("replace", ""), b.get("field", "translation"),
+                                    case_sensitive=bool(b.get("case_sensitive", True)))
+            if n:
+                try:
+                    _STATE.tstore.save(_STATE.tstore.path)
+                except Exception as ex:
+                    return self._send(500, {"error": "save_failed",
+                                            "message": "写盘失败：%s" % str(ex)[:180]})
+            _sync_translate_metrics()
+            st = _STATE.tstore.stats()
+            return self._send(200, {"ok": True, "replaced": n,
+                                    "stats": {"total": st["total"],
+                                              "translated": st["translated"],
+                                              "untranslated": st["untranslated"]}})
 
-        if path == "/api/dedup":  # FR-43: 清理重复（同原文保留有译文的一条）
-            removed = _dedup_rows()
+        if path == "/api/dedup":  # FR-43: 清理重复（归一化键，有译文优先；立即落盘 + 指标同步）
+            removed = _store.dedup_rows(_STATE.tstore)
+            if removed:
+                try:
+                    _STATE.tstore.save(_STATE.tstore.path)
+                except Exception as ex:
+                    return self._send(500, {"error": "save_failed",
+                                            "message": "写盘失败：%s" % str(ex)[:180]})
+            _sync_translate_metrics()
+            st = _STATE.tstore.stats()
             return self._send(200, {"ok": True, "removed": removed,
-                                    "total": len(_STATE.tstore.entries)})
+                                    "total": len(_STATE.tstore.entries),
+                                    "stats": {"total": st["total"],
+                                              "translated": st["translated"],
+                                              "untranslated": st["untranslated"]}})
 
         if path == "/api/nav":  # FR-36: 导航锁（只落已解锁区间）· FR-37: 位置持久化
             ok = _STATE.nav(int(b.get("step", 0)))

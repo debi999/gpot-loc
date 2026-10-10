@@ -224,4 +224,6 @@ def verify(store) -> dict:  # FR-45: 启动验证（应用结果闭环，真实�
     else:
         out = (store.sink.get("files") or [None])[0]
         checks.append({"t": "CSV 草稿已导出", "s": out or "(未导出)", "ok": bool(out and os.path.isfile(out))})
+    # FR-35: 自检结果回写状态 → 导航轨第 6 步副标题真实化（全 ok 才算「自检通过」）
+    store.sink["verified"] = bool(checks) and all(c.get("ok") for c in checks)
     return {"engine": ek, "hint": hints.get(kind, hints["runtime"]), "checks": checks}

@@ -19,28 +19,39 @@ CHUNK = 10   # 每次送 batch_fast 的条数（批内自动再拆批/对齐）
 # FR-43: 主按钮下拉四项的目标选择（纯函数，便于单测）
 #   todo     仅未翻译（默认）    filtered 当前筛选（q/status 与第 4 步表格同规则）
 #   all      全部（连已译也重翻） retry    仅重试失败（未翻译 + 英文残留）
-_SMAP = {"translated": "ok", "english": "warn", "untranslated": "todo"}
+SMAP = {"translated": "ok", "english": "warn", "untranslated": "todo"}
+"""状态键映射（请求/筛选键 ↔ 行状态）的唯一真源——server._rows 与 select_targets 共用。"""
+
+
+def filter_entries(tstore, flt: dict | None) -> list:
+    """第 4 步表格筛选的唯一实现（server._rows 与 select_targets 共用）。
+
+    flt: {"q": 搜索词, "status": all|translated|english|untranslated}
+    请求里的状态键与行状态都过同一张 SMAP（untranslated→todo…），
+    否则会复发「筛选永远 0 命中」。返回 [(i, entry), ...]，i = 条目序号。
+    """
+    flt = flt or {}
+    status = flt.get("status", "all")
+    kw = (flt.get("q", "") or "").strip().lower()
+    want = SMAP.get(status, status)
+    out = []
+    for i, e in enumerate(tstore.entries):
+        s = SMAP.get(e["status"], e["status"])
+        if want != "all" and s != want:
+            continue
+        if kw and kw not in e["original"].lower() \
+                and kw not in e["translation"].lower():
+            continue
+        out.append((i, e))
+    return out
 
 
 def select_targets(store, scope: str = "todo", flt: dict | None = None) -> list:
     tstore = store.tstore
-    flt = flt or {}
     if scope == "all":
         return list(tstore.entries)
     if scope == "filtered":
-        status = flt.get("status", "all")
-        kw = (flt.get("q", "") or "").strip().lower()
-        want = _SMAP.get(status, status)
-        out = []
-        for e in tstore.entries:
-            s = _SMAP.get(e["status"], e["status"])
-            if status != "all" and s != want:
-                continue
-            if kw and kw not in e["original"].lower() \
-                    and kw not in e["translation"].lower():
-                continue
-            out.append(e)
-        return out
+        return [e for _i, e in filter_entries(tstore, flt)]
     targets = [e for e in tstore.entries if e["status"] == "untranslated"]
     if scope == "retry":
         targets += [e for e in tstore.entries if e["status"] == "english"]

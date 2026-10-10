@@ -120,3 +120,33 @@ def detect_engine(game_path: str) -> dict:  # FR-40: 引擎识别（真实启发
         "candidates": [{"engine": r["engine"], "confidence": r["confidence"]}
                        for r in results[1:4]],
     }
+
+
+# ---------------------------------------------------------------------------
+# 游戏本体 exe 查找（FR-45「启动游戏验证」）—— 2026-10-10 自 api/server.py 下沉
+# ---------------------------------------------------------------------------
+_EXE_EXCLUDE = ("crash", "unity", "unins", "setup", "install", "launch",
+                "dxsetup", "dotnet", "update", "patch", "xunity", "bepinex")
+
+
+def find_game_exe(gdir: str) -> str | None:
+    """在游戏根目录找游戏本体 exe：排除工具类名字后取最大的（本体通常最大）。"""
+    if not gdir or not os.path.isdir(gdir):
+        return None
+    try:
+        cands = [(e.stat().st_size, e.path)
+                 for e in os.scandir(gdir)
+                 if e.name.lower().endswith(".exe")
+                 and not any(b in e.name.lower() for b in _EXE_EXCLUDE)
+                 and e.stat().st_size > 0]
+    except OSError:
+        return None
+    if not cands:   # 极端情况：全是被排除的名字 → 放宽到只排除崩溃报告器
+        try:
+            cands = [(e.stat().st_size, e.path)
+                     for e in os.scandir(gdir)
+                     if e.name.lower().endswith(".exe")
+                     and "crash" not in e.name.lower() and e.stat().st_size > 0]
+        except OSError:
+            return None
+    return max(cands)[1] if cands else None

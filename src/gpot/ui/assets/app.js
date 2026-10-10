@@ -748,6 +748,7 @@ async function doReplace() {
   });
   closeReplace();
   if (r && r.ok) {
+    if (r.stats) { STATE.translate.total = r.stats.total; STATE.translate.done = r.stats.translated; }
     renderStep4Metrics(); loadRows();
     sb('查找替换完成 · 改动 ' + r.replaced.toLocaleString() + ' 条');
   } else sb((r && r.message) || '替换失败');
@@ -756,6 +757,7 @@ async function dedupRows() {
   if (!confirm('按原文清理重复条目（有译文的优先保留），确定执行？')) return;
   const r = await api('POST', '/api/dedup');
   if (r && r.ok) {
+    if (r.stats) { STATE.translate.total = r.stats.total; STATE.translate.done = r.stats.translated; }
     renderStep4Metrics(); loadRows();
     sb('清理完成 · 删除重复 ' + r.removed.toLocaleString() + ' 条，剩 ' + r.total.toLocaleString() + ' 条');
   } else sb((r && r.message) || '清理失败');

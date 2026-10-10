@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import threading
 
-from . import kernel
+from . import kernel, detection
+import os
+import re
 
 # FR-35: 七步领域定义（步骤元数据属于内核，不属于界面）
 STEPS = [
@@ -77,7 +79,7 @@ class Store:
                 "running": False,
             }
             self.sink = {"applied": False, "engine": None, "files": [],
-                         "backup": None, "note": ""}
+                         "backup": None, "note": "", "verified": False}
 
     def _steps_dynamic(self) -> list:  # FR-35: 副标题 = 该步真实结果，没跑过写「待执行」，不许编造
         c = self.config
@@ -94,7 +96,7 @@ class Store:
             (f"已译 {t.get('done', 0):,} / {t.get('total', 0):,}" if t.get("total")
              else "未翻译"),
             ("已应用" if self.sink.get("applied") else "待执行"),
-            "待执行",
+            ("自检通过" if self.sink.get("verified") else "待执行"),
         ]
         return [dict(s, sub=subs[s["n"]]) for s in STEPS]
 
@@ -112,3 +114,99 @@ class Store:
                 "translate": self.translate,
                 "sink": self.sink,
             }
+
+
+# ---------------------------------------------------------------------------
+# 第 4 步表格操作（FR-43）—— core 层唯一实现，api/server.py 只做 HTTP 映射。
+# codegraph 纪律：api 层禁止新增业务逻辑（2026-10-10 评估后下沉至此）。
+# ---------------------------------------------------------------------------
+def name_from_path(p: str) -> str:
+    p = (p or "").rstrip("/\\")
+    return p.split("/")[-1].split("\\")[-1] or "未命名游戏"
+
+
+def replace_rows(tstore, find: str, repl: str, field: str = "translation",
+                 case_sensitive: bool = True) -> int:
+    """查找替换（子串语义，与 UI 模态一致）。field = translation|original|both。
+
+    返回改动条数；**不落盘**——落盘由调用方负责（HTTP 层据此映射 500）。
+    case_sensitive=False 时按字面忽略大小写（re.escape，非正则语义）。
+    """
+    if not find:
+        return 0
+    fields = {"translation", "original"} if field == "both" else {field}
+    pat = None if case_sensitive else re.compile(re.escape(find), re.IGNORECASE)
+    n = 0
+    for e in tstore.entries:
+        hit = False
+        for f in fields:
+            cur = e.get(f) or ""
+            new = cur.replace(find, repl) if pat is None \
+                else pat.sub(lambda _m: repl, cur)
+            if new != cur:
+                e[f] = new
+                hit = True
+        if hit:
+            tstore.update_status(e)
+            tstore.dirty = True
+            n += 1
+    return n
+
+
+def dedup_rows(tstore) -> int:
+    """清理重复：**归一化后**同原文只留一条（有译文的优先保留）。返回删除条数，不落盘。
+
+    键 = kernel.normalize(原文)（v3 语义：空白折叠 + 去首尾 + 小写，
+    「Hello  world」与「hello world」视为同一条）。
+    """
+    keep: dict = {}
+    drop: set = set()
+    for i, e in enumerate(tstore.entries):
+        k = kernel.normalize(e["original"])
+        if k not in keep:
+            keep[k] = i
+            continue
+        ki = keep[k]
+        if e["translation"].strip() and not tstore.entries[ki]["translation"].strip():
+            drop.add(ki)
+            keep[k] = i
+        else:
+            drop.add(i)
+    if not drop:
+        return 0
+    tstore.entries = [e for i, e in enumerate(tstore.entries) if i not in drop]
+    tstore.dirty = True
+    return len(drop)
+
+
+def edit_row(tstore, i: int, translation: str) -> dict | None:
+    """双击行内编辑（i = 条目序号；原文不可改）。换行转义 \\n 落词典。
+    返回该条目；越界/无效返回 None（HTTP 层映射 400）。"""
+    if i < 0 or i >= len(tstore.entries) or tstore.entries[i] is None:
+        return None
+    e = tstore.entries[i]
+    e["translation"] = str(translation).replace("\r", "").replace("\n", "\\n")
+    tstore.update_status(e)
+    tstore.dirty = True
+    return e
+
+
+def recent_games(recent_dirs, limit: int = 5) -> list:
+    """FR-39: 最近使用列表（游戏名+路径+已积累条数+已配置徽章；失效目录剔除）。"""
+    out = []
+    for d in (recent_dirs or [])[:limit]:
+        if not d or not os.path.isdir(d):
+            continue
+        root, _rel = detection.resolve_game_root(d)
+        tp = kernel.translation_file_path(root) if root else ""
+        n = 0
+        if tp and os.path.isfile(tp):
+            probe = kernel.TranslationStore()
+            try:
+                probe.load(tp)
+                n = len(probe.entries)
+            except Exception:
+                n = 0
+        out.append({"path": d, "name": name_from_path(root or d),
+                    "entries": n, "configured": n > 0})
+    return out

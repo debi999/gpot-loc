@@ -60,6 +60,10 @@ G-POT Loc 是一条面向独立游戏的七步汉化流水线：识别引擎 →
 （`启动 G-POT 翻译器.bat` = WebView2 无边框窗口；`启动 G-POT 翻译器(浏览器版).bat` = 系统浏览器），
 双击即可运行，全程无黑窗。手动运行：
 
+> ⚠️ **本仓库一切开发必须在 codegraph 约束下进行**（老板 2026-10-10 拍板）——
+> 改前查爆炸半径、改后同步调用方与测试、业务逻辑只在 core、实现必须单源。
+> 完整六条铁律见 [`AGENTS.md`](AGENTS.md)，违反不许合入。
+
 ```bash
 cd src
 pip install -r requirements.txt      # 只需 pywebview（Windows 自带 WebView2 运行时）

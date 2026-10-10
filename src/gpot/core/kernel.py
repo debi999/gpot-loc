@@ -1161,6 +1161,7 @@ class TranslationStore:
         self.entries = []
         self.bom = True
         self.dirty = False
+        self.corrupt_chars = 0   # load() 时统计的 U+FFFD 数（词典文件损坏指标）
 
     def load(self, path):
         self.path = path
@@ -1169,6 +1170,8 @@ class TranslationStore:
             raw = f.read()
         self.bom = raw.startswith(b'\xef\xbb\xbf')
         text = raw.decode('utf-8-sig', errors='replace')
+        # 污染计数：errors='replace' 会把损坏字节静默变成 U+FFFD —— 计数暴露而非无声混入
+        self.corrupt_chars = text.count('\ufffd')
         for line in text.split('\n'):
             line = line.rstrip('\r')
             if line == '':

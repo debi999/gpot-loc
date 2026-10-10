@@ -1,8 +1,10 @@
-"""M3 功能收口测试 —— FR-35/37/41/42/43。
+"""M3 功能收口测试 —— FR-35/37/39/41/42/43/45。
 
-core 层（flow 持久化 / 动态副标题 / 目标选择 / 护栏开关）+ api 层纯函数
-（查找替换 / 清理重复 / 最近列表）。不碰网络、不碰真实 config.ini
-（monkeypatch CONFIG_PATH），不碰本地 LLM。
+core 层（flow 持久化 / 动态副标题 / 目标选择 / 护栏开关 / 表格操作 / exe 查找）。
+2026-10-10 codegraph 评估后：业务逻辑下沉 core（store.replace_rows/dedup_rows/
+edit_row/recent_games、detection.find_game_exe），api 只做 HTTP 映射——
+测试随之只打 core，不再打 server 内部函数。
+不碰网络、不碰真实 config.ini（monkeypatch CONFIG_PATH），不碰本地 LLM。
 """
 from __future__ import annotations
 
@@ -153,7 +155,7 @@ def test_extract_guard_toggle(rm_store):
 
 
 # ---------------------------------------------------------------------------
-# FR-43: 查找替换 / 清理重复（api 层纯函数）
+# FR-43: 表格操作（core/store 唯一实现；落盘由 HTTP 层负责）
 # ---------------------------------------------------------------------------
 @pytest.fixture()
 def api_store(tmp_path, monkeypatch):
@@ -173,33 +175,115 @@ def api_store(tmp_path, monkeypatch):
 
 
 def test_replace_rows(api_store):
-    import gpot.api.server as server
-    n = server._replace_rows("Hello world", "你好", "original")
+    n = store.replace_rows(api_store.tstore, "Hello world", "你好", "original")
     assert n == 2                              # 原文含该词的两条都改了
     assert api_store.tstore.entries[0]["original"] == "你好"
-    assert os.path.isfile(api_store.tstore.path)   # 立即落盘
-    assert server._replace_rows("", "x", "translation") == 0
-    n2 = server._replace_rows("Hello world", "再见", "translation")
+    assert api_store.tstore.dirty              # 改了要置脏（落盘是 HTTP 层职责）
+    assert store.replace_rows(api_store.tstore, "", "x", "translation") == 0
+    n2 = store.replace_rows(api_store.tstore, "Hello world", "再见", "translation")
     assert n2 == 1                             # 只剩第 4 条的译文里还有这个词
 
 
+def test_replace_case_insensitive(api_store):
+    n = store.replace_rows(api_store.tstore, "HELLO WORLD", "X", "original",
+                           case_sensitive=False)
+    assert n == 2                              # 忽略大小写也能命中
+    n2 = store.replace_rows(api_store.tstore, "HELLO WORLD", "X", "original")
+    assert n2 == 0                             # 默认大小写敏感（保持 v0.4.4 行为）
+
+
 def test_dedup_rows(api_store):
-    import gpot.api.server as server
-    removed = server._dedup_rows()
+    removed = store.dedup_rows(api_store.tstore)
     assert removed == 1
     kept = [e for e in api_store.tstore.entries if e["original"] == "Hello world"]
     assert len(kept) == 1
     assert kept[0]["translation"] == "你好世界"    # 保留有译文的那条
 
 
+def test_dedup_normalized_key(api_store):
+    """去重键 = kernel.normalize(原文)（v3 语义：空白折叠+小写，视为同一条）。"""
+    api_store.tstore.entries = [
+        {"original": "Hello  World", "translation": "A", "status": "ok"},
+        {"original": "hello world", "translation": "", "status": "untranslated"},
+    ]
+    removed = store.dedup_rows(api_store.tstore)
+    assert removed == 1                        # 空白折叠+小写后视为重复
+    assert api_store.tstore.entries[0]["translation"] == "A"
+
+
+def test_edit_row(api_store):
+    e = store.edit_row(api_store.tstore, 1, "第一行\n第二行")
+    assert e is not None and e["translation"] == "第一行\\n第二行"   # 换行转义
+    assert e["status"] == "translated"         # classify 原始键（显示层 SMAP 映射 ok）
+    assert store.edit_row(api_store.tstore, 99, "x") is None    # 越界
+    assert store.edit_row(api_store.tstore, -1, "x") is None
+
+
+def test_filter_entries_smap_parity():
+    """筛选唯一实现：请求键 untranslated 必须命中行状态 untranslated（回归防复发）。"""
+    s = _fake_store()
+    got = translate.filter_entries(s.tstore, {"q": "", "status": "untranslated"})
+    assert [e["original"] for _i, e in got] == ["Save game?", "Exit game?"]
+    assert [i for i, _e in translate.filter_entries(
+        s.tstore, {"q": "game", "status": "all"})] == [1, 2, 3]
+
+
 # ---------------------------------------------------------------------------
-# FR-39: 最近使用列表（api 层）
+# FR-45: 游戏本体 exe 查找（core/detection.find_game_exe）
 # ---------------------------------------------------------------------------
-def test_recent_list(tmp_path, monkeypatch):
-    import gpot.api.server as server
+def test_find_game_exe(tmp_path):
+    from gpot.core import detection
+    gdir = tmp_path / "Game"
+    gdir.mkdir()
+    (gdir / "UnityCrashHandler64.exe").write_bytes(b"x" * 100)      # 排除
+    (gdir / "Unity.exe").write_bytes(b"x" * 200)                    # 排除
+    (gdir / "My Cool Game.exe").write_bytes(b"x" * 5000)            # 本体最大
+    (gdir / "launcher.exe").write_bytes(b"x" * 300)                 # 排除
+    assert detection.find_game_exe(str(gdir)).endswith("My Cool Game.exe")
+    assert detection.find_game_exe(str(tmp_path / "nope")) is None  # 目录不存在
+    empty = tmp_path / "Empty"; empty.mkdir()
+    assert detection.find_game_exe(str(empty)) is None              # 无 exe
+
+
+# ---------------------------------------------------------------------------
+# FR-35/45: 第 6 步副标题真实化（verify 回写 verified）
+# ---------------------------------------------------------------------------
+def test_verify_sets_verified(tmp_path):
+    from gpot.core import sink
+    s = store.Store()
+    s.sink = {"applied": True, "engine": "unity", "files": [],
+              "backup": None, "note": "", "verified": False}
+    sink.verify(s)                                 # 词典不存在 → 自检失败
+    assert s.sink["verified"] is False
+    assert {st["n"]: st["sub"] for st in s.to_dict()["steps"]}[6] == "待执行"
+
+    s.tstore.entries = [{"original": "Hi", "translation": "你好", "status": "ok"}]
+    p = str(tmp_path / "Translation.txt")
+    s.tstore.save(p)
+    s.sink["files"] = [p]
+    sink.verify(s)                                 # 词典存在 + 条目匹配 + 格式合法
+    assert s.sink["verified"] is True
+    assert {st["n"]: st["sub"] for st in s.to_dict()["steps"]}[6] == "自检通过"
+
+
+# ---------------------------------------------------------------------------
+# 词典污染计数（load 的 U+FFFD 统计暴露，不再无声混入）
+# ---------------------------------------------------------------------------
+def test_load_corrupt_chars(tmp_path):
+    p = tmp_path / "bad.txt"
+    p.write_bytes("Hello=你好\n".encode("utf-8") + b"\xff\xfe broken" + "\nEnd=末\n".encode("utf-8"))
+    t = kernel.TranslationStore()
+    t.load(str(p))
+    assert t.corrupt_chars >= 1                # 损坏字节被计数而非静默
+    assert len(t.entries) == 3
+
+
+# ---------------------------------------------------------------------------
+# FR-39: 最近使用列表（core/store.recent_games）
+# ---------------------------------------------------------------------------
+def test_recent_list(tmp_path):
     gdir = _rm_game(str(tmp_path))
-    monkeypatch.setattr(server, "_CFG", {"recent_dirs": [gdir, str(tmp_path / "ghost")]})
-    out = server._recent_list()
+    out = store.recent_games([gdir, str(tmp_path / "ghost")])
     assert len(out) == 1                       # 不存在的目录被剔除
     assert out[0]["path"] == gdir
     assert out[0]["name"] == "MyRPGGame"
