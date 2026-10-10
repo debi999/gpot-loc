@@ -282,6 +282,24 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
 .pager .btn{height:27px;padding:0 10px;font-family:var(--mono);font-size:12px}
 .pager .pg{font-family:var(--mono);font-size:11px;color:var(--text-mute)}
 
+/* ---------- 第 4 步：高频屏减重（表格吃满剩余高度） ---------- */
+.page.active.page-fill{display:flex;flex-direction:column;height:100%;padding-bottom:18px}
+.page-fill .tblwrap{flex:1;min-height:150px;overflow-y:auto}
+.page-fill .pg-title{font-size:23px;margin:4px 0 3px}
+.strip.sm>div{padding:8px 16px 7px}
+.strip.sm .sl{margin-bottom:2px}
+.strip.sm .sv{font-size:19px}
+.strip.sm .sv-n{margin-top:1px}
+.batchline{display:flex;align-items:center;gap:13px;padding:10px 0;
+  border-bottom:1px solid var(--hairline);white-space:nowrap}
+.batchline .prog{height:4px}
+.batchline .prog-txt{width:44px}
+.tbl-zone{flex:1;min-height:0;display:flex;flex-direction:column;min-width:0}
+.tbl-zone .toolbar{padding:9px 0;flex-wrap:nowrap}
+.tbl-zone .tbl-tag{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.14em;
+  color:var(--text-mute);text-transform:uppercase;margin-right:6px;white-space:nowrap}
+.tbl-zone .tbl-tag .idx{color:var(--rose);margin-right:6px}
+
 /* ---------- 平面页签（第 5 步管线预览） ---------- */
 .seg{display:inline-flex;gap:0;border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
 .seg button{padding:6px 14px;font-size:12px;color:var(--text-mute);border-left:1px solid var(--border)}
@@ -631,68 +649,61 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
       </section>
 
       <!-- ---------- Step 4 ---------- -->
-      <section class="page" data-page="4">
-        <div class="pg-head" style="margin-bottom:14px">
+      <section class="page page-fill" data-page="4">
+        <div class="pg-head" style="margin-bottom:8px">
           <div class="pg-step">Step 4 / 每轮迭代</div>
-          <h1 class="pg-title" style="font-size:27px">翻译与人工校对</h1>
-          <p class="pg-desc">机器先跑一遍，然后人工过一遍 —— 口吻、称谓、双关，翻错比没翻更伤。</p>
+          <h1 class="pg-title">翻译与人工校对</h1>
+          <p class="pg-desc">机器先跑一遍，人工过一遍口吻与称谓 —— 改完走第 5 步才生效。</p>
         </div>
 
-        <div class="strip">
+        <div class="strip sm">
           <div><div class="sl">总条目</div><div class="sv">14,679</div><div class="sv-n">1,424,251 B</div></div>
           <div><div class="sl">已翻译</div><div class="sv hi" id="m-done">9,102</div><div class="sv-n" id="m-donepct">62%</div></div>
           <div><div class="sl">未翻译</div><div class="sv" id="m-todo">5,319</div><div class="sv-n">本次目标</div></div>
           <div><div class="sl">失败</div><div class="sv" id="m-fail">258</div><div class="sv-n">多为超长/超时</div></div>
         </div>
 
-        <div class="sec">
-          <div class="sec-label"><span class="idx">01</span>批量翻译<br><b>机器过一遍</b></div>
-          <div>
-            <div class="prog-row" style="max-width:560px">
-              <div class="prog" id="p4bar"><i style="width:62%"></i></div>
-              <div class="prog-txt" id="p4txt">62%</div>
-            </div>
-            <div class="btn-row" style="margin-top:13px">
-              <button class="btn btn-accent" id="btnTrans" onclick="runTranslate(this)">翻译未译条目 ▾</button>
-              <button class="btn" onclick="runTranslate(this,true)">仅重试失败</button>
-              <button class="btn">停止</button>
-              <span class="subtle nowrap" style="margin-left:8px">并发 4 · 预计 22 分钟 · 上次平均 1.9 秒/条 · 已译文不会被覆盖</span>
+        <div class="batchline">
+          <div class="prog-row" style="flex:1">
+            <div class="prog" id="p4bar"><i style="width:62%"></i></div>
+            <div class="prog-txt" id="p4txt">62%</div>
+          </div>
+          <span class="subtle nowrap">预计 22 分钟 · 并发 4 · 已译文不会被覆盖</span>
+          <button class="btn btn-accent" id="btnTrans" onclick="runTranslate(this)">翻译未译条目 ▾</button>
+          <button class="btn" onclick="runTranslate(this,true)">仅重试失败</button>
+          <button class="btn">停止</button>
+        </div>
+
+        <div class="tbl-zone">
+          <div class="toolbar">
+            <span class="tbl-tag"><span class="idx">02</span>校对</span>
+            <input class="inp" style="width:210px" placeholder="搜索原文或译文…">
+            <select class="inp"><option>全部</option><option>未翻译</option><option>英文残留</option><option>已翻译</option></select>
+            <span class="subtle nowrap" id="p4count">筛选后 14,679 条</span>
+            <div class="spacer"></div>
+            <button class="btn btn-ghost">导入 CSV</button>
+            <button class="btn btn-ghost">导出 CSV</button>
+            <button class="btn btn-ghost">查找替换</button>
+            <button class="btn btn-ghost">清理重复</button>
+          </div>
+          <div class="tblwrap">
+            <table>
+              <thead><tr><th class="c-num">#</th><th class="c-stat">状态</th><th>原文</th><th>译文</th></tr></thead>
+              <tbody id="p4tbody"></tbody>
+            </table>
+          </div>
+          <div class="btn-row spread" style="margin-top:8px;padding-bottom:2px">
+            <span class="subtle">双击任意行可直接改译文</span>
+            <div class="pager">
+              <button class="btn">‹‹</button><button class="btn">‹</button>
+              <span class="pg">1 / 294</span>
+              <button class="btn">›</button><button class="btn">››</button>
+              <input class="inp" style="width:52px;height:27px" value="1">
             </div>
           </div>
         </div>
 
-        <div class="sec" style="grid-template-columns:158px 1fr">
-          <div class="sec-label"><span class="idx">02</span>校对<br><b>人工过一遍</b></div>
-          <div>
-            <div class="toolbar">
-              <input class="inp" style="width:210px" placeholder="搜索原文或译文…">
-              <select class="inp"><option>全部</option><option>未翻译</option><option>英文残留</option><option>已翻译</option></select>
-              <span class="subtle nowrap" id="p4count">筛选后 14,679 条</span>
-              <div class="spacer"></div>
-              <button class="btn btn-ghost">导入 CSV</button>
-              <button class="btn btn-ghost">导出 CSV</button>
-              <button class="btn btn-ghost">查找替换</button>
-              <button class="btn btn-ghost">清理重复</button>
-            </div>
-            <div class="tblwrap">
-              <table>
-                <thead><tr><th class="c-num">#</th><th class="c-stat">状态</th><th>原文</th><th>译文</th></tr></thead>
-                <tbody id="p4tbody"></tbody>
-              </table>
-            </div>
-            <div class="btn-row spread" style="margin-top:11px">
-              <span class="subtle">双击任意行可直接改译文</span>
-              <div class="pager">
-                <button class="btn">‹‹</button><button class="btn">‹</button>
-                <span class="pg">1 / 294</span>
-                <button class="btn">›</button><button class="btn">››</button>
-                <input class="inp" style="width:52px;height:27px" value="1">
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="pg-foot">
+        <div class="pg-foot" style="padding-top:10px">
           <button class="btn btn-link" onclick="advance()">先不翻译，直接应用 →</button>
           <button class="btn btn-lg" id="btnNext4" onclick="advance()">继续 · 应用到游戏 →</button>
         </div>

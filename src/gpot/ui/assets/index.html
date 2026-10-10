@@ -180,36 +180,29 @@
       </section>
 
       <!-- ---------- Step 4 ---------- -->
-      <section class="page" data-page="4">
+      <section class="page page-fill" data-page="4">
         <div class="pg-head">
           <div class="pg-step">第 4 步 · 每轮迭代</div>
           <h1 class="pg-title">翻译与人工校对</h1>
-          <p class="pg-desc">机器先跑一遍，然后人工过一遍。</p>
+          <p class="pg-desc">机器先跑一遍，人工过一遍口吻与称谓 —— 改完走第 5 步才生效。</p>
         </div>
-        <div class="grid4" style="margin-bottom:14px" id="p4metrics"></div>
-        <div class="card">
-          <div class="btn-row spread" style="margin-bottom:2px">
-            <div class="card-h" style="margin-bottom:2px">批量翻译</div>
-            <div style="text-align:right">
-              <div style="font-size:12px;color:var(--text-sub)">并发 4 · 预计 22 分钟</div>
-              <div style="font-size:12px;color:var(--text-mute);margin-top:2px">上次平均 1.9 秒/条</div>
-            </div>
-          </div>
-          <div class="prog-row">
+        <div class="grid4 sm" style="margin-bottom:0" id="p4metrics"></div>
+        <div class="batchline">
+          <div class="prog-row" style="margin-top:0;flex:1">
             <div class="prog" id="p4bar"><i style="width:62%"></i></div>
             <div class="prog-txt" id="p4txt">62%</div>
           </div>
-          <div class="btn-row" style="margin-top:14px">
-            <button class="btn btn-accent btn-lg" id="btnTrans" onclick="runTranslate()">翻译未译条目</button>
-            <button class="btn" onclick="runTranslate(true)">仅重试失败</button>
-            <button class="btn" id="btnStop" onclick="stopTranslate()" disabled>停止</button>
-          </div>
+          <span class="subtle nowrap">预计 22 分钟 · 并发 4 · 已译文不会被覆盖</span>
+          <button class="btn btn-accent" id="btnTrans" onclick="runTranslate()">翻译未译条目</button>
+          <button class="btn" onclick="runTranslate(true)">仅重试失败</button>
+          <button class="btn" id="btnStop" onclick="stopTranslate()" disabled>停止</button>
         </div>
-        <div class="card">
+        <div class="tbl-zone">
           <div class="toolbar">
+            <span class="tbl-tag"><span class="idx">02</span>校对</span>
             <input class="inp" style="width:220px" placeholder="搜索原文或译文…">
             <select class="inp"><option>全部</option><option>未翻译</option><option>英文残留</option><option>已翻译</option></select>
-            <span class="subtle nowrap">双击任意行可直接改译文</span>
+            <span class="subtle nowrap" id="p4count">筛选后全部条目</span>
             <div class="spacer"></div>
             <button class="btn btn-ghost">导入 CSV</button>
             <button class="btn btn-ghost">导出 CSV</button>
@@ -222,7 +215,7 @@
               <tbody id="p4tbody"></tbody>
             </table>
           </div>
-          <div class="btn-row spread" style="margin-top:12px">
+          <div class="btn-row spread" style="margin-top:8px;padding-bottom:2px">
             <span class="subtle">双击任意行可直接改译文</span>
             <div class="btn-row">
               <button class="btn">‹‹</button><button class="btn">‹</button>
@@ -232,7 +225,7 @@
             </div>
           </div>
         </div>
-        <div class="btn-row" style="justify-content:flex-end">
+        <div class="btn-row" style="justify-content:flex-end;padding-top:10px">
           <button class="btn btn-lg" id="btnNext4" onclick="goNext()" disabled>继续 · 应用到游戏 →</button>
         </div>
       </section>

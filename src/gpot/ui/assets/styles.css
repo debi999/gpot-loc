@@ -422,6 +422,24 @@ tbody tr:hover td{background:rgba(221,160,188,.05)}
   background:rgba(232,98,154,.5);background-clip:content-box}
 .content::-webkit-scrollbar-track,.rail::-webkit-scrollbar-track{background:transparent}
 
+/* ---------- 第 4 步：高频屏减重（表格吃满剩余高度） ---------- */
+.page.active.page-fill{display:flex;flex-direction:column;height:100%;padding-bottom:18px}
+.page-fill .tblwrap{flex:1;min-height:150px;overflow-y:auto}
+.page-fill .pg-title{font-size:23px;margin:4px 0 3px}
+.grid4.sm>*{padding:8px 16px 7px}
+.grid4.sm .metric-l{margin-bottom:2px}
+.grid4.sm .metric-v{font-size:19px}
+.grid4.sm .metric-n{margin-top:1px}
+.batchline{display:flex;align-items:center;gap:13px;padding:10px 0;
+  border-bottom:1px solid var(--hairline);white-space:nowrap}
+.batchline .prog{height:4px}
+.batchline .prog-txt{width:44px}
+.tbl-zone{flex:1;min-height:0;display:flex;flex-direction:column;min-width:0}
+.tbl-zone .toolbar{padding:9px 0;flex-wrap:nowrap;margin-bottom:0}
+.tbl-zone .tbl-tag{font-family:var(--font-mono);font-size:10.5px;font-weight:700;letter-spacing:.14em;
+  color:var(--text-mute);text-transform:uppercase;margin-right:6px;white-space:nowrap}
+.tbl-zone .tbl-tag .idx{color:var(--rose);margin-right:6px}
+
 /* 无障碍：降低动效偏好下全部关闭 */
 @media (prefers-reduced-motion:reduce){
   *{animation:none!important;transition:none!important}
