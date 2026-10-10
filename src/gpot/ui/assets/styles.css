@@ -422,7 +422,7 @@ tbody tr:hover td{background:rgba(221,160,188,.05)}
 .pipe-arrow{color:var(--violet-hi);font-size:14px;text-align:center;font-weight:400;
   text-shadow:none;align-self:center;padding:0 8px}
 
-.hidden{display:none}
+.hidden{display:none !important} /* !important：压过行内 display（v0.4.6 修 #replModal 行内 display:flex 覆盖 .hidden 导致开屏即弹查找替换） */
 .subtle{font-size:12px;color:var(--text-mute);line-height:1.6}
 .nowrap{white-space:nowrap}
 

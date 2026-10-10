@@ -25,7 +25,7 @@ _STATE = _store.Store()
 
 # 应用版本（FR-51: 版本唯一真源，随 /api/state 暴露、状态栏常显、双开复用前比对——
 # 旧版本实例不复用，避免「双击 bat 还是老版本」；老板 2026-10-10 指定 V0.4* 起编号）
-APP_VERSION = "0.4.5"
+APP_VERSION = "0.4.6"
 
 # 旧库格式 config.ini（随 kernel 落在 core/ 目录）—— 提供方/游戏目录记忆
 _CFG = kernel.load_config()

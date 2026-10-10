@@ -38,8 +38,7 @@ from . import kit_installer
 # ----------------------------------------------------------------------------
 # 常量 / 基础工具
 # ----------------------------------------------------------------------------
-APP_NAME = "独游翻译器 · 翻译管理器"
-APP_VERSION = "3.29"
+APP_NAME = "G-POT 翻译器"
 
 APP_DIR = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) \
     else os.path.dirname(os.path.abspath(__file__))
