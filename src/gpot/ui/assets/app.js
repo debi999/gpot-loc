@@ -229,37 +229,53 @@ async function resetAll() {
 }
 
 /* ---------------- Step 0：配置 ---------------- */
+let PROVS = [];                  // 真实提供方目录（含默认地址/模型/needs_key）
 async function loadProviders() {
   const r = await api('GET', '/api/providers');
+  PROVS = r.providers || [];
   const grid = document.getElementById('provGrid');
-  grid.innerHTML = (r.providers || []).map(p => `
+  grid.innerHTML = PROVS.map(p => `
     <button class="prov ${p.key === SEL_PROV ? 'on' : ''}" data-k="${p.key}" onclick="pickProv(this)">
       <div class="prov-tick"><svg width="10" height="10"><use href="#i-check"/></svg></div>
       <div class="prov-n">${p.name}</div>
       <div class="prov-d">${p.desc}</div>
     </button>`).join('');
+  pickDefaults();
+}
+function pickDefaults() {
+  // 选中提供方的默认地址/模型回填输入框；需要密钥时展开 Key 行
+  const p = PROVS.find(x => x.key === SEL_PROV) || {};
+  const addr = document.getElementById('cfgAddr');
+  const model = document.getElementById('cfgModel');
+  if (p.address) addr.value = p.address;
+  if (p.model) model.value = p.model;
+  document.getElementById('cfgSecretRow').hidden = !p.needs_key;
+  document.getElementById('cfgAppidField').hidden = !p.needs_appid;
 }
 function pickProv(el) {
   document.querySelectorAll('.prov').forEach(x => x.classList.remove('on'));
   el.classList.add('on');
   SEL_PROV = el.dataset.k;
+  pickDefaults();
 }
-async function saveConfig() {
-  const r = await api('POST', '/api/config', {
+function _cfgBody() {
+  return {
     provider: SEL_PROV,
     model: document.getElementById('cfgModel').value,
     address: document.getElementById('cfgAddr').value,
-  });
+    key: document.getElementById('cfgKey').value.trim(),
+    appid: document.getElementById('cfgSecret').value.split('/')[0].trim(),
+    secret: document.getElementById('cfgSecret').value.split('/')[1]?.trim() || '',
+  };
+}
+async function saveConfig() {
+  const r = await api('POST', '/api/config', _cfgBody());
   STATE.config = r.config;
   renderCfgStatus(r);
   if (r.connected) { sb('翻译服务已连通'); goNext(); }
 }
 async function testConn() {
-  const r = await api('POST', '/api/config', {
-    provider: SEL_PROV,
-    model: document.getElementById('cfgModel').value,
-    address: document.getElementById('cfgAddr').value,
-  });
+  const r = await api('POST', '/api/config', _cfgBody());
   renderCfgStatus(r);
 }
 function renderCfgStatus(r) {
@@ -399,20 +415,42 @@ const STATMAP = {
   fail:'<span class="badge b-danger">✕ 失败</span>'
 };
 function fillTable() {
+  if (DEMO) { _fillTableRows(ROWS); return; }
+  loadRows();
+}
+async function loadRows() {
+  // 第 4 步表格灌真实条目（/api/rows，一次最多 5000 条）
+  const r = await api('GET', '/api/rows?limit=5000');
+  const rows = (r.rows || []).map(x => [x.o, x.t, x.s]);
+  if (!rows.length) rows.push(['（还没有条目）', '先在第 3 步提取文本', 'todo']);
+  _fillTableRows(rows);
   const tb = document.getElementById('p4tbody');
-  if (tb.dataset.filled) return;
-  tb.innerHTML = ROWS.map((r, i) => {
+  tb.dataset.total = r.total || rows.length;
+}
+function _fillTableRows(rows) {
+  const tb = document.getElementById('p4tbody');
+  tb.innerHTML = rows.map((r, i) => {
     const dst = (r[2] === 'todo' || r[2] === 'fail')
       ? '<span style="color:#9A8AA8">（未翻译）</span>' : r[1];
-    return `<tr><td class="c-num">${i+1}</td><td class="c-stat">${STATMAP[r[2]]}</td><td>${r[0]}</td><td>${dst}</td></tr>`;
+    return `<tr><td class="c-num">${i+1}</td><td class="c-stat">${STATMAP[r[2]] || ''}</td><td>${esc(r[0])}</td><td>${dst === r[1] ? esc(r[1]) : dst}</td></tr>`;
   }).join('');
   tb.dataset.filled = '1';
+}
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 async function runTranslate(retry) {
   const btn = document.getElementById('btnTrans');
   btn.disabled = true;
   document.getElementById('btnStop').disabled = false;
   const r = await api('POST', '/api/translate/start', { retry: !!retry });
+  if (r.done_all) {           // 没有需要翻译的条目 → 直接完成
+    document.getElementById('p4bar').classList.add('ok');
+    document.getElementById('btnTrans').textContent = '已全部翻译';
+    document.getElementById('btnNext4').disabled = false;
+    sb('没有未翻译条目，无需翻译');
+    return;
+  }
   TRANS_JOB = r.job_id;
   pollJob();
 }
@@ -435,6 +473,7 @@ async function pollJob() {
     document.getElementById('btnStop').disabled = true;
     document.getElementById('m-fail').textContent = STATE.translate.failed;
     document.getElementById('btnNext4').disabled = false;
+    if (!DEMO) loadRows();      // 任务结束 → 表格刷成真实条目
     sb('翻译完成 · 失败 ' + STATE.translate.failed + ' 条，可单独重试');
     TRANS_JOB = null;
     return;
@@ -513,6 +552,7 @@ async function loadSink(engineKey) {
     </div>`;
 }
 function engineName(k) {
+  if (STATE.engine && STATE.engine.key === k && STATE.engine.name) return STATE.engine.name;
   return { unity: 'Unity (Mono)', rm: 'RPG Maker MV', manual: '无方案引擎' }[k] || k;
 }
 function previewEngine(k, el) {
@@ -530,7 +570,11 @@ async function applySink() {
   sb('已应用 · ' + (r.files || []).length + ' 个落点');
   goNext();
 }
-async function restoreOriginal() { sb('已还原到原文备份'); }
+async function restoreOriginal() {
+  const r = await api('POST', '/api/restore');
+  if (r.error) { sb(r.message || '还原失败'); return; }
+  sb('已还原到原文备份（' + (r.restored_from || '') + '）');
+}
 
 /* ---------------- Step 6：验证 ---------------- */
 async function loadVerify() {

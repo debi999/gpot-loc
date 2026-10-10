@@ -1,0 +1,3 @@
+# G-POT Loc · C 路线运行时依赖（Python 内核 + WebView2 宿主）
+# 内核（gpot.core）零第三方依赖；只有窗口宿主需要 pywebview。
+pywebview>=5.0

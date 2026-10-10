@@ -81,7 +81,7 @@
           <div class="grid3" id="provGrid"></div>
         </div>
         <div class="card">
-          <div class="card-h">本地模型参数</div>
+          <div class="card-h">连接参数</div>
           <div class="grid2">
             <div class="field">
               <label class="lbl">服务地址</label>
@@ -90,6 +90,16 @@
             <div class="field">
               <label class="lbl">模型</label>
               <input class="inp" id="cfgModel" style="width:100%" value="hy-mt2-30b-a3b-apex:nano">
+            </div>
+          </div>
+          <div class="grid2" id="cfgSecretRow" style="margin-top:12px" hidden>
+            <div class="field">
+              <label class="lbl">API Key</label>
+              <input class="inp" id="cfgKey" type="password" style="width:100%" placeholder="提供方需要密钥时填写">
+            </div>
+            <div class="field" id="cfgAppidField" hidden>
+              <label class="lbl">百度 AppID / Secret</label>
+              <input class="inp" id="cfgSecret" style="width:100%" placeholder="百度翻译开放平台">
             </div>
           </div>
         </div>

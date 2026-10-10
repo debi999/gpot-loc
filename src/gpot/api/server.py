@@ -2,6 +2,9 @@
 
 前端（WebView2 里的纯静态页面）只对这里发请求；本模块是 UI ↔ 内核的
 唯一耦合点。换 UI 技术栈（WebView2 / 真 WinUI3 壳 / tkinter）都不用动内核。
+
+M2（2026-10-10）：全部端点接入真实内核（kernel.py = 旧库 v3.29 业务段），
+并复用旧库 config.ini 持久化（kernel.load_config / save_config）。
 """
 from __future__ import annotations
 
@@ -13,10 +16,14 @@ from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
 from gpot.core import (store as _store, detection, providers,
-                       extract, translate, sink, pipeline)
+                       extract, translate, sink, pipeline,
+                       kernel, kit_catalog, kit_installer)
 
 # 应用级唯一状态实例
 _STATE = _store.Store()
+
+# 旧库格式 config.ini（随 kernel 落在 core/ 目录）—— 提供方/游戏目录记忆
+_CFG = kernel.load_config()
 
 # 资源目录：src/gpot/ui/assets
 _ASSETS = Path(__file__).resolve().parents[1] / "ui" / "assets"
@@ -25,19 +32,54 @@ _ASSETS = Path(__file__).resolve().parents[1] / "ui" / "assets"
 # ---------------------------------------------------------------------------
 # 工具函数
 # ---------------------------------------------------------------------------
+def _persist_config() -> None:
+    """把 UI 配置写回旧库格式 config.ini（复用 kernel 的唯一实现）。"""
+    kcfg = providers.to_kernel_cfg(_STATE.config)
+    _CFG["provider"] = kcfg["provider"]
+    _CFG["base"] = kcfg["base"]
+    _CFG["model"] = kcfg["model"]
+    _CFG["key"] = kcfg["key"]
+    _CFG["appid"] = kcfg["appid"]
+    _CFG["secret"] = kcfg["secret"]
+    _CFG["src"] = kcfg["src"]
+    _CFG["dst"] = kcfg["dst"]
+    _CFG["prompt"] = kcfg["prompt"]
+    try:
+        kernel.save_config(_CFG)
+    except Exception:
+        pass
+
+
+def _restore_config() -> None:
+    """启动时把 config.ini 记忆值灌回 STATE（不自动解锁步骤）。"""
+    if not _CFG:
+        return
+    c = _STATE.config
+    c["provider"] = providers._NAME2KEY.get(_CFG.get("provider", ""), c["provider"])
+    for k in ("base", "key", "model", "appid", "secret", "src", "dst", "prompt"):
+        if _CFG.get(k):
+            c[{"base": "address"}.get(k, k)] = _CFG[k]
+    if _CFG.get("provider") == "本地Ollama/Qwen" and _CFG.get("model"):
+        c["model"] = _CFG["model"]
+
+
 def _kit_tools(engine: dict | None, deployed: bool = False) -> list:
-    if not engine or engine.get("key") != "unity":
-        # 原型只给出 Unity 三件套；其它引擎在 M2 由 kit_catalog 提供
+    """注入工具清单（真实数据：kit_catalog.required_tools）。"""
+    eng = (engine or {}).get("engine")
+    if not eng:
         return []
     status = "已就位" if deployed else "待部署"
-    return [
-        {"name": "BepInEx 5", "version": "5.4.23.5", "size": "2.7 MB",
-         "verified": True, "status": status},
-        {"name": "XUnity.AutoTranslator", "version": "5.6.2", "size": "1.8 MB",
-         "verified": True, "status": status},
-        {"name": "ResourceRedirector", "version": "2.1.0", "size": "0.4 MB",
-         "verified": True, "status": status},
-    ]
+    out = []
+    for p in (kit_catalog.required_tools(eng) or []):
+        size = p.get("size")
+        out.append({
+            "name": p.get("title") or p.get("id", ""),
+            "version": p.get("version", "—"),
+            "size": (f"{size / 1e6:.1f} MB" if isinstance(size, (int, float)) else "—"),
+            "verified": bool(p.get("verified")),
+            "status": status,
+        })
+    return out
 
 
 def _name_from_path(p: str) -> str:
@@ -49,7 +91,7 @@ def _name_from_path(p: str) -> str:
 # 请求处理器
 # ---------------------------------------------------------------------------
 class _Handler(BaseHTTPRequestHandler):
-    server_version = "G-POT-API/0.1"
+    server_version = "G-POT-API/0.2"
 
     def _send(self, code: int, payload=None, ctype="application/json; charset=utf-8"):
         body = b""
@@ -116,16 +158,37 @@ class _Handler(BaseHTTPRequestHandler):
             ek = (q.get("engine", [None])[0]
                   or (_STATE.engine or {}).get("key")
                   or "unity")
-            return self._send(200, sink.sink_view(ek))
+            return self._send(200, sink.sink_view(ek, _STATE))
         if path.startswith("/api/verify"):  # FR-45: 启动验证（第 6 步·应用结果闭环）
             return self._send(200, sink.verify(_STATE))
         if path.startswith("/api/jobs/"):
             jid = path.rsplit("/", 1)[-1]
             j = translate.get_job(_STATE, jid)
             return self._send(200 if j else 404, j or {"error": "no such job"})
+        if path.startswith("/api/rows"):  # 第 4 步表格：真实条目（分页/筛选）
+            return self._send(200, self._rows(parse_qs(p.query)))
         # 兜底：其余 GET 路径尝试作为 assets 静态文件伺服（兼容相对路径引用，
         # 使 index.html 在 file:// 下双击也能完整加载 CSS/JS）。找不到仍 404。
         return self._static(path.lstrip("/"), self._ctype(path))
+
+    @staticmethod
+    def _rows(q: dict) -> dict:
+        t = _STATE.tstore
+        status = (q.get("status", ["all"])[0])
+        kw = (q.get("q", [""])[0] or "").strip().lower()
+        limit = min(5000, max(1, int(q.get("limit", ["5000"])[0])))
+        _SMAP = {"translated": "ok", "english": "warn", "untranslated": "todo"}
+        rows = []
+        for i, e in enumerate(t.entries):
+            s = _SMAP.get(e["status"], e["status"])
+            if status != "all" and s != status:
+                continue
+            if kw and kw not in e["original"].lower() \
+                    and kw not in e["translation"].lower():
+                continue
+            rows.append({"i": i, "o": e["original"], "t": e["translation"], "s": s})
+        return {"total": len(t.entries), "shown": len(rows[:limit]),
+                "rows": rows[:limit]}
 
     # -------------------- POST --------------------
     def do_POST(self):
@@ -134,51 +197,120 @@ class _Handler(BaseHTTPRequestHandler):
         b = self._json_body()
 
         if path == "/api/config":  # FR-38: 配置翻译服务 + 连通测试（第 0 步）
-            for k in ("provider", "model", "address"):
+            for k in ("provider", "model", "address", "key", "appid",
+                      "secret", "src", "dst", "prompt"):
                 if k in b:
                     _STATE.config[k] = b[k]
             r = providers.test_connection(_STATE.config)
             _STATE.config["connected"] = r["connected"]
             if r["connected"]:
                 pipeline.complete_step(_STATE, 0)
+            _persist_config()
             return self._send(200, {"config": _STATE.config, **r})
 
-        if path == "/api/game":  # FR-39: 选择游戏目录（第 1 步）
-            gp = b.get("path", "")
+        if path == "/api/game":  # FR-39: 选择游戏目录（第 1 步，真实载入已有译文）
+            gp = (b.get("path") or "").strip()
+            if not gp or not os.path.isdir(gp):
+                return self._send(400, {"error": "bad_path",
+                                        "message": "目录不存在：%s" % gp})
             _STATE.game = {"path": gp, "name": b.get("name") or _name_from_path(gp),
-                          "existing": 14679}
+                           "existing": 0}
+            tpath = kernel.translation_file_path(gp)
+            t = _STATE.tstore
+            t.entries = []
+            if os.path.isfile(tpath):
+                try:
+                    t.load(tpath)
+                except Exception:
+                    t.entries = []
+            t.path = tpath
+            st = t.stats()
+            _STATE.game["existing"] = st["total"]
+            _STATE.translate.update({"total": st["total"], "done": st["translated"],
+                                     "failed": st["untranslated"]})
+            # 游戏目录记忆（旧库 v3.18 语义：优先记忆值 + 最近 5 个）
+            gp_norm = os.path.abspath(gp)
+            _CFG["game_dir"] = gp_norm
+            recent = [d for d in (_CFG.get("recent_dirs") or []) if d != gp_norm]
+            _CFG["recent_dirs"] = ([gp_norm] + recent)[:5]
+            _persist_config()
             pipeline.complete_step(_STATE, 1)
             return self._send(200, _STATE.game)
 
-        if path == "/api/detect":  # FR-40: 识别引擎（第 2 步）
+        if path == "/api/detect":  # FR-40: 识别引擎（第 2 步，真实启发式）
             eng = detection.detect_engine(_STATE.game.get("path", ""))
             _STATE.engine = eng
             _STATE.kit = {"deployed": False, "tools": _kit_tools(eng)}
             pipeline.complete_step(_STATE, 2)
             return self._send(200, eng)
 
-        if path == "/api/deploy":  # FR-41: 部署注入工具（第 2 步·前移）
-            _STATE.kit = {"deployed": True, "tools": _kit_tools(_STATE.engine, deployed=True)}
+        if path == "/api/deploy":  # FR-41: 部署注入工具（第 2 步·真实下载部署）
+            eng = (_STATE.engine or {}).get("engine")
+            gdir = _STATE.game.get("path", "")
+            if not eng or not gdir:
+                return self._send(400, {"error": "no_engine",
+                                        "message": "该引擎没有可部署的工具包"})
+            logs: list[str] = []
+
+            def log(s) -> None:
+                logs.append(str(s))
+
+            try:
+                kit_installer.install_kit(eng, gdir, log=log)
+            except Exception as e:
+                return self._send(500, {"error": "deploy_failed",
+                                        "message": str(e)[:300], "log": logs[-20:]})
+            _STATE.kit = {"deployed": True, "tools": _kit_tools(_STATE.engine, True),
+                          "log": logs[-20:]}
             return self._send(200, _STATE.kit)
 
-        if path == "/api/extract":  # FR-42: 提取待翻译文本与护栏（第 3 步）
-            return self._send(200, extract.extract(_STATE, b))
+        if path == "/api/extract":  # FR-42: 提取待翻译文本与护栏（第 3 步，真实提取）
+            try:
+                return self._send(200, extract.extract(_STATE, b))
+            except Exception as e:
+                return self._send(500, {"error": "extract_failed",
+                                        "message": str(e)[:300]})
 
-        if path == "/api/translate/start":  # FR-43: 启动翻译任务（第 4 步）
+        if path == "/api/translate/start":  # FR-43: 启动翻译任务（第 4 步，真实后端）
             jid = translate.start_translate(_STATE, bool(b.get("retry")))
-            return self._send(200, {"job_id": jid})
+            if jid is None:
+                return self._send(409, {"error": "running",
+                                        "message": "已有翻译任务在进行"})
+            return self._send(200, {"job_id": jid if jid != "done" else None,
+                                    "done_all": jid == "done"})
 
         if path.startswith("/api/jobs/") and path.endswith("/cancel"):
             jid = path.rsplit("/", 2)[-2]
             return self._send(200, {"ok": translate.cancel_job(_STATE, jid)})
 
-        if path == "/api/sink/apply":  # FR-44（按引擎变脸·落盘）& FR-48（引擎锁死校验）
+        if path == "/api/sink/apply":  # FR-44（真实落盘）& FR-48（引擎锁死校验）
             ek = b.get("engine") or (_STATE.engine or {}).get("key") or "unity"
             detected = (_STATE.engine or {}).get("key") or "unity"
             if ek != detected:
                 return self._send(400, {"error": "engine_mismatch",
                                         "message": f"当前游戏管线为 {detected}，不能按 {ek} 管线写入"})
-            return self._send(200, sink.apply(_STATE, ek))
+            try:
+                return self._send(200, sink.apply(_STATE, ek))
+            except Exception as e:
+                return self._send(500, {"error": "apply_failed",
+                                        "message": str(e)[:300]})
+
+        if path == "/api/restore":  # FR-44: 还原原文（rewrite 管线）
+            bk = (_STATE.sink or {}).get("backup")
+            if not bk or not os.path.isdir(bk):
+                return self._send(400, {"error": "no_backup",
+                                        "message": "没有可用的原文备份"})
+            gdir = _STATE.game.get("path", "")
+            try:
+                _ok, data_dir, _e = kernel.rpgmaker_engine.detect(gdir)
+                if not _ok:
+                    raise RuntimeError("不是 RPG Maker MV/MZ 工程")
+                kernel.rpgmaker_engine.restore(bk, data_dir)
+                _STATE.sink["backup"] = None
+                return self._send(200, {"ok": True, "restored_from": bk})
+            except Exception as e:
+                return self._send(500, {"error": "restore_failed",
+                                        "message": str(e)[:300]})
 
         if path == "/api/nav":  # FR-36: 导航锁（只落已解锁区间）
             ok = _STATE.nav(int(b.get("step", 0)))
@@ -192,6 +324,7 @@ class _Handler(BaseHTTPRequestHandler):
 
 
 def build_server(port: int = 8731) -> ThreadingHTTPServer:
+    _restore_config()
     return ThreadingHTTPServer(("127.0.0.1", port), _Handler)
 
 

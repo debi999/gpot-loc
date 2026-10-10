@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import threading
 
+from . import kernel
+
 # FR-35: 七步领域定义（步骤元数据属于内核，不属于界面）
 STEPS = [
     {"n": 0, "key": "config",   "title": "配置翻译服务",        "sub": "本地 Ollama · 未连接"},
@@ -19,17 +21,15 @@ STEPS = [
     {"n": 6, "key": "verify",   "title": "启动验证",            "sub": "待执行"},
 ]
 
-TOTAL_ENTRIES = 14679
-DONE_INITIAL = 9102
-FAIL_INITIAL = 258
-
-
 class Store:
     """线程安全的运行时状态容器。"""
 
     def __init__(self) -> None:
         self.lock = threading.RLock()
         self.jobs: dict = {}
+        # M2: 真实译文资产（唯一真源 = kernel.TranslationStore，原子写 + .bak 三代轮转）。
+        # reset() 只清流水线状态，不清资产本体。
+        self.tstore = kernel.TranslationStore()
         self.reset()
 
     # ---- 导航锁：唯一权威（FR-36）----
@@ -56,17 +56,24 @@ class Store:
                 "provider": "ollama",
                 "model": "hy-mt2-30b-a3b-apex:nano",
                 "address": "http://127.0.0.1:11434",
+                "key": "",
+                "appid": "",
+                "secret": "",
+                "src": "auto",
+                "dst": "zh-CN",
+                "prompt": "",
                 "connected": False,
             }
             self.game = {"path": "", "name": "", "existing": 0}
             self.engine = None
             self.kit = {"deployed": False, "tools": []}
             self.extract = {"added": 0, "existing": 0, "guarded": 0,
-                            "total": 0, "status": "idle"}
+                            "scanned": 0, "total": 0, "translated": 0,
+                            "status": "idle"}
             self.translate = {
-                "total": TOTAL_ENTRIES,
-                "done": DONE_INITIAL,
-                "failed": FAIL_INITIAL,
+                "total": 0,
+                "done": 0,
+                "failed": 0,
                 "running": False,
             }
             self.sink = {"applied": False, "engine": None, "files": [],
