@@ -467,38 +467,111 @@ function fillTable() {
   if (DEMO) { _fillTableRows(ROWS); return; }
   loadRows();
 }
+function _fillTableRows(rows) {
+  const tb = document.getElementById('p4tbody');
+  tb.innerHTML = rows.map(r => {
+    const dst = (r[2] === 'todo' || r[2] === 'fail')
+      ? '<span style="color:#9A8AA8">（未翻译）</span>' : r[1];
+    return `<tr data-ei="${r[3] ?? ''}" data-t="${esc(r[1])}"><td class="c-num"></td><td class="c-stat">${STATMAP[r[2]] || ''}</td><td>${esc(r[0])}</td><td>${dst === r[1] ? esc(r[1]) : dst}</td></tr>`;
+  }).join('');
+  // 序号跟随全表位置（分页第 2 页从 51 起算），而不是每页都从 1 开始
+  tb.querySelectorAll('tr .c-num').forEach((td, k) => {
+    td.textContent = rows[k][3] === '' || rows[k][3] === undefined
+      ? k + 1 : rows[k][3] + 1;
+  });
+  tb.dataset.filled = '1';
+}
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/* ---------------- 第 4 步表格：真实分页 / 搜索 / 双击编辑 ---------------- */
+const P4 = { page: 1, size: 50, matched: 0 };   // 分页状态（matched=筛选后总命中）
+function p4Pages() { return Math.max(1, Math.ceil(P4.matched / P4.size)); }
+function p4Go(p) {
+  P4.page = Math.min(Math.max(1, p), p4Pages());
+  loadRows();
+}
+function p4Size(v) {
+  P4.size = Math.max(1, +v || 50);
+  P4.page = 1;
+  loadRows();
+}
+function onRowsFilter() { P4.page = 1; if (!DEMO) loadRows(); }
+
 async function loadRows() {
-  // 第 4 步表格灌真实条目（/api/rows，一次最多 5000 条）+ 搜索/筛选
-  const q = (document.getElementById('p4q') || {}).value || '';
-  const st = (document.getElementById('p4filter') || {}).value || 'all';
-  const r = await api('GET', '/api/rows?limit=5000&status=' + st
-    + '&q=' + encodeURIComponent(q.trim()));
-  const rows = (r.rows || []).map(x => [x.o, x.t, x.s]);
-  if (!rows.length) rows.push(['（还没有条目）', '先在第 3 步提取文本', 'todo']);
+  // 第 4 步表格：分页 + 搜索 + 状态筛选（/api/rows）
+  const qEl = document.getElementById('p4q');
+  const stEl = document.getElementById('p4filter');
+  const q = (qEl && qEl.value || '').trim();
+  const st = (stEl && stEl.value) || 'all';
+  const r = await api('GET', '/api/rows?limit=' + P4.size
+    + '&offset=' + (P4.page - 1) * P4.size
+    + '&status=' + st + '&q=' + encodeURIComponent(q));
+  P4.matched = r.matched || 0;
+  if ((P4.page - 1) * P4.size >= P4.matched && P4.matched > 0) {
+    P4.page = p4Pages();          // 翻过头了（筛选后变少）→ 收回最后一页
+    return loadRows();
+  }
+  const rows = (r.rows || []).map(x => [x.o, x.t, x.s, x.i]);
+  if (!rows.length) rows.push(['（还没有条目）', '先在第 3 步提取文本', 'todo', '']);
   _fillTableRows(rows);
   const tb = document.getElementById('p4tbody');
   tb.dataset.total = r.total || rows.length;
   const cnt = document.getElementById('p4count');
-  if (cnt) cnt.textContent = q.trim() || st !== 'all'
-    ? `筛出 ${rows.length} 条 / 共 ${(r.total || 0).toLocaleString()} 条`
+  if (cnt) cnt.textContent = (q || st !== 'all')
+    ? `命中 ${(P4.matched).toLocaleString()} / 共 ${(r.total || 0).toLocaleString()} 条`
     : `共 ${(r.total || 0).toLocaleString()} 条`;
-  const pager = document.getElementById('p4pager');
-  if (pager) pager.textContent = (r.total || 0) > 5000
-    ? `显示前 5,000 条 · 共 ${(r.total || 0).toLocaleString()} 条`
-    : `共 ${(r.total || 0).toLocaleString()} 条`;
+  renderPager();
 }
-function onRowsFilter() { if (!DEMO) loadRows(); }
-function _fillTableRows(rows) {
-  const tb = document.getElementById('p4tbody');
-  tb.innerHTML = rows.map((r, i) => {
-    const dst = (r[2] === 'todo' || r[2] === 'fail')
-      ? '<span style="color:#9A8AA8">（未翻译）</span>' : r[1];
-    return `<tr><td class="c-num">${i+1}</td><td class="c-stat">${STATMAP[r[2]] || ''}</td><td>${esc(r[0])}</td><td>${dst === r[1] ? esc(r[1]) : dst}</td></tr>`;
-  }).join('');
-  tb.dataset.filled = '1';
+function renderPager() {
+  const el = document.getElementById('p4pager');
+  if (!el) return;
+  const pages = p4Pages(), cur = Math.min(P4.page, pages);
+  const b = (label, page, dis, strong) =>
+    `<button class="btn${strong ? ' btn-accent' : ''}" style="min-width:34px;justify-content:center;padding:4px 8px"
+      ${dis ? 'disabled' : ''} onclick="p4Go(${page})">${label}</button>`;
+  el.innerHTML = `
+    ${b('«', 1, cur <= 1)}${b('‹', cur - 1, cur <= 1)}
+    <span class="subtle nowrap">${cur.toLocaleString()} / ${pages.toLocaleString()}</span>
+    ${b('›', cur + 1, cur >= pages)}${b('»', pages, cur >= pages)}`;
 }
-function esc(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+/* 双击任意行 → 译文单元格变输入框，Enter/失焦保存（/api/row/edit 立即落盘） */
+async function _commitRowEdit(inp, ei, cur) {
+  const v = inp.value;
+  const r = await api('POST', '/api/row/edit', { i: ei, translation: v });
+  if (r && r.ok) {
+    if (v !== cur) sb('已保存该条译文');
+  } else {
+    sb((r && r.message) || '保存失败');
+  }
+  loadRows();
+}
+function onRowDblClick(ev) {
+  if (DEMO) { sb('离线演示不支持编辑 · 启动后端后可双击改译文'); return; }
+  const tr = ev.target.closest && ev.target.closest('tr');
+  if (!tr || tr.dataset.ei === undefined || tr.dataset.ei === '') return;
+  const ei = +tr.dataset.ei;
+  const cell = tr.cells[3];
+  if (!cell || cell.querySelector('input')) return;
+  const cur = tr.dataset.t || '';
+  cell.innerHTML = `<input class="inp" style="width:100%" value="${cur}">`;
+  const inp = cell.querySelector('input');
+  inp.focus(); inp.select();
+  let done = false;
+  const finish = save => {
+    if (done) return;
+    done = true;
+    if (save) _commitRowEdit(inp, ei, cur);
+    else loadRows();
+  };
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter') finish(true);
+    else if (e.key === 'Escape') finish(false);
+  });
+  inp.addEventListener('blur', () => finish(true));
 }
 async function runTranslate(retry) {
   const btn = document.getElementById('btnTrans');
@@ -564,11 +637,13 @@ async function loadSink(engineKey) {
     b.classList.toggle('on', !!(m && m[1] === engineKey));
   });
   document.getElementById('p5engineName').textContent = engineName(engineKey);
-  document.getElementById('p5lockedTo').textContent =
-    '锁定：' + engineName(detected) + '（当前游戏识别结果）';
-  // 管线徽章 + 识别依据（填充第 5 步头卡左侧空间，真实数据来自第 2 步识别）
+  document.getElementById('p5lockedTo').textContent = locked
+    ? '预览形态 · 锁定：' + engineName(detected) + '（当前游戏识别结果）'
+    : '锁定：' + engineName(detected) + '（当前游戏识别结果）';
+  // 徽章跟随当前所选管线（预览哪个引擎就显示哪个的首字母）
   const badge = document.getElementById('p5badge');
-  if (badge) badge.textContent = (engineName(detected) || '?').trim()[0] || '?';
+  if (badge) badge.textContent = (engineName(engineKey) || '?').trim()[0] || '?';
+  // 识别依据（第 2 步硬证据）
   const evBox = document.getElementById('p5evidence');
   if (evBox) {
     const ev = (STATE.engine && STATE.engine.evidence) || [];
@@ -576,6 +651,13 @@ async function loadSink(engineKey) {
       ? `<div class="subtle" style="margin-bottom:6px">识别依据（第 2 步扫描到的硬证据）</div>
          <div>${ev.map(e => `<span class="chip"><span class="chip-mono">${esc(e)}</span></span>`).join('')}</div>`
       : '';
+  }
+  // 「Coming soon」管线：只显示一句话，别的不放（老板 2026-10-10 指定）
+  if (engineKey === 'manual') {
+    document.getElementById('sinkView').innerHTML = `
+      <div class="card"><div class="card-h">Coming soon</div>
+        <div style="padding:36px 0;text-align:center;font-size:19px;font-weight:600;letter-spacing:.04em">敬请期待</div></div>`;
+    return;
   }
   const v = await api('GET', '/api/sink?engine=' + engineKey);
   const m = (v.metrics || []).map(x =>
@@ -600,7 +682,8 @@ async function loadSink(engineKey) {
       v.alternatives.map(a => `<div class="rowitem"><div class="ri-main"><div class="ri-t">${a.t}</div><div class="ri-s">${a.s}</div></div>
         <div class="ri-side"><span class="badge b-${a.badge||'info'}">${a.badge?'推荐':''}</span></div></div>`).join('')}</div>`;
   }
-  const restore = v.can_restore
+  // 还原原文：只在「当前游戏管线」下出现；预览其它管线时不显示（老板 10-10 反馈 6）
+  const restore = (!locked && v.can_restore)
     ? `<button class="btn btn-danger" onclick="restoreOriginal()">还原原文</button>` : '';
   // 选了非当前引擎时，保存按钮禁用（锁死到当前游戏管线）
   const applyBtn = locked
@@ -625,7 +708,7 @@ async function loadSink(engineKey) {
 }
 function engineName(k) {
   if (STATE.engine && STATE.engine.key === k && STATE.engine.name) return STATE.engine.name;
-  return { unity: 'Unity (Mono)', rm: 'RPG Maker MV', manual: '无方案引擎' }[k] || k;
+  return { unity: 'Unity (Mono)', rm: 'RPG Maker MV', manual: 'Coming soon' }[k] || k;
 }
 function previewEngine(k, el) {
   document.querySelectorAll('#engSeg button').forEach(b => b.classList.remove('on'));
@@ -692,6 +775,8 @@ function initWinCtl() {
   await loadState();
   fillTable();
   initWinCtl();
+  const tb4 = document.getElementById('p4tbody');
+  if (tb4) tb4.addEventListener('dblclick', onRowDblClick);   // 双击行改译文
   if (!DEMO && STATE.app_version)
     document.getElementById('appVer').textContent = 'v' + STATE.app_version;
   if (DEMO) sb('离线预览模式 · 未连接后端（双击「启动 G-POT 翻译器.bat」为完整功能）');

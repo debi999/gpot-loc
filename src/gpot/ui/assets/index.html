@@ -239,8 +239,18 @@
             </table>
           </div>
           <div class="btn-row spread" style="margin-top:8px;padding-bottom:2px">
-            <span class="subtle">双击任意行可直接改译文</span>
-            <span class="subtle nowrap" id="p4pager">共 0 条</span>
+            <div class="btn-row" style="margin:0">
+              <span class="subtle">双击任意行可直接改译文</span>
+              <span class="spacer"></span>
+              <select class="inp" id="p4size" onchange="p4Size(this.value)" style="width:74px">
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="200">200</option>
+                <option value="500">500</option>
+              </select>
+              <span class="subtle nowrap">条/页</span>
+            </div>
+            <div class="btn-row" id="p4pager" style="margin:0"></div>
           </div>
         </div>
         <div class="btn-row" style="justify-content:flex-end;padding-top:10px">
@@ -256,23 +266,25 @@
           <p class="pg-desc">这一步的样子由<b>引擎</b>决定 —— 按第 2 步的识别结果自动显示。</p>
         </div>
         <div class="card">
-          <div class="btn-row spread">
-            <div class="btn-row" style="gap:14px;align-items:center;margin:0;min-width:0">
-              <div class="gc-cover" id="p5badge" style="width:46px;height:46px;font-size:20px;border-radius:12px;flex:none">?</div>
-              <div style="min-width:0">
-                <div class="card-h" style="margin-bottom:2px">当前管线</div>
-                <div class="card-sub" style="margin-bottom:0" id="p5engineName">待识别</div>
-                <div class="subtle" id="p5lockedTo" style="margin-top:4px"></div>
+          <div class="card-h">当前管线</div>
+          <div>
+            <div class="btn-row spread" style="align-items:center">
+              <div class="btn-row" style="gap:14px;align-items:center;margin:0;min-width:0">
+                <div class="gc-cover" id="p5badge" style="width:46px;height:46px;font-size:20px;border-radius:12px;flex:none">?</div>
+                <div style="min-width:0">
+                  <div class="card-sub" style="margin-bottom:0" id="p5engineName">待识别</div>
+                  <div class="subtle" id="p5lockedTo" style="margin-top:4px"></div>
+                </div>
+              </div>
+              <div class="seg" id="engSeg">
+                <button onclick="previewEngine('unity',this)">Unity</button>
+                <button onclick="previewEngine('rm',this)">RPG Maker</button>
+                <button onclick="previewEngine('manual',this)">Coming soon</button>
               </div>
             </div>
-            <div class="seg" id="engSeg">
-              <button onclick="previewEngine('unity',this)">Unity</button>
-              <button onclick="previewEngine('rm',this)">RPG Maker</button>
-              <button onclick="previewEngine('manual',this)">无方案</button>
-            </div>
+            <div class="subtle" style="margin-top:8px">默认锁定当前游戏识别出的管线；切到其它管线查看形态时，「保存并写入」会禁用。</div>
+            <div id="p5evidence" style="margin-top:10px"></div>
           </div>
-          <div class="subtle" style="margin-top:8px">默认锁定当前游戏识别出的管线；切到其它管线查看形态时，「保存并写入」会禁用。</div>
-          <div id="p5evidence" style="margin-top:10px"></div>
         </div>
         <div id="sinkView"></div>
       </section>

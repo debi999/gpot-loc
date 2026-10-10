@@ -24,7 +24,7 @@ _STATE = _store.Store()
 
 # 应用版本（老板 2026-10-10 指定：修改版从 V0.4* 起编号；/api/state 暴露，
 # main.py 双开复用前比对——旧版本实例不复用，避免「双击 bat 还是老版本」）
-APP_VERSION = "0.4.2"
+APP_VERSION = "0.4.3"
 
 # 旧库格式 config.ini（随 kernel 落在 core/ 目录）—— 提供方/游戏目录记忆
 _CFG = kernel.load_config()
@@ -117,16 +117,93 @@ def _find_game_exe(gdir: str) -> str | None:
     return max(cands)[1] if cands else None
 
 
-def _pick_folder() -> dict:
-    """Windows 原生「选择文件夹」对话框（在 HTTP worker 线程内打开）。
+_CLSID_FILE_OPEN_DIALOG = "DC1C5A9C-E88A-4DDE-A5A1-60F82A20AEF7"
+_IID_I_FILE_OPEN_DIALOG = "D57C7288-D4AD-4768-BE02-9D969532D960"
 
-    用 ctypes 调 SHBrowseForFolderW 而非 tkinter：tkinter 的对话框要求主线程，
-    而本服务是 ThreadingHTTPServer 每请求一线程；SHBrowseForFolder 只要线程
-    先 CoInitialize 即可。用户取消返回 {"canceled": True}。
+
+def _pick_folder() -> dict:
+    """Windows「浏览文件夹」对话框（在 HTTP worker 线程内打开）。
+
+    首选现代版 IFileOpenDialog（Vista 通用项对话框，老板 2026-10-10 指定），
+    失败时兜底旧式 SHBrowseForFolderW。用户取消返回 {"canceled": True}。
     """
     if os.name != "nt":
         return {"path": None, "canceled": True,
                 "message": "当前系统无原生对话框 · 请直接粘贴路径"}
+    try:
+        return _pick_folder_modern()
+    except Exception:
+        pass
+    return _pick_folder_legacy()
+
+
+def _pick_folder_modern() -> dict:
+    """现代版文件夹选择（IFileDialog COM 直调，ctypes 无第三方依赖）。"""
+    import ctypes
+    from ctypes import wintypes
+
+    PVOID = ctypes.c_void_p
+
+    class GUID(ctypes.Structure):
+        _fields_ = [("Data1", wintypes.DWORD), ("Data2", wintypes.WORD),
+                    ("Data3", wintypes.WORD), ("Data4", ctypes.c_ubyte * 8)]
+
+    def _guid(s: str) -> GUID:
+        g = GUID()
+        hr = ctypes.windll.ole32.CLSIDFromString(
+            ctypes.c_wchar_p("{%s}" % s.strip("{}")), ctypes.byref(g))
+        if hr != 0:
+            raise OSError("CLSIDFromString 0x%08X" % (hr & 0xFFFFFFFF))
+        return g
+
+    def _m(obj: int, idx: int, restype, *argtypes):
+        """取 COM 对象虚表第 idx 个方法（0 起算，含 IUnknown 三件套）。"""
+        vtbl = ctypes.cast(PVOID(obj), ctypes.POINTER(PVOID)).contents.value
+        fp = ctypes.cast(PVOID(vtbl + idx * ctypes.sizeof(PVOID)),
+                         ctypes.POINTER(PVOID)).contents.value
+        return ctypes.WINFUNCTYPE(restype, PVOID, *argtypes)(fp)
+
+    ole32 = ctypes.windll.ole32
+    ole32.CoInitialize(None)
+    dlg = PVOID()
+    hr = ole32.CoCreateInstance(ctypes.byref(_guid(_CLSID_FILE_OPEN_DIALOG)),
+                                None, 1,   # CLSCTX_INPROC_SERVER
+                                ctypes.byref(_guid(_IID_I_FILE_OPEN_DIALOG)),
+                                ctypes.byref(dlg))
+    if hr != 0 or not dlg.value:
+        raise OSError("CoCreateInstance 0x%08X" % (hr & 0xFFFFFFFF))
+    try:
+        # SetOptions：FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST
+        _m(dlg.value, 9, HRESULT, wintypes.DWORD)(dlg, 0x20 | 0x40 | 0x800)
+        _m(dlg.value, 17, HRESULT, wintypes.LPCWSTR)(
+            dlg, "选择游戏根目录（含 BepInEx 或 *_Data 的目录）")
+        hr = _m(dlg.value, 3, HRESULT, wintypes.HWND)(dlg, None)   # Show
+        if hr != 0:   # 0x800704C7 = 取消；其余失败同样按未选择处理
+            return {"path": None, "canceled": True}
+        psi = PVOID()
+        hr = _m(dlg.value, 20, HRESULT, PVOID)(dlg, ctypes.byref(psi))  # GetResult
+        if hr != 0 or not psi.value:
+            return {"path": None, "canceled": True}
+        try:
+            ppsz = PVOID()
+            hr = _m(psi.value, 5, HRESULT, wintypes.DWORD, PVOID)(
+                psi, 0x80058000, ctypes.byref(ppsz))   # GetDisplayName(FILESYSPATH)
+            if hr != 0 or not ppsz.value:
+                return {"path": None, "canceled": True}
+            try:
+                path = ctypes.wstring_at(ppsz.value)
+            finally:
+                ole32.CoTaskMemFree(ppsz)
+            return {"path": path, "canceled": False}
+        finally:
+            _m(psi.value, 2, wintypes.DWORD)(psi)      # Release
+    finally:
+        _m(dlg.value, 2, wintypes.DWORD)(dlg)          # Release
+        ole32.CoUninitialize()
+
+
+def _pick_folder_legacy() -> dict:
+    """旧式 SHBrowseForFolder 兜底（ctypes 调用，线程内先 CoInitialize）。"""
     try:
         import ctypes
         from ctypes import wintypes
@@ -251,7 +328,7 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send(200 if j else 404, j or {"error": "no such job"})
         if path == "/api/pick-folder":  # 第 1 步「浏览」：原生文件夹选择对话框
             return self._send(200, _pick_folder())
-        if path.startswith("/api/rows"):  # 第 4 步表格：真实条目（分页/筛选）
+        if path == "/api/rows":   # 第 4 步表格：真实条目（分页/筛选/搜索）
             return self._send(200, self._rows(parse_qs(p.query)))
         # 兜底：其余 GET 路径尝试作为 assets 静态文件伺服（兼容相对路径引用，
         # 使 index.html 在 file:// 下双击也能完整加载 CSS/JS）。找不到仍 404。
@@ -263,18 +340,45 @@ class _Handler(BaseHTTPRequestHandler):
         status = (q.get("status", ["all"])[0])
         kw = (q.get("q", [""])[0] or "").strip().lower()
         limit = min(5000, max(1, int(q.get("limit", ["5000"])[0])))
+        offset = max(0, int(q.get("offset", ["0"])[0]))
         _SMAP = {"translated": "ok", "english": "warn", "untranslated": "todo"}
-        rows = []
+        # 请求里的状态键也要过同一张映射表（untranslated→todo…），否则永远筛不中
+        want = _SMAP.get(status, status)
+        matched = []
         for i, e in enumerate(t.entries):
             s = _SMAP.get(e["status"], e["status"])
-            if status != "all" and s != status:
+            if want != "all" and s != want:
                 continue
             if kw and kw not in e["original"].lower() \
                     and kw not in e["translation"].lower():
                 continue
-            rows.append({"i": i, "o": e["original"], "t": e["translation"], "s": s})
-        return {"total": len(t.entries), "shown": len(rows[:limit]),
-                "rows": rows[:limit]}
+            matched.append({"i": i, "o": e["original"], "t": e["translation"], "s": s})
+        page = matched[offset:offset + limit]
+        return {"total": len(t.entries), "matched": len(matched),
+                "shown": len(page), "rows": page}
+
+    def _row_edit(self, b: dict) -> tuple:
+        """双击行内编辑译文（i = tstore 条目序号；原文不可改）。"""
+        t = _STATE.tstore
+        try:
+            i = int(b.get("i", -1))
+        except (TypeError, ValueError):
+            return 400, {"error": "bad_index", "message": "条目序号无效"}
+        if i < 0 or i >= len(t.entries) or t.entries[i] is None:
+            return 400, {"error": "bad_index", "message": "条目序号无效"}
+        tr = str(b.get("translation", "")).replace("\r", "").replace("\n", "\\n")
+        e = t.entries[i]
+        e["translation"] = tr
+        t.update_status(e)
+        t.dirty = True
+        try:
+            t.save(t.path)
+        except Exception as ex:
+            return 500, {"error": "save_failed", "message": "写盘失败：%s" % str(ex)[:180]}
+        st = t.stats()
+        _STATE.translate.update({"total": st["total"], "done": st["translated"],
+                                 "failed": st["untranslated"]})
+        return 200, {"ok": True, "status": e["status"], "stats": st}
 
     # -------------------- POST --------------------
     def do_POST(self):
@@ -431,6 +535,10 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send(500, {"error": "open_failed",
                                         "message": "打开失败：%s" % str(e)[:200]})
+
+        if path == "/api/row/edit":  # 第 4 步双击行内编辑译文（立即落盘）
+            code, payload = self._row_edit(b)
+            return self._send(code, payload)
 
         if path == "/api/nav":  # FR-36: 导航锁（只落已解锁区间）
             ok = _STATE.nav(int(b.get("step", 0)))
