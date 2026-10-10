@@ -7,7 +7,7 @@
 """
 from __future__ import annotations
 
-from gpot.core import pipeline
+from gpot.core import detection, pipeline
 
 from . import kernel, rpgmaker_engine
 
@@ -80,6 +80,12 @@ def extract(store, options: dict) -> dict:  # FR-42: 文本提取与护栏（真
     gdir = store.game.get("path", "")
     tstore = store.tstore
 
+    # FR-63: 没有游戏目录就别装模作样扫一遍报「新增 0 条」——
+    # 那是 v0.5.0「提取后表格空白」的根因（目录没选却显示提取成功）。
+    if not gdir or not kernel.os.path.isdir(gdir):
+        return {"ok": False, "error": "no_game",
+                "message": "还没选游戏目录 —— 先回第 1 步选对目录再提取"}
+
     if not tstore.path:
         tstore.path = kernel.translation_file_path(gdir)
     if not tstore.entries and tstore.path and kernel.os.path.isfile(tstore.path):
@@ -87,6 +93,16 @@ def extract(store, options: dict) -> dict:  # FR-42: 文本提取与护栏（真
 
     kept, guarded = _collect(gdir, deep=deep,
                              guard_frag=guard_frag, guard_poll=guard_poll)
+
+    # FR-63: 提取过程自己就识别出了引擎（_collect 内部跑过 rpgmaker_engine.detect /
+    # 走的是哪条扫描分支），必须回写 store.engine —— 否则事实闸会认为「引擎未识别」
+    # 把用户挡在第 4 步外，而第 5 步也不知道该用 rewrite 还是 unity 管线。
+    # 幂等：store.engine 已有值就不覆盖（用户可能在第 2 步手动选过）。
+    if store.engine is None:
+        try:
+            store.engine = detection.detect_engine(gdir)
+        except Exception:
+            pass
 
     if mode == "replace":
         # 全量替换：清空所有现有条目（含已翻译），重建为未翻译原文（旧库 v39-2 语义）

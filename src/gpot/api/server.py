@@ -25,7 +25,7 @@ _STATE = _store.Store()
 
 # 应用版本（FR-51: 版本唯一真源，随 /api/state 暴露、状态栏常显、双开复用前比对——
 # 旧版本实例不复用，避免「双击 bat 还是老版本」；老板 2026-10-10 指定 V0.4* 起编号）
-APP_VERSION = "0.5.0"
+APP_VERSION = "0.5.1"
 
 # 旧库格式 config.ini（随 kernel 落在 core/ 目录）—— 提供方/游戏目录记忆
 _CFG = kernel.load_config()
@@ -82,15 +82,67 @@ def _persist_flow() -> None:
         pass
 
 
+def _ensure_engine(gp: str = None) -> dict | None:
+    """FR-63：把「识别当前引擎」这一个动作收成单源，供 /api/game、/api/detect、
+    _restore_flow 三处共用（codegraph 铁律④：同一实现必须单源）。
+
+    之前 /api/game 里内联了一份「选游戏就顺手认引擎」的副本，_restore_flow 又各自
+    为政 → 逻辑双份、行为不一致。现在只有这一个入口。
+    返回识别结果；目录不可读时返回 None（不覆盖既有 engine）。
+    """
+    gp = gp or (_STATE.game or {}).get("path", "")
+    if not gp or not os.path.isdir(gp):
+        return None
+    try:
+        eng = detection.detect_engine(gp)
+    except Exception:
+        return None
+    _STATE.engine = eng
+    _STATE.kit = {"deployed": False, "tools": _kit_tools(eng), "skipped": False}
+    return eng
+
+
 def _restore_flow() -> None:
-    """FR-37: 启动时回到上次所在步骤（无记录 / 首次启动 → 第 0 步）。"""
+    """FR-37: 启动时回到上次所在步骤（无记录 / 首次启动 → 第 0 步）。
+
+    FR-63 修正：恢复出来的 max_step 必须再过一道**事实闸**——
+    游戏目录不在 / 引擎没识别 / 词典为空，就不许停在那么后面。
+    （v0.5.0 事故：只看数字导致第 2 步形同虚设、提取扫不到文件。）
+    """
     try:
         cur = int(str(_CFG.get("flow.current_step", "") or ""), 10)
         mx = int(str(_CFG.get("flow.max_step", "") or ""), 10)
     except ValueError:
         return                      # 从未走过流程 → 保持第 0 步
-    _STATE.max_step = max(0, min(mx, len(_store.STEPS) - 1))
-    _STATE.current_step = max(0, min(cur, _STATE.max_step))
+    max_step = max(0, min(mx, len(_store.STEPS) - 1))
+    # 目录还在吗？在就把词典读回来（否则第 4 步表格必然空白）
+    gd = _CFG.get("game_dir") or ""
+    if gd and os.path.isdir(gd):
+        try:
+            tpath = kernel.translation_file_path(gd)
+            if os.path.isfile(tpath) and not _STATE.tstore.entries:
+                _STATE.tstore.load(tpath)
+        except Exception:
+            pass
+    else:
+        gd = ""                     # 目录失效 → 视作从未选过游戏
+    if not gd:
+        _STATE.game = {"path": "", "name": "", "existing": 0}
+        _STATE.engine = None
+        _STATE.max_step = 0
+        _STATE.current_step = 0
+        return
+    # 目录还在 → 引擎也一并回认（与 /api/game 同一入口，codegraph 铁律④）。
+    # 不这么做的话：上次流程明明走过第 2 步，重启后引擎却是空的，
+    # 事实闸会把用户永远挡在第 2 步外，得手动重新识别一次。
+    _STATE.game = {"path": gd, "name": _name_from_path(gd), "existing": len(_STATE.tstore.entries)}
+    if _STATE.engine is None:
+        _ensure_engine(gd)
+    # 从高往低找第一个前置真实成立的步骤（词典为空会把上限压到 2）
+    while max_step > 0 and not _STATE.prereq_ok(max_step):
+        max_step -= 1
+    _STATE.max_step = max_step
+    _STATE.current_step = max(0, min(cur, max_step))
 
 
 def _kit_tools(engine: dict | None, deployed: bool = False) -> list:
@@ -426,6 +478,52 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send(200 if j else 404, j or {"error": "no such job"})
         if path == "/api/recent":  # FR-39: 最近使用列表
             return self._send(200, {"recent": _recent_list()})
+        if path == "/api/kit/check":  # FR-62: 齿轮「校验注入工具」（只读，必须走 GET）
+            eng = (_STATE.engine or {}).get("engine")
+            gdir = _STATE.game.get("path", "")
+            if not eng or not gdir:
+                return self._send(200, {"ok": False, "tools": [],
+                                        "message": "还没识别引擎或没选游戏目录"})
+            try:
+                plan = kit_installer.plan_install(eng, gdir)
+            except Exception as e:
+                return self._send(200, {"ok": False, "tools": [],
+                                        "message": "校验失败：%s" % str(e)[:150]})
+            packs = plan.get("packs") or []
+            missing = [p for p in packs if p.get("action") == "install"]
+            return self._send(200, {
+                "ok": not missing,
+                "engine": plan.get("display", eng),
+                "tools": [{"id": p["id"], "title": p.get("title", ""),
+                           "action": p.get("action", ""),
+                           "dest": p.get("dest", ""),
+                           "reason": p.get("reason", "")} for p in packs],
+                "message": ("工具齐备 · 共 %d 项" % len(packs)) if not missing
+                else ("缺 %d 项：%s" % (len(missing),
+                                        "、".join(p.get("title") or p["id"]
+                                                  for p in missing)))})
+        if path == "/api/logs":  # FR-62: 齿轮「运行日志」（只读，必须走 GET）
+            t = _STATE.tstore
+            st = t.stats()
+            steps = _STATE.to_dict().get("steps") or []
+            lines = [
+                "G-POT 翻译器 v%s · 运行日志" % APP_VERSION,
+                "游戏目录：%s" % ((_STATE.game or {}).get("path") or "（未选择）"),
+                "识别引擎：%s" % (((_STATE.engine or {}).get("engine"))
+                                  or "（未识别）"),
+                "注入工具：%s" % ("已部署" if (_STATE.kit or {}).get("deployed")
+                              else "未部署"),
+                "译文词典：%s（%d 条：已译 %d / 未译 %d / 英文残留 %d）"
+                % (t.path or "（未载入）", st["total"], st["translated"],
+                   st["untranslated"], st.get("english", 0)),
+                "词典损坏字符：%d" % t.corrupt_chars,
+                "外部改动：%s" % ("是（建议进第 4 步重新载入）"
+                            if t.external_changed() else "否"),
+                "流程位置：第 %d 步（已解锁至第 %d 步）"
+                % (_STATE.current_step, _STATE.max_step),
+            ]
+            lines += ["步骤 %d %s：%s" % (s["n"], s["title"], s["sub"]) for s in steps]
+            return self._send(200, {"text": "\n".join(lines)})
         if path == "/api/pick-folder":  # FR-52: 第 1 步「浏览」——原生文件夹选择对话框
             return self._send(200, _pick_folder())
         if path == "/api/rows":   # 第 4 步表格：真实条目（分页/筛选/搜索）
@@ -528,13 +626,17 @@ class _Handler(BaseHTTPRequestHandler):
             _CFG["recent_dirs"] = ([gp_norm] + recent)[:5]
             _persist_config()
             pipeline.complete_step(_STATE, 1)
+            # FR-63: 选了游戏就把引擎一起认回来（否则重启后第 2 步前置不成立、
+            # 用户会被挡在第 2 步外，明明这个游戏上次就识别过）
+            if _STATE.engine is None and _ensure_engine(gp):
+                pipeline.complete_step(_STATE, 2)
             _persist_flow()   # FR-37
             return self._send(200, _STATE.game)
 
         if path == "/api/detect":  # FR-40: 识别引擎（第 2 步，真实启发式）· FR-41: 工具清单随回
-            eng = detection.detect_engine(_STATE.game.get("path", ""))
-            _STATE.engine = eng
-            _STATE.kit = {"deployed": False, "tools": _kit_tools(eng), "skipped": False}
+            eng = _ensure_engine() or {"key": "manual", "name": "未识别",
+                                       "engine": "manual", "confidence": 0.0,
+                                       "sink_type": "none"}
             pipeline.complete_step(_STATE, 2)
             _persist_flow()   # FR-37
             return self._send(200, {**eng, "kit": _STATE.kit})
@@ -762,11 +864,18 @@ class _Handler(BaseHTTPRequestHandler):
                                               "translated": st["translated"],
                                               "untranslated": st["untranslated"]}})
 
-        if path == "/api/nav":  # FR-36: 导航锁（只落已解锁区间）· FR-37: 位置持久化
-            ok = _STATE.nav(int(b.get("step", 0)))
+        if path == "/api/nav":  # FR-36: 导航锁（数字闸 + FR-63 事实闸）· FR-37: 位置持久化
+            step = int(b.get("step", 0))
+            ok = _STATE.nav(step)
             if ok:
                 _persist_flow()
-            return self._send(200 if ok else 400, _STATE.to_dict())
+            d = _STATE.to_dict()
+            if not ok:
+                # 前置不成立 → 带上真实原因（前端如实告知，不写「已解锁」）
+                d["blocked_reason"] = (
+                    "这一步还没解锁" if step > _STATE.max_step
+                    else _STATE.prereq_msg(step))
+            return self._send(200 if ok else 400, d)
 
         if path == "/api/reset":
             _STATE.reset()

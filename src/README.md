@@ -72,8 +72,10 @@ GUI 模式下若进程自带控制台（假 pythonw / 控制台直跑），`main
 | POST | `/api/open-dir`         | 资源管理器打开译文目录 |
 | GET  | `/api/pick-folder`      | 原生目录选择对话框（IFileOpenDialog，SHBrowse 兜底） |
 | POST | `/api/restore`          | 还原原文（RPG Maker 备份点） |
-| POST | `/api/nav`              | 导航跳转（受 max_step 锁约束） |
-| POST | `/api/reset`            | 重置演示状态 |
+| POST | `/api/nav`              | 导航跳转（**双闸门**：数字 max_step + 前置事实 `prereq_ok`；被拦回 400 + `blocked_reason` 说清缺哪步，FR-63） |
+| POST | `/api/reset`            | 重置流程状态（回到第 0 步，译文词典不删） |
+| GET  | `/api/kit/check`        | 齿轮「校验注入工具」——只读，不写盘（FR-62） |
+| GET  | `/api/logs`             | 齿轮「运行日志」——只读诊断文本（FR-62） |
 | POST | `/api/export-csv`       | 导出 CSV（UTF-8-sig） |
 | POST | `/api/import-csv`       | 导入 CSV（merge 合并） |
 | POST | `/api/import-txt`       | 导入 TXT（等号/Tab/纯原文三形态，FR-56） |

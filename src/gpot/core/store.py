@@ -35,12 +35,50 @@ class Store:
         self.reset()
 
     # ---- 导航锁：唯一权威（FR-36）----
+    def prereq_ok(self, step: int) -> bool:  # FR-63: 导航前置条件校验（防跳步失效）
+        """进入第 step 步的真实前置条件。
+
+        v0.5.0 事故：`max_step` 只是持久化数字，恢复时不校验目录/引擎是否还在，
+        于是能从第 1 步一路点到第 4 步，第 2 步引擎识别形同虚设、提取扫不到文件
+        （表格空白 + 「新增 0 条」）。本方法把「数字解锁」升级为「事实解锁」：
+          1 步需已选游戏目录 · 2 步需已识别引擎 · 3/4 步需已识别引擎
+          5 步需词典有条目 · 6 步需已应用
+        """
+        with self.lock:
+            if step <= 0:
+                return True
+            game_ok = bool((self.game or {}).get("path"))
+            eng_ok = bool((self.engine or {}).get("engine"))
+            if step == 1:
+                return True                      # 第 0 步不需要前置
+            if step == 2:
+                return game_ok                   # 识别引擎要先有游戏目录
+            if step in (3, 4):
+                return game_ok and eng_ok        # 提取/翻译要先识别引擎
+            if step == 5:
+                return len(self.tstore.entries) > 0
+            if step == 6:
+                return bool((self.sink or {}).get("applied"))
+            return True
+
+    def prereq_msg(self, step: int) -> str:
+        """前置不满足时给老板看的一句话（诚实性 NFR-9：不编原因）。"""
+        names = {1: "第 1 步·选择游戏目录", 2: "第 2 步·识别引擎",
+                 3: "第 2 步·识别引擎", 4: "第 2 步·识别引擎",
+                 5: "第 3 步·提取文本", 6: "第 5 步·保存并应用"}
+        return "先完成「%s」" % names.get(step, "上一步")
+
     def nav(self, step: int) -> bool:
-        """跳转到 step。只能落在已解锁区间 [0, max_step]。"""
+        """跳转到 step。只能落在已解锁区间 [0, max_step] **且前置条件真实成立**。
+
+        FR-63：两道闸——数字闸（max_step）+ 事实闸（prereq_ok）。
+        """
         with self.lock:
             if step < 0 or step > len(STEPS) - 1:
                 return False
             if step > self.max_step:
+                return False
+            if step > 0 and not self.prereq_ok(step):
                 return False
             self.current_step = step
             return True

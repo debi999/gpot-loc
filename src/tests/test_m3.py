@@ -13,7 +13,7 @@ import os
 
 import pytest
 
-from gpot.core import kernel, store, translate
+from gpot.core import kernel, pipeline, store, translate
 
 
 # ---------------------------------------------------------------------------
@@ -35,7 +35,11 @@ def test_flow_config_roundtrip(tmp_path, monkeypatch):
 
 
 def test_restore_flow_bounds(tmp_path, monkeypatch):
-    """恢复越界值要被夹回 [0, 6]，空串 = 首次启动保持第 0 步（TC-FR37-02）。"""
+    """恢复越界值要被夹回 [0, 6]，空串 = 首次启动保持第 0 步（TC-FR37-02）。
+
+    FR-63 分工：越界**只管夹取**（99 → 6，与事实无关）；
+    「能不能真停在第 N 步」归 prereq_ok 事实闸管（另见 test_nav_facts_gate_m3）。
+    """
     import gpot.api.server as server
     monkeypatch.setattr(kernel, "CONFIG_PATH", str(tmp_path / "config.ini"))
 
@@ -52,7 +56,65 @@ def test_restore_flow_bounds(tmp_path, monkeypatch):
     server._CFG["flow.current_step"] = "99"
     server._CFG["flow.max_step"] = "99"
     server._restore_flow()
-    assert server._STATE.max_step == 6 and server._STATE.current_step == 6
+    # 夹取上限仍是 6（不是 99），事实闸只会往下压不会往上抬
+    assert server._STATE.max_step <= 6 and server._STATE.current_step == server._STATE.max_step
+
+
+# ---------------------------------------------------------------------------
+# FR-63: 导航事实闸（core 层，不必经 HTTP）
+# ---------------------------------------------------------------------------
+def test_nav_facts_gate_m3():
+    """数字解锁 ≠ 事实成立：没选目录/没认引擎就不许进第 3、4 步。"""
+    s = store.Store()
+    s.unlock_to(6)                                # 纯数字全解锁
+    assert s.nav(1) is True and s.nav(2) is False  # 无目录：连「识别引擎」都不该进
+    assert s.nav(3) is False                      # 更不用说提取
+    assert s.nav(4) is False
+    assert s.nav(0) is True
+
+    s.game = {"path": "C:/x", "name": "x", "existing": 0}
+    assert s.nav(3) is False                      # 有目录但没引擎 → 第 3 步仍拒
+    s.engine = {"engine": "Unity", "key": "unity"}
+    assert s.nav(3) is True and s.nav(4) is True
+
+    # 词典空 → 第 5 步（保存并应用）不许进
+    assert s.nav(5) is False
+    s.tstore.entries.append({"original": "a", "translation": "b", "status": "translated"})
+    assert s.nav(5) is True
+
+    # 未应用 → 第 6 步（启动验证）不许进
+    assert s.nav(6) is False
+    s.sink["applied"] = True
+    assert s.nav(6) is True
+
+
+def test_prereq_msg_specific_m3():
+    """被拦时给的是**具体**缺哪一步，不是笼统的「还没解锁」。"""
+    s = store.Store()
+    s.engine = {"engine": "Unity", "key": "unity"}
+    s.game = {"path": "C:/x", "name": "x", "existing": 0}
+    m = s.prereq_msg(5)
+    assert "第 3 步" in m and "提取" in m      # 词典空 → 指向第 3 步
+
+
+def test_extract_no_game_refuses_m3():
+    """FR-63：没游戏目录时提取必须早退并说人话，不能扫一遍报「新增 0 条」。"""
+    from gpot.core import extract as ex
+    s = store.Store()
+    r = ex.extract(s, {})
+    assert r["ok"] is False and r["error"] == "no_game"
+    assert "第 1 步" in r["message"]
+    assert "status" not in r                    # 绝不写 store.extract = done
+    assert s.max_step == 0 and s.current_step == 0
+
+
+def test_extract_dead_dir_refuses_m3():
+    """目录还在配置里但磁盘上已被删/移动 → 同样早退（不许拿空目录报成功）。"""
+    from gpot.core import extract as ex
+    s = store.Store()
+    s.game = {"path": "Z:/绝对不存在的路径/xx", "name": "x", "existing": 0}
+    r = ex.extract(s, {})
+    assert r["ok"] is False and r["error"] == "no_game"
 
 
 # ---------------------------------------------------------------------------

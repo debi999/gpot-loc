@@ -59,7 +59,11 @@ def test_store_nav_lock():
     assert s.nav(1) is False          # 第 1 步尚未解锁
     assert s.nav(0) is True
     pipeline.complete_step(s, 1)
+    # FR-63: 第 1 步完成 = 已选游戏目录；「识别引擎」这一事实还没建立，
+    # 于是第 2 步开（它只要目录），第 3 步必须被事实闸拦住。
+    s.game = {"path": "C:/x", "name": "x", "existing": 0}
     assert s.nav(2) is True
+    assert s.nav(3) is False          # 引擎未识别 → 不许进提取
     assert s.nav(5) is False          # 第 5 步仍锁
 
 

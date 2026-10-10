@@ -40,7 +40,7 @@
     <div class="tb-drag pywebview-drag-region"></div>
     <div class="tb-right">
       <button class="iconbtn" id="themeBtn" title="切换明暗模式" onclick="toggleTheme()"><svg width="15" height="15"><use href="#i-sun"/></svg></button>
-      <button class="iconbtn" title="设置"><svg width="15" height="15"><use href="#i-gear"/></svg></button>
+      <button class="iconbtn" id="gearBtn" title="设置" onclick="event.stopPropagation();toggleSettings()"><svg width="15" height="15"><use href="#i-gear"/></svg></button>
       <div class="winctl" id="winCtl" hidden>
         <button class="wbtn" id="winMin" title="最小化"><svg width="12" height="12" viewBox="0 0 12 12"><rect x="1.5" y="5.2" width="9" height="1.6" rx=".8" fill="currentColor"/></svg></button>
         <button class="wbtn" id="winMax" title="最大化 / 还原"><svg width="12" height="12" viewBox="0 0 12 12"><rect x="2" y="2" width="8" height="8" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
@@ -65,10 +65,10 @@
         <button class="btn btn-ghost" style="justify-content:flex-start" onclick="goNext()">
           <svg width="13" height="13"><use href="#i-check"/></svg> 完成本步
         </button>
-        <button class="btn btn-ghost" style="justify-content:flex-start" onclick="resetAll()">
-          <svg width="13" height="13"><use href="#i-reset"/></svg> 重置演示
+        <button class="btn btn-ghost" style="justify-content:flex-start" onclick="resetAll()" title="回到第 0 步重新开始（译文词典不会删除）">
+          <svg width="13" height="13"><use href="#i-reset"/></svg> 重置流程
         </button>
-        <div class="subtle" style="padding:4px 10px 0;letter-spacing:.22em;color:var(--violet)">炼香工坊</div>
+        <div class="subtle" style="padding:4px 10px 0;letter-spacing:.22em;color:var(--violet)">G-POT Loc</div>
       </div>
     </nav>
 
@@ -146,7 +146,7 @@
         <div class="btn-row spread">
           <div class="btn-row" style="margin:0">
             <button class="btn" onclick="testConn()">测试连接</button>
-            <button class="btn btn-ghost" onclick="openPrompt()">翻译提示词…</button>
+            <button class="btn btn-ghost" id="btnPrompt" onclick="openPrompt()">翻译提示词…</button>
           </div>
           <button class="btn btn-accent btn-lg" id="btnSaveCfg" onclick="saveConfig()" disabled title="先做一次连接测试">保存并继续 · 选择游戏 →</button>
         </div>
@@ -439,6 +439,52 @@
     <div class="mono" id="fullTrans" style="white-space:pre-wrap;font-size:13px;line-height:1.6;max-height:24vh;overflow:auto;background:rgba(127,127,127,.08);border-radius:3px;padding:10px"></div>
     <div class="btn-row" style="justify-content:flex-end;margin-top:12px">
       <button class="btn" onclick="closeFull()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 设置下拉（v0.5.1：设置类功能统一收拢到齿轮） -->
+<div id="gearMenu" class="hidden" onclick="if(event.target===this)toggleSettings()"
+     style="position:fixed;z-index:65;width:264px;background:var(--surface);border:1px solid var(--border);
+            border-radius:4px;box-shadow:0 10px 30px rgba(0,0,0,.45);padding:6px 0">
+  <div class="subtle" style="padding:6px 14px 4px;letter-spacing:.14em">设置</div>
+  <button class="dd-item" style="width:100%;text-align:left" onclick="openPrompt();toggleSettings()">
+    <div style="font-weight:600">翻译提示词…</div>
+    <div class="subtle">AI 翻译的上下文指导 · 留空用内置默认</div>
+  </button>
+  <button class="dd-item" style="width:100%;text-align:left" onclick="gotoCfg();toggleSettings()">
+    <div style="font-weight:600">回到配置翻译服务</div>
+    <div class="subtle">提供方 / 模型 / 语言 / 并发间隔</div>
+  </button>
+  <button class="dd-item" style="width:100%;text-align:left" onclick="checkKit();toggleSettings()">
+    <div style="font-weight:600">校验注入工具</div>
+    <div class="subtle">检查第 2 步部署的工具是否就位</div>
+  </button>
+  <button class="dd-item" style="width:100%;text-align:left" onclick="openLogs();toggleSettings()">
+    <div style="font-weight:600">运行日志</div>
+    <div class="subtle">最近运行记录与词典状态</div>
+  </button>
+  <div style="height:1px;background:var(--border);margin:6px 0"></div>
+  <button class="dd-item" style="width:100%;text-align:left" onclick="toggleTheme();toggleSettings()">
+    <div style="font-weight:600">明暗模式</div>
+    <div class="subtle" id="gearThemeHint">切换界面主题</div>
+  </button>
+  <button class="dd-item" style="width:100%;text-align:left" onclick="resetAll();toggleSettings()">
+    <div style="font-weight:600;color:#e0526e">重置流程</div>
+    <div class="subtle">回到第 0 步重新开始（译文资产不删）</div>
+  </button>
+  <div style="height:1px;background:var(--border);margin:6px 0"></div>
+  <div class="subtle" style="padding:4px 14px 2px" id="gearVer">v—</div>
+</div>
+
+<!-- 运行日志（FR-62） -->
+<div id="logModal" class="hidden" onclick="if(event.target===this)closeLogs()"
+     style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:66;display:flex;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:18px 20px;width:min(680px,90vw);max-height:80vh;display:flex;flex-direction:column">
+    <div class="card-h" style="margin-bottom:10px">运行日志</div>
+    <pre id="logTxt" class="mono" style="white-space:pre-wrap;font-size:12px;line-height:1.65;flex:1;min-height:240px;overflow:auto;background:rgba(127,127,127,.08);border-radius:3px;padding:12px"></pre>
+    <div class="btn-row" style="justify-content:flex-end;margin-top:12px">
+      <button class="btn" onclick="closeLogs()">关闭</button>
     </div>
   </div>
 </div>

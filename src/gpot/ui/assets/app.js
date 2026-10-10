@@ -11,8 +11,9 @@ let TRANS_JOB = null;           // 进行中的翻译任务 id
 let DEMO = false;               // 离线预览模式：API 不可达（如 file:// 双击打开）时自动启用
 
 /* ---------------- 底层 ---------------- */
-/* 演示模式的固定应答（纯展示数据；业务规则仍只在后端 core/ 中） */
-const _DEMO_NEXT = { 0: 1, 1: 2, 2: 3, 3: 5, 4: 5, 5: 6, 6: 6 };
+/* 离线预览模式的固定应答（纯展示数据；业务规则仍只在后端 core/ 中）。
+   注：原先还有 _demoComplete/_DEMO_NEXT 两个符号，但零调用方（codegraph 孤儿），
+   且与后端 pipeline._NEXT 双份会漂移 —— v0.5.1 删除。 */
 let _demoJobPct = 0;
 function _demoState() {
   return {
@@ -30,13 +31,6 @@ function _demoState() {
     translate: { total: 14679, done: 14204, failed: 12 },
     sink: { backup: false }
   };
-}
-function _demoComplete() {
-  const nx = _DEMO_NEXT[STATE.current_step];
-  if (nx === undefined) return STATE;
-  STATE.max_step = Math.max(STATE.max_step, nx);
-  STATE.current_step = nx;
-  return STATE;
 }
 function _demoApi(method, path, body) {
   if (path === '/api/providers')
@@ -70,7 +64,8 @@ function _demoApi(method, path, body) {
     _demoJobPct = Math.min(100, _demoJobPct + 17);
     return Promise.resolve({ running: _demoJobPct < 100, progress: _demoJobPct, done: Math.round(14679 * _demoJobPct / 100) });
   }
-  if (path.startsWith('/api/jobs/') && method === 'POST') return Promise.resolve({});
+  // 注：原先紧跟其后还有一行 `startsWith('/api/jobs/') && method==='POST'`，永远不可达
+  // （上面已 return）—— v0.5.1 删除，别再补回来。
   if (path.startsWith('/api/sink')) {
     const ek = (path.match(/engine=([a-z]+)/) || [])[1] || 'unity';
     if (ek === 'rm') return Promise.resolve({ kind: 'rewrite', title: '保存并写入工作副本', warn: 'RPG Maker：保存只是工作副本，还需「应用到游戏」',
@@ -259,27 +254,28 @@ function renderStep3Base() {
 function curPage() { return STATE.current_step; }
 
 /* ---------------- 导航 ---------------- */
+/* FR-63: 两道闸（数字 max_step + 前置事实）——被拦时如实说原因，不写「已解锁」 */
 async function goto(i) {
   const r = await api('POST', '/api/nav', { step: i });
-  if (r && r.max_step !== undefined && i <= r.max_step) {
+  if (r && r.max_step !== undefined && !r.blocked_reason) {
     STATE = r; renderRail(); showPage(i);
     if (i === 5) await loadSink(curEngineKey());
     if (i === 6) await loadVerify();
-  } else sb('这一步还没解锁');
+  } else sb((r && r.blocked_reason) || '这一步还没解锁');
 }
 async function goNext() {
   const next = STATE.current_step + 1;
   const r = await api('POST', '/api/nav', { step: next });
-  if (r && r.max_step !== undefined && next <= r.max_step) {
+  if (r && r.max_step !== undefined && !r.blocked_reason) {
     STATE = r; renderRail(); showPage(next);
     if (next === 5) await loadSink(curEngineKey());
     if (next === 6) await loadVerify();
-  } else sb('先完成本步，下一步才解锁');
+  } else sb((r && r.blocked_reason) || '先完成本步，下一步才解锁');
 }
 async function resetAll() {
-  await api('POST', '/api/reset');
+  await api('POST', '/api/reset', {});
   await loadState();
-  sb('演示已重置 · 从第 0 步开始');
+  sb('已回到第 0 步 · 译文词典未删除');
 }
 
 /* ---------------- Step 0：配置 ---------------- */
@@ -539,6 +535,18 @@ async function runExtract() {
   };
   const r = await api('POST', '/api/extract', body);
   document.getElementById('p3result').classList.remove('hidden');
+  // FR-63: 没游戏目录/引擎时后端会 ok:false 早退——如实报红，别渲染一排 0
+  // （v0.5.0 事故：目录没选却显示「提取完成 · 新增 0 条」+ 空表）
+  if (r && r.ok === false) {
+    document.getElementById('p3prog').classList.add('hidden');
+    document.getElementById('p3result').innerHTML =
+      `<div class="metric"><div class="metric-l">提取未执行</div>` +
+      `<div class="metric-v" style="color:#e06c6c">${r.message || '前置条件不满足'}</div>` +
+      `<div class="metric-n">${r.error === 'no_game' ? '回第 1 步选对游戏目录，再回第 2 步识别引擎' : '按提示补齐前置步骤'}</div></div>`;
+    btn.textContent = '开始提取'; btn.disabled = false;
+    sb(r.message || '提取未执行');
+    return;
+  }
   document.getElementById('p3result').innerHTML = `
     <div class="metric"><div class="metric-l">在表总数</div><div class="metric-v">${r.total.toLocaleString()}</div><div class="metric-n">全部条目（含已有 ${(r.translated || 0).toLocaleString()} 条译文）</div></div>
     <div class="metric"><div class="metric-l">本轮新增</div><div class="metric-v">${r.added.toLocaleString()}</div><div class="metric-n">新提取到的原文</div></div>
@@ -1103,6 +1111,42 @@ function initWinCtl() {
   window.addEventListener('pywebviewready', bind, { once: true });
 }
 
+/* ---------------- FR-62: 设置菜单（齿轮统收设置类功能） ---------------- */
+function toggleSettings() {
+  const m = document.getElementById('gearMenu');
+  m.classList.toggle('hidden');
+  if (!m.classList.contains('hidden')) {
+    // 贴着齿轮按钮右下角展开，并夹在窗口内
+    const btn = document.getElementById('gearBtn');
+    const r = btn.getBoundingClientRect();
+    const w = 264, top = r.bottom + 6;
+    m.style.top = Math.min(top, innerHeight - 340) + 'px';
+    m.style.left = Math.max(8, Math.min(r.right - w, innerWidth - w - 8)) + 'px';
+    const v = document.getElementById('gearVer');
+    if (v) v.textContent = 'v' + ((STATE && STATE.app_version) || '—');
+    const th = document.getElementById('gearThemeHint');
+    if (th) th.textContent =
+      document.documentElement.getAttribute('data-theme') === 'light'
+        ? '当前：明亮模式 · 点击切换' : '当前：暗色模式 · 点击切换';
+  }
+}
+/* 齿轮菜单各项动作 */
+function gotoCfg() { goto(0); }
+async function checkKit() {
+  const r = await api('GET', '/api/kit/check');
+  if (r && r.ok) sb('注入工具校验：' + r.message);
+  else sb('注入工具校验：' + ((r && r.message) || '失败'));
+}
+async function openLogs() {
+  const r = await api('GET', '/api/logs');
+  const t = r && r.text ? r.text : '（暂无日志）';
+  const ov = document.getElementById('logModal');
+  document.getElementById('logTxt').textContent = t;
+  ov.classList.remove('hidden');
+  try { navigator.clipboard && navigator.clipboard.writeText(t).then(() => {}); } catch (e) {}
+}
+function closeLogs() { document.getElementById('logModal').classList.add('hidden'); }
+
 (async function init() {
   await loadProviders();
   await loadState();
@@ -1119,6 +1163,7 @@ function initWinCtl() {
   if (tb4) tb4.addEventListener('contextmenu', onRowCtx);     // FR-43: 右键行菜单
   document.addEventListener('click', () => {                  // 点空白收起下拉/右键菜单
     const dd = document.getElementById('ddScope'); if (dd) dd.classList.add('hidden');
+    const gm = document.getElementById('gearMenu'); if (gm) gm.classList.add('hidden');
     _hideCtx();
   });
   // FR-51: 版本号常显状态栏（真源 = server.APP_VERSION，随 /api/state 下发）
