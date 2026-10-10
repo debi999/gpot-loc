@@ -82,7 +82,7 @@ echo [G-POT] 解释器: !PY! >> "%LOG%"
 echo [G-POT] pythonw: !PYW! >> "%LOG%"
 if exist "!PYW!" (
   echo [G-POT] 分支: pythonw 无黑窗启动 >> "%LOG%"
-  start "" "!PYW!" main.py
+  start /min "" "!PYW!" main.py
 ) else (
   echo [G-POT] 未找到 pythonw，回退 python 最小化启动（控制台会由程序自行隐藏）>> "%LOG%"
   start /min "" "!PY!" main.py

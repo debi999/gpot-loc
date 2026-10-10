@@ -6,13 +6,18 @@
   python main.py --open-browser  # 用系统浏览器代替 WebView2（调试）
   python main.py --port N     # 指定端口（默认 8731）
 
-无黑窗模式：bat 用 pythonw.exe 启动本文件，此时 sys.stdout/stderr 为 None，
-所有 print 重定向到 %TEMP%\\gpot-run.log（stdout 防护必须放在最前面）。
+无黑窗模式：v0.4.1 起不依赖 pythonw——本机 hermes venv 的 pythonw.exe 实为
+控制台子系统 shim（PE subsystem=3，会派生 python.exe 子进程），bat 走 pythonw
+分支仍会带出黑窗；且 Windows Terminal 作为默认终端时 FreeConsole 关不掉已
+显示的控制台。故 GUI 模式检测到自带控制台时，立即用 CREATE_NO_WINDOW 重启
+自身（子进程完全没有控制台），父进程退出，黑窗随之关闭。输出落
+%TEMP%\\gpot-run.log。
 """
 from __future__ import annotations
 
 import os
 import sys
+import time
 
 # --- pythonw 防护（必须先于任何 print）：无控制台时输出落日志文件 ---
 if sys.stdout is None or sys.stderr is None:
@@ -24,9 +29,44 @@ if sys.stdout is None or sys.stderr is None:
     except Exception:
         pass
 
+# --- 黑窗根治（v0.4.1）：GUI 模式若自带控制台，导入重模块前先无窗重启自己 ---
+# --no-gui / --open-browser（调试形态）保留控制台，绝不重启。
+if os.environ.get("GPOT_NOWIN") != "1" and sys.argv and \
+        not any(a in sys.argv for a in ("--no-gui", "--open-browser", "-h", "--help")):
+    try:
+        import ctypes
+        _k32 = ctypes.windll.kernel32
+        _hwnd = _k32.GetConsoleWindow()
+        if _hwnd:
+            import subprocess
+            _script = os.path.abspath(sys.argv[0] or __file__)
+            _logf = open(os.path.join(os.environ.get("TEMP", os.getcwd()),
+                                      "gpot-run.log"), "a", encoding="utf-8")
+            _logf.write("[%s] === G-POT run (re-exec no-console) ===\n"
+                        % time.strftime("%Y-%m-%d %H:%M:%S"))
+            _logf.flush()
+            _env = dict(os.environ)
+            _env["GPOT_NOWIN"] = "1"
+            # 子进程 stdout 是文件句柄时，Python 按区域编码重包 → 必须钉死 UTF-8
+            _env["PYTHONIOENCODING"] = "utf-8:replace"
+            _env["PYTHONUTF8"] = "1"
+            try:
+                ctypes.windll.user32.ShowWindow(_hwnd, 0)  # SW_HIDE，尽早压住黑窗
+            except Exception:
+                pass
+            subprocess.Popen(
+                [sys.executable, _script] + sys.argv[1:],
+                creationflags=0x08000000,  # CREATE_NO_WINDOW：子进程完全没有控制台
+                env=_env, cwd=os.path.dirname(_script) or None,
+                stdin=subprocess.DEVNULL, stdout=_logf, stderr=_logf)
+            sys.exit(0)
+    except SystemExit:
+        raise
+    except Exception:
+        pass  # 重启失败则按老流程继续跑（最坏情况=多一个黑窗，功能不受影响）
+
 import argparse
 import threading
-import time
 import urllib.request
 
 from gpot.api.server import build_server, APP_VERSION
@@ -49,12 +89,12 @@ def _gpot_alive(port: int) -> str | None:
 
 
 def _detach_console() -> None:
-    """GUI 模式下隐藏后端黑窗（v0.4 老板实测反馈）。
+    """GUI 模式下隐藏后端黑窗（v0.4 老板实测反馈；v0.4.1 兜底保留）。
 
-    bat 已改用 pythonw 启动，但解释器探测存在回退分支（如 `py` 启动器/
-    未找到 pythonw 时 start /min 仍用 python.exe）——那种情况下会留下一个
-    控制台窗口。这里先输出重定向到日志、再 FreeConsole：控制台窗口只要
-    没有其他进程附着就会随之关闭，python/pythonw 两种启动方式通吃。
+    正常路径下无窗重启（模块顶部 CREATE_NO_WINDOW）已经生效，这里只剩
+    兜底作用：万一某台机器真的用带控制台的解释器跑到了这一步，先把输出
+    重定向到日志、再隐藏+释放控制台。注意 Windows Terminal 作为默认终端时
+    FreeConsole 不保证立刻关掉已显示的窗口，所以先 ShowWindow(SW_HIDE)。
     --no-gui（调试模式）绝不调用，保留控制台看日志。
     """
     try:
@@ -66,7 +106,12 @@ def _detach_console() -> None:
         pass
     try:
         import ctypes
-        ctypes.windll.kernel32.FreeConsole()
+        k32 = ctypes.windll.kernel32
+        u32 = ctypes.windll.user32
+        hwnd = k32.GetConsoleWindow()
+        if hwnd:
+            u32.ShowWindow(hwnd, 0)  # SW_HIDE
+        k32.FreeConsole()
     except Exception:
         pass
 

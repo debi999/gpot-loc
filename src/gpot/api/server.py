@@ -24,7 +24,7 @@ _STATE = _store.Store()
 
 # 应用版本（老板 2026-10-10 指定：修改版从 V0.4* 起编号；/api/state 暴露，
 # main.py 双开复用前比对——旧版本实例不复用，避免「双击 bat 还是老版本」）
-APP_VERSION = "0.4.0"
+APP_VERSION = "0.4.1"
 
 # 旧库格式 config.ini（随 kernel 落在 core/ 目录）—— 提供方/游戏目录记忆
 _CFG = kernel.load_config()
