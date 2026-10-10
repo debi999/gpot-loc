@@ -75,12 +75,14 @@ if not defined PYREADY (
 )
 
 REM ---------------------------------------------------------------------------
-REM 2) 启动（直接在窗口显示输出，便于排错；WebView2 缺失时主程序会自动改用浏览器）
+REM 2) 启动：pythonw 无黑窗，bat 窗口随即关闭。运行日志: %TEMP%\gpot-run.log
 REM ---------------------------------------------------------------------------
-echo [G-POT] 启动 G-POT 翻译器（WebView2 窗口）...
-echo [G-POT] 若约 10 秒内未出现窗口，将自动改用系统浏览器；此黑窗口请勿关闭。
-"%PY%" main.py
-echo [G-POT] 程序已退出，退出码 %errorlevel%。详细日志: %LOG%
-type "%LOG%"
-pause
+set "PYW=!PY:python.exe=pythonw.exe!"
+if exist "!PYW!" (
+  start "" "!PYW!" main.py
+) else (
+  echo [G-POT] 未找到 pythonw，改用最小化窗口启动...
+  start /min "" "!PY!" main.py
+)
 endlocal
+exit /b 0

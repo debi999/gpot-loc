@@ -34,3 +34,5 @@ desktop.ini
 # 截图验证物（审阅流程临时产物）
 prototype/_shots/
 src/gpot/core/config.ini
+design/
+src/where

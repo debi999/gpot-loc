@@ -80,6 +80,26 @@ def test_detect_empty_dir(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# 游戏根定位（选上层目录自动下钻，修「显示为无文本」）
+# ---------------------------------------------------------------------------
+def test_resolve_game_root_drills_down(tmp_path):
+    gdir = _rm_game(str(tmp_path))            # tmp/MyRPGGame（www/ 在其中）
+    parent = str(tmp_path)
+    # 直接选游戏根 → 原样返回
+    got, rel = detection.resolve_game_root(gdir)
+    assert os.path.normcase(got) == os.path.normcase(gdir) and rel is None
+    # 选了上层目录 → 自动下钻到游戏根
+    got2, rel2 = detection.resolve_game_root(parent)
+    assert os.path.normcase(got2) == os.path.normcase(gdir)
+    assert os.path.normcase(rel2) == os.path.normcase(parent)
+    # 空目录 / 不存在 → 原样返回不抛
+    empty = os.path.join(str(tmp_path), "nothing-here")
+    os.makedirs(empty, exist_ok=True)
+    got3, rel3 = detection.resolve_game_root(empty)
+    assert os.path.normcase(got3) == os.path.normcase(empty) and rel3 is None
+
+
+# ---------------------------------------------------------------------------
 # 提取（FR-42，真实提取 + 护栏）
 # ---------------------------------------------------------------------------
 def test_extract_rpgmaker_real(rm_store):

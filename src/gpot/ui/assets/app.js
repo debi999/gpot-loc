@@ -201,6 +201,20 @@ function showPage(i) {
     p.classList.toggle('active', +p.dataset.page === i);
   });
   document.querySelector('.content').scrollTop = 0;
+  if (i === 3) renderStep3Base();   // 提取页先亮出「已有提取结果」基线
+}
+
+/* 第 3 步基线：进入即显示已有提取成果（FR-42 语义：提取优先认已有文本） */
+function renderStep3Base() {
+  const el = document.getElementById('p3base');
+  if (!el) return;
+  const t = STATE.translate || {};
+  if (t.total) {
+    el.innerHTML = `已在表 <b>${(t.total || 0).toLocaleString()}</b> 条（已译 ${(t.done || 0).toLocaleString()}）· 上次提取结果仍在，点「开始提取」只补增量，不覆盖`;
+    el.classList.remove('hidden');
+  } else {
+    el.classList.add('hidden');
+  }
 }
 function curPage() { return STATE.current_step; }
 
@@ -279,6 +293,16 @@ async function testConn() {
   renderCfgStatus(r);
 }
 function renderCfgStatus(r) {
+  // 探测到的模型列表 → 下拉（datalist）：可点选也可手输；当前值无效时自动选第一个
+  if (r.models && r.models.length) {
+    document.getElementById('modelList').innerHTML =
+      r.models.map(m => `<option value="${esc(m)}">`).join('');
+    const model = document.getElementById('cfgModel');
+    if (!model.value.trim() || !r.models.includes(model.value.trim())) {
+      model.value = r.models[0];
+      sb('已选中模型 ' + r.models[0] + ' · 可在模型框下拉更换');
+    }
+  }
   const box = document.getElementById('cfgStatus');
   if (r.connected) {
     box.innerHTML = `<div class="infobar ib-ok"><svg class="ib-ico" width="17" height="17"><use href="#i-check"/></svg>
@@ -297,13 +321,25 @@ async function selectGame() {
   renderGameCard();
   const info = document.getElementById('gameInfo');
   info.innerHTML = `<div class="infobar ib-info"><svg class="ib-ico" width="17" height="17"><use href="#i-info"/></svg>
-    <div>已有 <b>${g.existing.toLocaleString()}</b> 条译文 · 继续只做增量，不覆盖</div></div>`;
-  sb('已选择 ' + g.name);
+    <div>已有 <b>${g.existing.toLocaleString()}</b> 条译文 · 继续只做增量，不覆盖</div></div>`
+    + (g.relocated ? `<div class="infobar ib-warn" style="margin-top:8px"><svg class="ib-ico" width="17" height="17"><use href="#i-warn"/></svg>
+    <div>所选目录不是游戏根，已自动定位到：<span class="mono">${esc(g.relocated)}</span></div></div>` : '');
+  sb('已选择 ' + g.name + ' · 已有译文 ' + g.existing.toLocaleString() + ' 条');
   goNext();
 }
-function pickFolder() {
-  // WebView2 内无原生对话框；此处提示用户直接粘贴路径
-  sb('请在输入框粘贴游戏根目录路径');
+async function pickFolder() {
+  // 第 1 步「浏览」：后端弹 Windows 原生文件夹选择对话框（/api/pick-folder）
+  if (DEMO) { sb('离线演示模式没有目录选择器 · 请直接粘贴路径'); return; }
+  sb('正在打开文件夹选择器…');
+  const r = await api('GET', '/api/pick-folder');
+  if (r && r.path) {
+    document.getElementById('gamePath').value = r.path;
+    await selectGame();          // 选中即确认，少点一次
+  } else if (r && r.canceled) {
+    sb('已取消选择');
+  } else {
+    sb((r && r.message) || '无法打开选择器 · 请直接粘贴路径');
+  }
 }
 
 /* ---------------- Step 2：识别引擎 ---------------- */
@@ -375,13 +411,15 @@ async function runExtract() {
   const r = await api('POST', '/api/extract');
   document.getElementById('p3result').classList.remove('hidden');
   document.getElementById('p3result').innerHTML = `
+    <div class="metric"><div class="metric-l">在表总数</div><div class="metric-v">${r.total.toLocaleString()}</div><div class="metric-n">全部条目（含已有 ${(r.translated || 0).toLocaleString()} 条译文）</div></div>
     <div class="metric"><div class="metric-l">本轮新增</div><div class="metric-v">${r.added.toLocaleString()}</div><div class="metric-n">新提取到的原文</div></div>
     <div class="metric"><div class="metric-l">已存在</div><div class="metric-v">${r.existing.toLocaleString()}</div><div class="metric-n">跳过，不覆盖原译文</div></div>
-    <div class="metric"><div class="metric-l">护栏拦截</div><div class="metric-v">${r.guarded.toLocaleString()}</div><div class="metric-n">疑似碎片/污染</div></div>
-    <div class="metric"><div class="metric-l">在表总数</div><div class="metric-v">${r.total.toLocaleString()}</div><div class="metric-n">当前全部条目</div></div>`;
+    <div class="metric"><div class="metric-l">护栏拦截</div><div class="metric-v">${r.guarded.toLocaleString()}</div><div class="metric-n">疑似碎片/污染</div></div>`;
   btn.textContent = '重新提取'; btn.disabled = false;
   document.getElementById('btnNext3').disabled = false;
-  sb('提取完成 · 新增 ' + r.added + ' 条');
+  sb(!r.added && r.total
+    ? `未发现新文本 · 在表 ${r.total.toLocaleString()} 条（已译 ${(r.translated || 0).toLocaleString()}），直接下一步即可`
+    : '提取完成 · 新增 ' + r.added + ' 条');
   goNext();
 }
 

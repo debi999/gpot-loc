@@ -87,6 +87,56 @@ def _name_from_path(p: str) -> str:
     return p.split("/")[-1].split("\\")[-1] or "未命名游戏"
 
 
+def _pick_folder() -> dict:
+    """Windows 原生「选择文件夹」对话框（在 HTTP worker 线程内打开）。
+
+    用 ctypes 调 SHBrowseForFolderW 而非 tkinter：tkinter 的对话框要求主线程，
+    而本服务是 ThreadingHTTPServer 每请求一线程；SHBrowseForFolder 只要线程
+    先 CoInitialize 即可。用户取消返回 {"canceled": True}。
+    """
+    if os.name != "nt":
+        return {"path": None, "canceled": True,
+                "message": "当前系统无原生对话框 · 请直接粘贴路径"}
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class BROWSEINFOW(ctypes.Structure):
+            _fields_ = [("hwndOwner", wintypes.HWND),
+                        ("pidlRoot", ctypes.c_void_p),
+                        ("pszDisplayName", wintypes.LPWSTR),
+                        ("lpszTitle", wintypes.LPCWSTR),
+                        ("ulFlags", wintypes.UINT),
+                        ("lpfn", ctypes.c_void_p),
+                        ("lParam", ctypes.c_void_p),
+                        ("iImage", ctypes.c_int)]
+
+        ole32 = ctypes.windll.ole32
+        shell32 = ctypes.windll.shell32
+        ole32.CoInitialize(None)
+        try:
+            BIF_RETURNONLYFSDIRS = 0x0001
+            BIF_NEWDIALOGSTYLE = 0x0040    # 可新建文件夹的现代化样式
+            buf = ctypes.create_unicode_buffer(260)
+            bi = BROWSEINFOW()
+            bi.pszDisplayName = buf
+            bi.lpszTitle = "选择游戏根目录（含 BepInEx 或 *_Data 的目录）"
+            bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE
+            pidl = shell32.SHBrowseForFolderW(ctypes.byref(bi))
+            if not pidl:
+                return {"path": None, "canceled": True}
+            out = ctypes.create_unicode_buffer(260)
+            ok = shell32.SHGetPathFromIDListW(pidl, out)
+            ole32.CoTaskMemFree(pidl)
+            return {"path": out.value if ok else None,
+                    "canceled": not ok}
+        finally:
+            ole32.CoUninitialize()
+    except Exception as e:   # 对话框打不开也不能把服务搞挂
+        return {"path": None, "message": "对话框打开失败（%s）· 请直接粘贴路径"
+                % str(e)[:120]}
+
+
 # ---------------------------------------------------------------------------
 # 请求处理器
 # ---------------------------------------------------------------------------
@@ -165,6 +215,8 @@ class _Handler(BaseHTTPRequestHandler):
             jid = path.rsplit("/", 1)[-1]
             j = translate.get_job(_STATE, jid)
             return self._send(200 if j else 404, j or {"error": "no such job"})
+        if path == "/api/pick-folder":  # 第 1 步「浏览」：原生文件夹选择对话框
+            return self._send(200, _pick_folder())
         if path.startswith("/api/rows"):  # 第 4 步表格：真实条目（分页/筛选）
             return self._send(200, self._rows(parse_qs(p.query)))
         # 兜底：其余 GET 路径尝试作为 assets 静态文件伺服（兼容相对路径引用，
@@ -213,8 +265,12 @@ class _Handler(BaseHTTPRequestHandler):
             if not gp or not os.path.isdir(gp):
                 return self._send(400, {"error": "bad_path",
                                         "message": "目录不存在：%s" % gp})
+            # 选到上层目录时自动下钻定位游戏根（否则已有译文词典找不到 → 看起来"无文本"）
+            relocated = None
+            gp2, relocated = detection.resolve_game_root(gp)
+            gp = gp2
             _STATE.game = {"path": gp, "name": b.get("name") or _name_from_path(gp),
-                           "existing": 0}
+                           "existing": 0, "relocated": relocated}
             tpath = kernel.translation_file_path(gp)
             t = _STATE.tstore
             t.entries = []
@@ -323,9 +379,16 @@ class _Handler(BaseHTTPRequestHandler):
         return self._send(404, {"error": "not found"})
 
 
+class _Srv(ThreadingHTTPServer):
+    # Windows 上 SO_REUSEADDR 允许第二个实例静默同绑同一端口（请求流向不可控，
+    # 表现为"时灵时不灵"的诡异 bug）——必须关掉，让双开走到 main.py 的复用/换端口逻辑。
+    allow_reuse_address = False
+    daemon_threads = True
+
+
 def build_server(port: int = 8731) -> ThreadingHTTPServer:
     _restore_config()
-    return ThreadingHTTPServer(("127.0.0.1", port), _Handler)
+    return _Srv(("127.0.0.1", port), _Handler)
 
 
 if __name__ == "__main__":

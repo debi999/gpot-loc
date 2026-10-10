@@ -76,9 +76,10 @@ def test_connection(cfg: dict) -> dict:  # FR-38: 连通性测试（真实廉价
         if kn in kernel.OPENAI_FAMILY:  # OpenAI兼容 / DeepSeek / 本地Ollama/Qwen
             data = _get_json(base + "/models",
                              {"Authorization": "Bearer %s" % key} if key else None)
-            n = len(data.get("data") or [])
-            return {"connected": True,
-                    "message": ("端点可达 · 可用模型 %d 个" % n) if n else "端点可达"}
+            models = [m.get("id") for m in (data.get("data") or [])
+                      if isinstance(m, dict) and m.get("id")]
+            msg = ("端点可达 · 可用模型 %d 个" % len(models)) if models else "端点可达"
+            return {"connected": True, "models": models, "message": msg}
         if kn == "免费Google":
             tr = kernel.Translator(dict(kcfg))
             out = tr._google_free("hello")
@@ -89,9 +90,13 @@ def test_connection(cfg: dict) -> dict:  # FR-38: 连通性测试（真实廉价
                       {"x-api-key": key, "anthropic-version": "2023-06-01"})
             return {"connected": True, "message": "Key 有效（/models 校验通过）"}
         if kn == "Gemini":
-            _get_json("https://generativelanguage.googleapis.com/v1beta/models?key="
-                      + urllib.parse.quote(key or ""))
-            return {"connected": True, "message": "Key 有效（模型列表校验通过）"}
+            data = _get_json("https://generativelanguage.googleapis.com/v1beta/models?key="
+                             + urllib.parse.quote(key or ""))
+            models = [(m.get("name") or "").split("/")[-1]
+                      for m in (data.get("models") or [])
+                      if isinstance(m, dict) and m.get("name")]
+            return {"connected": True, "models": models,
+                    "message": "Key 有效（模型列表校验通过 · %d 个）" % len(models)}
         if kn == "DeepL":
             _get_json(base + "/usage", {"Authorization": "DeepL-Auth-Key " + key})
             return {"connected": True, "message": "Key 有效（用量接口校验通过）"}

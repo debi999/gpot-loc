@@ -89,7 +89,8 @@
             </div>
             <div class="field">
               <label class="lbl">模型</label>
-              <input class="inp" id="cfgModel" style="width:100%" value="hy-mt2-30b-a3b-apex:nano">
+              <input class="inp" id="cfgModel" style="width:100%" list="modelList" value="hy-mt2-30b-a3b-apex:nano">
+              <datalist id="modelList"></datalist>
             </div>
           </div>
           <div class="grid2" id="cfgSecretRow" style="margin-top:12px" hidden>
@@ -174,6 +175,7 @@
         </div>
         <div class="card">
           <div class="card-h">开始扫描</div>
+          <div class="infobar ib-ok hidden" id="p3base" style="margin-bottom:10px"><svg class="ib-ico" width="17" height="17"><use href="#i-check"/></svg><div></div></div>
           <div class="ri-s" style="font-size:12.5px">Starmaker 1.8E_Data · 排除 StreamingAssets/resS · 预计扫 1,240 个文件</div>
           <div class="btn-row" style="margin-top:14px">
             <button class="btn btn-accent btn-lg" id="btnExtract" onclick="runExtract()">开始提取</button>

@@ -33,6 +33,39 @@ _NAME = {
 }
 
 
+def is_game_root(d: str) -> bool:
+    """该目录是否像一个游戏根：含 BepInEx / www / *_Data 之一。"""
+    try:
+        names = os.listdir(d)
+    except OSError:
+        return False
+    low = [n.lower() for n in names]
+    return ("bepinex" in low or "www" in low
+            or any(n.endswith("_data") for n in low))
+
+
+def resolve_game_root(gp: str) -> tuple:
+    """用户常会选到游戏的**上层目录**（如版本文件夹），导致已有译文词典
+    找不到、识别偏弱 —— 这里自动下钻一层定位真正的游戏根。
+
+    返回 (生效目录, 修正来源目录或 None)。下钻规则：
+      子目录里找 is_game_root 的候选；多个时优先含 BepInEx 的
+      （注入工具与 XUnity 词典都在那里）。找不到候选则原样返回。
+    """
+    if is_game_root(gp):
+        return gp, None
+    try:
+        names = sorted(os.listdir(gp))
+    except OSError:
+        return gp, None
+    hits = [os.path.join(gp, n) for n in names
+            if os.path.isdir(os.path.join(gp, n)) and is_game_root(os.path.join(gp, n))]
+    if not hits:
+        return gp, None
+    hits.sort(key=lambda h: 0 if "bepinex" in [x.lower() for x in os.listdir(h)] else 1)
+    return (hits[0], gp) if hits[0] != gp else (gp, None)
+
+
 def sink_kind_for(engine_name: str) -> str:
     """按 kit_catalog 判定三形态：runtime / rewrite / none。
 
