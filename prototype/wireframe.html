@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-mode="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>G-POT 翻译器 v4.0 · 界面线框图（骨架层）</title>
+<style>
+/* ============================================================
+   线框图 = 骨架层。刻意只使用灰阶，不掺任何配色/材质/动效。
+   判据：转成灰度后，"这一步该点哪个"必须仍然一目了然。
+   ============================================================ */
+:root{
+  --paper:#F4F4F1; --panel:#FFFFFF; --panel-2:#FBFBF9;
+  --line:#111111; --line-2:#6E6E6E; --line-3:#B4B4AE;
+  --ph:#DCDCD6; --ph-2:#C6C6C0;
+  --ink:#111111; --ink-2:#4A4A4A; --ink-3:#8A8A8A;
+  --solid:#111111; --on-solid:#FFFFFF;
+  --warn-line:#111111;
+  --mono:"Cascadia Code","Consolas","SFMono-Regular",monospace;
+  --sans:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+}
+html[data-mode="dark"]{
+  --paper:#131315; --panel:#1B1B1E; --panel-2:#222226;
+  --line:#E6E6E6; --line-2:#A8A8A8; --line-3:#5A5A5E;
+  --ph:#3A3A3E; --ph-2:#48484D;
+  --ink:#ECECEC; --ink-2:#B8B8B8; --ink-3:#8A8A8E;
+  --solid:#ECECEC; --on-solid:#131315;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:13px;line-height:1.6}
+
+/* ---------- 页头工具条 ---------- */
+.topbar{position:sticky;top:0;z-index:9;background:var(--panel);border-bottom:1px solid var(--line);
+  padding:10px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.topbar h1{font-size:15px;margin:0;font-weight:700;letter-spacing:.02em}
+.topbar .tag{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);border:1px solid var(--line-3);
+  padding:2px 7px;border-radius:99px;letter-spacing:.05em}
+.spacer{flex:1}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{background:var(--panel);border:0;border-right:1px solid var(--line);color:var(--ink);
+  font:inherit;font-size:12px;padding:5px 12px;cursor:pointer}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--solid);color:var(--on-solid)}
+.navlinks{display:flex;gap:6px;flex-wrap:wrap}
+.navlinks a{font-family:var(--mono);font-size:10.5px;color:var(--ink-2);text-decoration:none;
+  border:1px solid var(--line-3);padding:2px 7px;border-radius:5px}
+.navlinks a:hover{border-color:var(--line);color:var(--ink)}
+
+/* ---------- 通栏说明 ---------- */
+.lead{max-width:1180px;margin:0 auto;padding:20px 18px 4px}
+.lead .box{border:1px solid var(--line);background:var(--panel);padding:14px 16px;border-radius:10px}
+.lead b{font-size:14px}
+.lead ul{margin:8px 0 0;padding-left:20px}
+.lead li{margin:3px 0}
+.lead code{font-family:var(--mono);font-size:11.5px;background:var(--ph);padding:1px 5px;border-radius:3px}
+
+/* ---------- 图卡 ---------- */
+figure.wf{max-width:1180px;margin:22px auto;padding:0 18px}
+figure.wf > figcaption{font-size:15px;font-weight:700;margin-bottom:4px}
+figure.wf > .sub{font-size:12px;color:var(--ink-3);margin-bottom:10px}
+.scroll{overflow-x:auto;border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:0}
+
+/* ---------- 线框框架 ---------- */
+.frame{width:1000px;background:var(--panel);}
+.frame .tb{height:46px;border-bottom:1px solid var(--line);display:flex;align-items:center;
+  padding:0 12px;gap:10px}
+.frame .tb .brand{display:flex;align-items:center;gap:8px}
+.frame .tb .logo{width:20px;height:20px;border:1.5px solid var(--line);border-radius:4px}
+.frame .tb .nm{font-weight:700;font-size:13px}
+.frame .tb .vs{font-family:var(--mono);font-size:10px;color:var(--ink-3)}
+.frame .tb .sysbtn{width:14px;height:14px;border:1px solid var(--line-3);border-radius:2px}
+.frame .bd{display:flex;min-height:520px}
+.frame .rail{width:216px;border-right:1px solid var(--line);padding:12px 10px;flex:none}
+.frame .main{flex:1;padding:16px 20px;min-width:0}
+.frame .sb{height:30px;border-top:1px solid var(--line);display:flex;align-items:center;
+  padding:0 12px;gap:10px;font-size:11px;color:var(--ink-2)}
+.dim{font-family:var(--mono);font-size:9.5px;color:var(--ink-3);letter-spacing:.03em}
+
+/* rail stub（各屏只表示"在第几步"） */
+.stub{width:44px;border-right:1px solid var(--line);padding:10px 0;flex:none;
+  display:flex;flex-direction:column;align-items:center;gap:9px}
+.stub .d{width:18px;height:18px;border-radius:50%;border:1px solid var(--line-3);
+  display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;color:var(--ink-3)}
+.stub .d.done{background:var(--line-3);color:var(--panel);border-color:var(--line-3)}
+.stub .d.cur{background:var(--solid);color:var(--on-solid);border-color:var(--solid)}
+
+/* ---------- 通用线框元素 ---------- */
+.bx{border:1px solid var(--line);background:var(--panel-2);padding:10px 12px;margin-bottom:12px;position:relative}
+.bx.dash{border-style:dashed;border-color:var(--line-2)}
+.bx.cond{border-style:dashed;border-color:var(--line-3);background:transparent}
+.bx-h{font-size:12.5px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.bx-h .dim{font-weight:400}
+.num{position:absolute;top:-9px;left:-9px;width:19px;height:19px;border-radius:50%;
+  background:var(--solid);color:var(--on-solid);font-family:var(--mono);font-size:10px;
+  display:flex;align-items:center;justify-content:center;font-weight:700}
+.ph{display:block;height:9px;border-radius:2px;background:var(--ph);margin:5px 0}
+.ph.k{background:var(--ph-2)}
+.t{font-size:11.5px;color:var(--ink-2)}
+.t.s{font-size:10.5px;color:var(--ink-3)}
+.t.b{color:var(--ink);font-weight:600}
+.row{display:flex;gap:8px;align-items:center}
+.row.wrap{flex-wrap:wrap}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.mb8{margin-bottom:8px}.mb12{margin-bottom:12px}.mt8{margin-top:8px}
+
+/* 控件线框 */
+.btnp{display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  background:var(--solid);color:var(--on-solid);border:1px solid var(--solid);
+  border-radius:8px;padding:8px 16px;font-size:12.5px;font-weight:700;min-width:150px}
+.btnp[disabled]{background:transparent;color:var(--ink-3);border-color:var(--line-3);
+  border-style:dashed;cursor:not-allowed}
+.btns{display:inline-flex;align-items:center;gap:6px;background:var(--panel);color:var(--ink);
+  border:1px solid var(--line);border-radius:8px;padding:7px 14px;font-size:12px}
+.btng{display:inline-flex;align-items:center;gap:5px;background:transparent;color:var(--ink-2);
+  border:0;padding:6px 8px;font-size:11.5px}
+.btnd{display:inline-flex;align-items:center;gap:6px;background:var(--panel);color:var(--ink);
+  border:2px double var(--line);border-radius:8px;padding:7px 14px;font-size:12px}
+.link{font-size:11.5px;color:var(--ink-2);text-decoration:underline}
+.inp{border:1px solid var(--line-2);border-radius:6px;background:var(--panel);
+  padding:6px 9px;font-size:11.5px;color:var(--ink-2);min-width:0}
+.drop{border:1px dashed var(--line-2);border-radius:8px;padding:10px;text-align:center;
+  font-size:11px;color:var(--ink-3)}
+.chip{display:inline-block;border:1px solid var(--line-3);border-radius:99px;padding:2px 8px;
+  font-family:var(--mono);font-size:9.5px;color:var(--ink-2);letter-spacing:.04em}
+.badge{display:inline-block;border:1px solid var(--line);border-radius:99px;padding:1px 7px;
+  font-family:var(--mono);font-size:9px;color:var(--ink);letter-spacing:.05em}
+.prog{height:6px;border:1px solid var(--line-3);border-radius:99px;overflow:hidden;background:var(--panel)}
+.prog i{display:block;height:100%;background:var(--line-2);width:62%}
+.prog.thin{height:4px}
+.sw{display:flex;gap:8px;align-items:flex-start;margin-bottom:9px}
+.sw .knob{width:26px;height:14px;border:1px solid var(--line-2);border-radius:99px;flex:none;margin-top:2px;position:relative}
+.sw .knob::after{content:"";position:absolute;right:2px;top:1px;width:10px;height:10px;border-radius:50%;background:var(--line-2)}
+.sw.on .knob{background:var(--line-2)}
+.sw.on .knob::after{right:auto;left:2px;background:var(--panel)}
+.ck{display:flex;gap:8px;align-items:flex-start;margin-bottom:9px}
+.ck .dot{width:13px;height:13px;border:1px solid var(--line-2);border-radius:50%;flex:none;margin-top:3px}
+.ck.on .dot{background:var(--line-2);box-shadow:inset 0 0 0 2px var(--panel)}
+.ib{border:1px solid var(--line-2);border-left-width:3px;border-radius:6px;padding:8px 10px;
+  display:flex;gap:8px;align-items:flex-start;margin-bottom:10px;font-size:11.5px;background:var(--panel)}
+.ib .ico{width:15px;height:15px;border:1.5px solid var(--line-2);border-radius:50%;flex:none;margin-top:1px;
+  display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700}
+.ib.danger{border-style:double;border-left-width:4px}
+.tbl{border:1px solid var(--line);border-radius:6px;overflow:hidden;font-size:11px}
+.tbl .tr{display:flex;border-bottom:1px solid var(--line-3)}
+.tbl .tr:last-child{border-bottom:0}
+.tbl .tr > span{padding:6px 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tbl .th{background:var(--ph);font-weight:700;font-family:var(--mono);font-size:10px}
+.tbl .c1{width:38px;flex:none}.tbl .c2{width:66px;flex:none}.tbl .c3{flex:1;min-width:0}.tbl .c4{flex:1;min-width:0}
+.tbl .c5{width:96px;flex:none}.tbl .c6{width:76px;flex:none}.tbl .c7{width:88px;flex:none}
+.mini{border:1px solid var(--line-3);border-radius:5px;padding:7px 9px;background:var(--panel)}
+.mini .k{font-family:var(--mono);font-size:9px;color:var(--ink-3);letter-spacing:.06em}
+.mini .v{font-size:15px;font-weight:700}
+.radio-sel{border:1.5px solid var(--line);background:var(--panel)}
+.list-row{display:flex;align-items:center;gap:10px;border:1px solid var(--line-3);border-radius:7px;
+  padding:8px 10px;margin-bottom:7px;background:var(--panel)}
+.list-row .thumb{width:26px;height:26px;border:1px solid var(--line-2);border-radius:5px;flex:none}
+.tip{border:1px solid var(--line);background:var(--panel);border-radius:5px;padding:4px 8px;
+  font-size:10.5px;color:var(--ink-2);box-shadow:2px 2px 0 var(--ph)}
+
+/* ---------- 说明表 ---------- */
+table.spec{width:100%;border-collapse:collapse;margin-top:12px;font-size:12px}
+table.spec th,table.spec td{border:1px solid var(--line-3);padding:6px 9px;text-align:left;vertical-align:top}
+table.spec th{background:var(--ph);font-size:11px;font-weight:700}
+table.spec td.n{font-family:var(--mono);width:34px;text-align:center;font-weight:700}
+table.spec td.r{color:var(--ink-3);font-size:11.5px}
+
+/* ---------- 分隔 ---------- */
+hr.sep{border:0;border-top:1px dashed var(--line-3);max-width:1180px;margin:26px auto}
+footer{max-width:1180px;margin:0 auto;padding:10px 18px 40px;font-size:11.5px;color:var(--ink-3)}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>G-POT 翻译器 v4.0 · 界面线框图</h1>
+  <span class="tag">SKELETON ONLY · 灰阶 · 非视觉方案</span>
+  <div class="spacer"></div>
+  <div class="navlinks">
+    <a href="#w0">W-0 框架</a><a href="#w1">W-1</a><a href="#w2">W-2</a><a href="#w3">W-3</a>
+    <a href="#w4">W-4</a><a href="#w5">W-5</a><a href="#w6">W-6</a><a href="#w7">W-7</a>
+    <a href="#w8">W-8 组件</a><a href="#w9">W-9 导航态</a><a href="#w10">W-10 三情形</a>
+  </div>
+  <div class="seg">
+    <button id="mLight" aria-pressed="true" onclick="setMode('light')">纸感</button>
+    <button id="mDark" aria-pressed="false" onclick="setMode('dark')">反色</button>
+  </div>
+</div>
+
+<div class="lead">
+  <div class="box">
+    <b>这是骨架，不是视觉方案。</b>
+    <ul>
+      <li><b>刻意只使用灰阶</b>：唯一允许的形状强调是<b>实心深色块 = 主按钮</b>。配色/材质/字体/动效本轮一律不涉及。</li>
+      <li><b>判据</b>：把这页截图<b>转成灰度</b>，任意一屏都应当能一眼看出"这一步该点哪个"。看不出 = 结构有问题，不是配色有问题。</li>
+      <li><b>编号 ①②③</b> 与 <code>docs/界面简报.md</code> 各屏区块表一一对应。</li>
+      <li>虚线框 = 条件区块（未执行 / 未选中 / 特定引擎才出现）。灰条 = 占位内容。</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ==================== W-0 全局框架 ==================== -->
+<figure class="wf" id="w0">
+  <figcaption>W-0 · 全局框架</figcaption>
+  <div class="sub">四区：标题栏 46 / 导航轨 276 / 内容区 flex:1（最大宽 1180 居中）/ 状态栏 30。最小窗口 1080×640，推荐 1280×800。</div>
+  <div class="scroll">
+  <div class="frame">
+
+    <div class="tb">
+      <div class="brand"><div class="logo"></div><span class="nm">G-POT 翻译器</span><span class="vs">v4.0</span></div>
+      <div class="spacer"></div>
+      <span class="dim">⚙ 设置（= 回第 0 步）</span>
+      <span style="width:10px"></span>
+      <div class="sysbtn"></div><div class="sysbtn"></div><div class="sysbtn"></div>
+      <span class="dim" style="margin-left:8px">46px</span>
+    </div>
+
+    <div class="bd">
+      <!-- 导航轨 -->
+      <div class="rail">
+        <div class="bx" style="margin-bottom:10px">
+          <div class="row">
+            <div class="list-row" style="margin:0;padding:0;border:0">
+              <div class="thumb"></div>
+              <div style="min-width:0">
+                <div class="t b">Starmaker Story</div>
+                <div class="t s">F:\…\Starmaker 1.8E</div>
+              </div>
+            </div>
+          </div>
+          <div class="t s" style="margin-top:6px">②a 游戏名片（不在标题栏）</div>
+        </div>
+
+        <div class="dim" style="margin-bottom:7px;letter-spacing:.1em">②b 汉化流程 · 7 步</div>
+
+        <div class="row" style="margin-bottom:8px;align-items:flex-start">
+          <div style="width:18px;height:18px;border-radius:50%;background:var(--line-3);color:var(--panel);
+            display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;flex:none">✓</div>
+          <div style="min-width:0"><div class="t b">0 配置翻译服务</div><div class="t s">Ollama · 本地</div></div>
+        </div>
+        <div class="row" style="margin-bottom:8px;align-items:flex-start">
+          <div style="width:18px;height:18px;border-radius:50%;background:var(--line-3);color:var(--panel);
+            display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;flex:none">✓</div>
+          <div style="min-width:0"><div class="t b">1 选择游戏目录</div><div class="t s">Starmaker 1.8E</div></div>
+        </div>
+        <div class="row" style="margin-bottom:8px;align-items:flex-start">
+          <div style="width:18px;height:18px;border-radius:50%;background:var(--line-3);color:var(--panel);
+            display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;flex:none">✓</div>
+          <div style="min-width:0"><div class="t b">2 识别引擎+部署工具</div><div class="t s">Unity (Mono) · 3 个已就位</div></div>
+        </div>
+        <div class="row" style="margin-bottom:8px;align-items:flex-start">
+          <div style="width:18px;height:18px;border-radius:50%;background:var(--line-3);color:var(--panel);
+            display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;flex:none">✓</div>
+          <div style="min-width:0"><div class="t b">3 提取待翻译文本</div><div class="t s">在表 14,679</div></div>
+        </div>
+        <div class="row" style="margin-bottom:8px;align-items:flex-start;background:var(--ph);border-radius:6px;padding:4px 6px;margin-left:-6px;margin-right:-6px">
+          <div style="width:18px;height:18px;border-radius:50%;background:var(--solid);color:var(--on-solid);
+            display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;flex:none;font-weight:700">4</div>
+          <div style="min-width:0"><div class="t b">4 翻译与人工校对</div><div class="t s">已译 9,102 / 14,679</div></div>
+        </div>
+        <div class="row" style="margin-bottom:8px;align-items:flex-start;opacity:.45">
+          <div style="width:18px;height:18px;border-radius:50%;border:1px solid var(--line-3);
+            display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;flex:none">5</div>
+          <div style="min-width:0"><div class="t">5 保存并应用到游戏</div><div class="t s">待执行</div></div>
+        </div>
+        <div class="row" style="align-items:flex-start;opacity:.45">
+          <div style="width:18px;height:18px;border-radius:50%;border:1px solid var(--line-3);
+            display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;flex:none">6</div>
+          <div style="min-width:0"><div class="t">6 启动验证</div><div class="t s">待执行</div></div>
+        </div>
+
+        <div style="margin-top:auto;padding-top:14px">
+          <div class="dim" style="margin-bottom:6px">②c 底部辅助</div>
+          <div class="btng" style="padding-left:0">▸ 完成本步</div>
+          <div class="t s" style="margin-top:4px">（删除：解释性提示语 —— NFR-12）</div>
+        </div>
+        <div class="dim" style="margin-top:10px">276px</div>
+      </div>
+
+      <!-- 内容区 -->
+      <div class="main">
+        <div class="dim" style="margin-bottom:6px">③a 页头</div>
+        <div class="dim" style="margin-bottom:2px">第 4 步 · 每轮迭代</div>
+        <div style="font-size:26px;font-weight:700;margin-bottom:4px">翻译与人工校对</div>
+        <div class="t" style="margin-bottom:12px">机器先跑一遍，然后人工过一遍。<span class="dim">← 全页唯一 1 行导语</span></div>
+
+        <div class="dim" style="margin-bottom:6px">③b 主体：卡片区（本屏的活儿）</div>
+        <div class="bx"><span class="ph k" style="width:38%"></span><span class="ph" style="width:76%"></span><span class="ph" style="width:64%"></span></div>
+        <div class="bx"><span class="ph k" style="width:30%"></span><span class="ph" style="width:82%"></span><span class="ph" style="width:58%"></span></div>
+        <div class="bx" style="min-height:150px"><span class="ph k" style="width:26%"></span><span class="ph" style="width:90%"></span><span class="ph" style="width:72%"></span><span class="ph" style="width:80%"></span></div>
+
+        <div class="dim" style="margin-bottom:6px">③c 主按钮行 · 全屏唯一实心按钮</div>
+        <div class="row">
+          <div class="btnp">翻译未译条目 ▾</div>
+          <div style="min-width:0"><div class="t s">已译文不会被覆盖</div><div class="dim">← 承诺小字，9 字封顶</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sb">
+      <span>词典已写入 1,424,251 B</span>
+      <div class="spacer"></div>
+      <div class="prog thin" style="width:110px"><i style="width:62%"></i></div>
+      <span class="dim">62%</span>
+      <span class="dim" style="margin-left:6px">30px · 写结果不写"正在…"</span>
+    </div>
+
+  </div>
+  </div>
+
+  <table class="spec">
+    <tr><th>#</th><th>区块</th><th>硬规则</th><th>依据</th></tr>
+    <tr><td class="n">①</td><td>标题栏 46px</td><td class="r">不放任何业务按钮；唯一例外「设置」= 回第 0 步。右侧三个系统按钮。</td><td class="r">UI规格 §2 归位表</td></tr>
+    <tr><td class="n">②a</td><td>游戏名片</td><td class="r">图标 + 名称 + 路径缩写，放导航轨顶部，<b>不放标题栏</b>（避免和窗口按钮挤）</td><td class="r">FR-35</td></tr>
+    <tr><td class="n">②b</td><td>步骤列表 ×7</td><td class="r">序号状态标记 + 步骤名 + <b>动态副标题</b>；未跑过的副标题写「待执行」，<b>不许编造</b></td><td class="r">FR-35 / NFR-9</td></tr>
+    <tr><td class="n">②c</td><td>底部辅助</td><td class="r">只留「完成本步」。解释性提示语全部删除</td><td class="r">NFR-12</td></tr>
+    <tr><td class="n">③a</td><td>页头</td><td class="r">「第 N 步 · 频率」+ H1 + <b>1 行导语</b>（全页唯一）</td><td class="r">NFR-12</td></tr>
+    <tr><td class="n">③b</td><td>主体卡片区</td><td class="r">单页只做当前这一件事；每卡至多 1 行副标题</td><td class="r">NFR-12</td></tr>
+    <tr><td class="n">③c</td><td>主按钮行</td><td class="r"><b>全屏唯一实心按钮</b>；下方 1 行承诺小字</td><td class="r">FR-46</td></tr>
+    <tr><td class="n">④</td><td>状态栏 30px</td><td class="r">左=上一动作的<b>结果（完成时态）</b>；右=细进度条，<b>空闲时淡出</b></td><td class="r">FR-47</td></tr>
+  </table>
+</figure>
+
+<hr class="sep">
+
+<!-- ==================== W-1 第 0 步 ==================== -->
+<figure class="wf" id="w1">
+  <figcaption>W-1 · 第 0 步 配置翻译服务</figcaption>
+  <div class="sub">FR-38 · 一次性准备 · 框架同 W-0，此处只画内容区（左侧竖条 = 导航轨当前步位置）</div>
+  <div class="scroll">
+  <div class="frame">
+    <div class="bd">
+      <div class="stub">
+        <div class="d cur">0</div><div class="d">1</div><div class="d">2</div><div class="d">3</div>
+        <div class="d">4</div><div class="d">5</div><div class="d">6</div>
+      </div>
+      <div class="main">
+        <div class="dim">第 0 步 · 一次性准备</div>
+        <div style="font-size:26px;font-weight:700;margin:2px 0 4px">配置翻译服务</div>
+        <div class="t mb12">接通一个翻译后端，后面才跑得动。<span class="dim">← 1 行导语</span></div>
+
+        <div class="bx">
+          <span class="num">②</span>
+          <div class="bx-h">选择提供方 <span class="dim">8 个 · 单选</span></div>
+          <div class="grid4">
+            <div class="mini radio-sel"><div class="t b">Ollama 本地</div><div class="ph" style="width:70%"></div><div class="row wrap" style="gap:4px"><span class="chip">免费</span><span class="chip">离线</span></div></div>
+            <div class="mini"><div class="t b">OpenAI 兼容</div><div class="ph" style="width:70%"></div><div class="row wrap" style="gap:4px"><span class="chip">需 Key</span><span class="chip">质量高</span></div></div>
+            <div class="mini"><div class="t b">DeepL</div><div class="ph" style="width:70%"></div><div class="row wrap" style="gap:4px"><span class="chip">需 Key</span><span class="chip">计费</span></div></div>
+            <div class="mini"><div class="t b">… 共 8 个</div><div class="ph" style="width:70%"></div><div class="row wrap" style="gap:4px"><span class="chip">…</span></div></div>
+          </div>
+          <div class="t s mt8">每卡至多 1 行副标题：免费 / 离线 / 需 Key / 质量 / 费用</div>
+        </div>
+
+        <div class="bx">
+          <span class="num">③</span>
+          <div class="bx-h">连接参数 <span class="dim">选中后展开</span></div>
+          <div class="grid3">
+            <div><div class="t s mb8">服务地址 Base URL</div><div class="inp">http://127.0.0.1:11434</div></div>
+            <div><div class="t s mb8">密钥 Key</div><div class="inp">••••••••  <span class="dim">掩码</span></div></div>
+            <div><div class="t s mb8">模型 Model</div><div class="inp">hy-mt2-30b-a3b-apex:nano</div></div>
+          </div>
+        </div>
+
+        <div class="bx cond">
+          <span class="num">④</span>
+          <div class="bx-h">结果 InfoBar <span class="dim">未测试时整块不显示，不许占位</span></div>
+          <div class="ib"><span class="ico">i</span><div>已连通 · 实测延迟 <b>312 ms</b> · 模型存在</div></div>
+          <div class="ib danger"><span class="ico">!</span><div>连不上：401 未授权 —— 检查 Key 是否正确</div></div>
+          <div class="t s">失败必须给<b>具体原因</b>：超时 / 401 / 模型不存在 / 端口没开 —— 四选一，不写"连接失败"</div>
+        </div>
+
+        <div class="row" style="align-items:flex-start">
+          <div class="btns">测试连接</div>
+          <div class="btnp" disabled>保存并继续 · 选择游戏 →</div>
+          <div class="tip" style="max-width:150px">先做一次连接测试<br><span class="dim">禁用必带原因 + 解锁方式</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+  <table class="spec">
+    <tr><th>#</th><th>区块</th><th>关键交互 / 空态</th><th>依据</th></tr>
+    <tr><td class="n">②</td><td>8 个提供方单选卡</td><td class="r">卡片上直接写清 5 个属性；默认不选；选中态在灰度下靠<b>边框加粗</b>区分</td><td class="r">FR-38</td></tr>
+    <tr><td class="n">③</td><td>连接参数（选中后展开）</td><td class="r">Base URL / Key / Model；Key 掩码</td><td class="r">FR-38</td></tr>
+    <tr><td class="n">④</td><td>结果 InfoBar</td><td class="r">成功=<b>实测延迟</b>；失败=<b>具体原因</b>。未测试时不显示</td><td class="r">FR-38 / NFR-9</td></tr>
+    <tr><td class="n">⑤</td><td>主按钮行</td><td class="r">主按钮在连接测试前 <b>disabled + tooltip</b>；次按钮「测试连接」</td><td class="r">FR-38 / FR-46</td></tr>
+  </table>
+</figure>
+
+<hr class="sep">
+
+<!-- ==================== W-2 第 1 步 ==================== -->
+<figure class="wf" id="w2">
+  <figcaption>W-2 · 第 1 步 选择游戏目录</figcaption>
+  <div class="sub">FR-39 · 一次性准备</div>
+  <div class="scroll">
+  <div class="frame">
+    <div class="bd">
+      <div class="stub">
+        <div class="d done">✓</div><div class="d cur">1</div><div class="d">2</div><div class="d">3</div>
+        <div class="d">4</div><div class="d">5</div><div class="d">6</div>
+      </div>
+      <div class="main">
+        <div class="dim">第 1 步 · 一次性准备</div>
+        <div style="font-size:26px;font-weight:700;margin:2px 0 4px">选择游戏目录</div>
+        <div class="t mb12">选游戏的<b>根目录</b>：放 .exe 的那一层。<span class="dim">← 1 行导语</span></div>
+
+        <div class="bx">
+          <span class="num">②</span>
+          <div class="bx-h">游戏位置</div>
+          <div class="row mb8">
+            <div class="inp" style="flex:1">F:\erogame\Starmaker_Story\Starmaker Story(1.8e\Starmaker 1.8E</div>
+            <div class="btns">浏览</div>
+          </div>
+          <div class="drop">把文件夹拖到这里也可以 · 或点上方<b>浏览</b></div>
+          <div class="t s mt8">输入框<b>可编辑 / 可粘贴 / 回车跳转 / 双击弹选择器</b> —— 不许退回 readonly</div>
+        </div>
+
+        <div class="bx">
+          <span class="num">③</span>
+          <div class="bx-h">最近使用 <span class="dim">无历史时整块隐藏</span></div>
+          <div class="list-row"><div class="thumb"></div>
+            <div style="flex:1;min-width:0"><div class="t b">Starmaker Story</div><div class="t s">F:\…\Starmaker 1.8E · 上次 2026-10-09</div></div>
+            <span class="badge">已配置</span><div class="t" style="width:88px;text-align:right">14,679 条</div></div>
+          <div class="list-row"><div class="thumb"></div>
+            <div style="flex:1;min-width:0"><div class="t b">某 Galgame</div><div class="t s">D:\…\game · 上次 2026-09-21</div></div>
+            <span class="badge">已配置</span><div class="t" style="width:88px;text-align:right">3,204 条</div></div>
+          <div class="t s">每行：游戏名 + 路径缩写 + <b>已积累条数</b> + 上次时间；条数 ≠ 0 才打「已配置」</div>
+        </div>
+
+        <div class="bx cond">
+          <span class="num">④</span>
+          <div class="ib"><span class="ico">i</span><div>已有 <b>14,679</b> 条历史译文，本次操作只做增量，不会覆盖</div></div>
+          <div class="t s">N=0 时不显示</div>
+        </div>
+
+        <div class="row" style="justify-content:flex-end">
+          <div class="btnp">继续 · 识别引擎 →</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+  <table class="spec">
+    <tr><th>#</th><th>区块</th><th>关键交互 / 空态</th><th>依据</th></tr>
+    <tr><td class="n">②</td><td>路径输入 + 拖放区</td><td class="r">可编辑 / 可粘贴 / 回车跳转 / 双击弹选择器</td><td class="r">FR-39</td></tr>
+    <tr><td class="n">③</td><td>最近使用列表</td><td class="r">条数来自扫描现有表；无历史时整块隐藏</td><td class="r">FR-39</td></tr>
+    <tr><td class="n">④</td><td>增量 InfoBar</td><td class="r">明确"只做增量，不会覆盖"；N=0 不显示</td><td class="r">FR-39</td></tr>
+    <tr><td class="n">⑤</td><td>主按钮</td><td class="r">路径无效时 disabled + tooltip</td><td class="r">FR-46</td></tr>
+  </table>
+</figure>
+
+<hr class="sep">
+
+<!-- ==================== W-3 第 2 步 ==================== -->
+<figure class="wf" id="w3">
+  <figcaption>W-3 · 第 2 步 识别引擎 + 部署注入工具（主按钮状态机移交）</figcaption>
+  <div class="sub">FR-40 / FR-41 · 一次性准备 · ★ 本屏两个动作，靠状态机保证任一时刻只有一个主按钮 —— 见下方 A/B 两态</div>
+
+  <div class="scroll">
+  <div class="frame">
+    <div class="bd">
+      <div class="stub">
+        <div class="d done">✓</div><div class="d done">✓</div><div class="d cur">2</div><div class="d">3</div>
+        <div class="d">4</div><div class="d">5</div><div class="d">6</div>
+      </div>
+      <div class="main">
+        <div class="dim">第 2 步 · 一次性准备</div>
+        <div style="font-size:26px;font-weight:700;margin:2px 0 4px">识别引擎并部署注入工具</div>
+        <div class="t mb12">引擎决定了后面<b>全部</b>怎么走。<span class="dim">← 1 行导语</span></div>
+
+        <div class="row" style="align-items:stretch;gap:12px">
+          <!-- 态 A -->
+          <div style="flex:1;min-width:0">
+            <div class="dim mb8">态 A · 未识别：主按钮在<b>上半区</b></div>
+            <div class="bx dash">
+              <span class="num">②</span>
+              <div class="bx-h">引擎识别结果 <span class="dim">未识别</span></div>
+              <div class="ib"><span class="ico">i</span><div>还没识别。点下方按钮扫描游戏目录。</div></div>
+              <div class="row" style="justify-content:flex-end"><div class="btnp" style="min-width:130px">识别引擎</div></div>
+            </div>
+            <div class="bx cond">
+              <span class="num">③④</span>
+              <div class="bx-h">管线说明 + 工具清单 <span class="dim">识别后才出现</span></div>
+              <div class="ph" style="width:80%"></div><div class="ph" style="width:66%"></div>
+            </div>
+          </div>
+          <!-- 态 B -->
+          <div style="flex:1;min-width:0">
+            <div class="dim mb8">态 B · 已识别：上半区塌缩为只读卡，主按钮<b>移交</b>下半区</div>
+            <div class="bx">
+              <span class="num">②</span>
+              <div class="bx-h">引擎识别结果 <span class="dim">只读</span></div>
+              <div class="row" style="align-items:baseline;gap:8px">
+                <div style="font-size:19px;font-weight:700">Unity (Mono)</div>
+                <span class="badge">确定性高</span>
+                <div class="spacer"></div><div class="dim">置信度 0.79</div>
+              </div>
+              <div class="row wrap" style="gap:4px;margin-top:7px">
+                <span class="chip">UnityPlayer.dll</span><span class="chip">Assembly-CSharp.dll</span>
+                <span class="chip">MonoBleedingEdge</span><span class="chip">level0</span>
+              </div>
+              <div class="t s mt8">硬证据 chip ≤ 5 个（文件名 / chip 名）· 0.4~0.7 打「需确认」并<b>默认展开「手动指定 ▾」</b></div>
+            </div>
+            <div class="bx">
+              <span class="num">③</span>
+              <div class="bx-h">管线说明三元组 <span class="dim">动手之前就把"后面会发生什么"说清</span></div>
+              <div class="t"><b>文本从哪来</b>　资源字节流提取</div>
+              <div class="t"><b>译文写到哪</b>　词典 txt（BepInEx）</div>
+              <div class="t"><b>怎么才生效</b>　运行时替换 · 不改游戏</div>
+            </div>
+            <div class="bx">
+              <span class="num">④</span>
+              <div class="bx-h">注入工具清单</div>
+              <div class="tbl">
+                <div class="tr th"><span class="c3">工具</span><span class="c5">版本</span><span class="c6">大小</span><span class="c7">校验状态</span><span class="c7">就位</span></div>
+                <div class="tr"><span class="c3">BepInEx</span><span class="c5">5.4.23.3</span><span class="c6">3.2 MB</span><span class="c7">已验证</span><span class="c7">已就位</span></div>
+                <div class="tr"><span class="c3">XUnity.AutoTranslator</span><span class="c5">5.4.1</span><span class="c6">1.1 MB</span><span class="c7">已验证</span><span class="c7">已就位</span></div>
+                <div class="tr"><span class="c3">TMP 适配</span><span class="c5">1.4.0</span><span class="c6">0.4 MB</span><span class="c7">仅查过 API</span><span class="c7">未就位</span></div>
+              </div>
+              <div class="t s mt8">校验状态必须区分「已验证」与「仅查过 API」，<b>沿用 kit_catalog.verified 原值，不许统一显示成已验证</b></div>
+            </div>
+            <div class="row" style="align-items:center">
+              <div class="btnp" style="min-width:170px">下载并部署（34 MB）</div>
+              <div class="btns">跳过，我手动装</div>
+            </div>
+            <div class="t s mt8">主按钮文案随状态变：「下载并部署（34 MB）」/「重新校验」/「全部已就位」</div>
+          </div>
+        </div>
+
+        <div class="bx cond">
+          <span class="num">⑥</span>
+          <div class="ib"><span class="ico">!</span><div>你跳过了工具部署 —— 第 5 步会提示你手动处理</div></div>
+          <div class="t s">仅在「跳过」时出现，且在第 5 步顶部挂<b>常驻提示条</b></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+  <table class="spec">
+    <tr><th>#</th><th>区块</th><th>关键交互 / 空态</th><th>依据</th></tr>
+    <tr><td class="n">②</td><td>引擎识别结果大卡</td><td class="r">引擎名 + 置信度 + 徽章 + 硬证据 chip ≤5；≥0.7「确定性高」，0.4~0.7「需确认」+默认展开手动指定。<b>识别后塌缩为只读</b></td><td class="r">FR-40 / 简报硬伤 2</td></tr>
+    <tr><td class="n">③</td><td>管线说明三元组</td><td class="r">文本从哪来 / 译文写到哪 / 怎么才生效 —— 取自 get_sink() 与 sink_apply()</td><td class="r">FR-40</td></tr>
+    <tr><td class="n">④</td><td>注入工具清单表</td><td class="r">工具/版本/大小/校验状态/就位；来源优先级 toolcache → ghfast → 手动</td><td class="r">FR-41</td></tr>
+    <tr><td class="n">⑤</td><td><b>主按钮移交</b></td><td class="r">态 A 主按钮=「识别引擎」；态 B 主按钮=部署类。<b>任一时刻只有一个实心按钮</b></td><td class="r">FR-46 / 简报硬伤 2</td></tr>
+    <tr><td class="n">⑥</td><td>跳过后果</td><td class="r">次按钮「跳过，我手动装」；跳过则第 5 步顶部常驻提示</td><td class="r">FR-41</td></tr>
+  </table>
+</figure>
+
+<hr class="sep">
+
+<!-- ==================== W-4 第 4 步 ==================== -->
+<figure class="wf" id="w4">
+  <figcaption>W-4 · 第 4 步 翻译与人工校对 ★ 最高频屏</figcaption>
+  <div class="sub">FR-43 · 每轮迭代 · ★ 现状：指标+批量卡+表格卡+分页+主按钮五层堆叠，表格只剩不到半屏。下方给出减重两案，需拍板。</div>
+  <div class="scroll">
+  <div class="frame">
+    <div class="bd">
+      <div class="stub">
+        <div class="d done">✓</div><div class="d done">✓</div><div class="d done">✓</div><div class="d done">✓</div>
+        <div class="d cur">4</div><div class="d">5</div><div class="d">6</div>
+      </div>
+      <div class="main">
+        <div class="dim">第 4 步 · 每轮迭代</div>
+        <div style="font-size:26px;font-weight:700;margin:2px 0 4px">翻译与人工校对</div>
+        <div class="t mb12">机器先跑一遍，然后人工过一遍。<span class="dim">← 1 行导语</span></div>
+
+        <div class="grid4 mb12">
+          <div class="mini"><div class="k">TOTAL</div><div class="v">14,679</div><div class="t s">总条目</div></div>
+          <div class="mini"><div class="k">DONE</div><div class="v">9,102</div><div class="t s">已翻译</div></div>
+          <div class="mini"><div class="k">TODO</div><div class="v">5,421</div><div class="t s">未翻译</div></div>
+          <div class="mini"><div class="k">FAIL</div><div class="v">156</div><div class="t s">失败</div></div>
+        </div>
+        <div class="t s" style="margin:-6px 0 12px">未跑过显示「待执行」，<b>不许编造 0</b>（NFR-9）</div>
+
+        <div class="bx">
+          <span class="num">③</span>
+          <div class="bx-h">批量翻译 <span class="dim">方案 A：压成一行</span></div>
+          <div class="row">
+            <div class="prog" style="flex:1"><i style="width:62%"></i></div>
+            <div class="t" style="width:44px;text-align:right">62%</div>
+            <div class="t s">并发 4 · 预计 22 分钟 · 上次 1.9 秒/条</div>
+          </div>
+          <div class="row mt8">
+            <div class="btnp">翻译未译条目 ▾</div>
+            <div class="btns">仅重试失败</div>
+            <div class="btns">停止</div>
+            <div class="t s">已译文不会被覆盖<span class="dim"> ← 9 字封顶，禁止扩写</span></div>
+          </div>
+          <div class="t s mt8">下拉四项：仅未翻译 / 当前筛选 / 全部 / 仅重试失败 · 预计时间按<b>实测速度</b>算，不给空白承诺</div>
+        </div>
+
+        <div class="bx">
+          <span class="num">④</span>
+          <div class="row wrap mb8" style="gap:6px">
+            <div class="inp" style="width:200px">搜索原文或译文…</div>
+            <div class="inp" style="width:110px">全部 ▾</div>
+            <div class="spacer"></div>
+            <div class="btng">导入 CSV</div><div class="btng">导出 CSV</div><div class="btng">查找替换</div><div class="btng">清理重复</div>
+          </div>
+          <div class="tbl">
+            <div class="tr th"><span class="c1">#</span><span class="c2">状态</span><span class="c3">原文</span><span class="c4">译文</span></div>
+            <div class="tr"><span class="c1">1</span><span class="c2">✓ 已译</span><span class="c3">Are you sure about this?</span><span class="c4">你确定要这么做吗？</span></div>
+            <div class="tr"><span class="c1">2</span><span class="c2">✓ 已译</span><span class="c3">I've been waiting for you.</span><span class="c4">我一直在等你。</span></div>
+            <div class="tr"><span class="c1">3</span><span class="c2">— 未译</span><span class="c3">Don't worry, I'll handle it.</span><span class="c4" style="color:var(--ink-3)">（空）</span></div>
+            <div class="tr"><span class="c1">4</span><span class="c2">! 失败</span><span class="c3">…</span><span class="c4" style="color:var(--ink-3)">超时</span></div>
+            <div class="tr"><span class="c1">5</span><span class="c2">✓ 已译</span><span class="c3">Good night.</span><span class="c4">晚安。</span></div>
+          </div>
+          <div class="row" style="justify-content:space-between;margin-top:9px">
+            <div class="t s">双击任意行可直接改译文</div>
+            <div class="row"><div class="btns" style="padding:4px 8px">‹‹</div><div class="btns" style="padding:4px 8px">‹</div>
+              <div class="t s">1 / 294</div><div class="btns" style="padding:4px 8px">›</div><div class="btns" style="padding:4px 8px">››</div></div>
+          </div>
+        </div>
+
+        <div class="row" style="justify-content:flex-end;align-items:center;gap:12px">
+          <div class="t s">下一步：翻译校对 →<span class="dim"> ← 硬伤 1 方案 B：降级为文字链</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <table class="spec">
+    <tr><th>#</th><th>区块</th><th>关键交互 / 空态</th><th>依据</th></tr>
+    <tr><td class="n">②</td><td>四宫格指标</td><td class="r">总条目 / 已翻译 / 未翻译 / <b>失败</b>；未跑过写「待执行」不许编造 0</td><td class="r">FR-43 / NFR-9</td></tr>
+    <tr><td class="n">③</td><td>批量卡</td><td class="r">进度 + 并发 + <b>预计剩余时间（按实测速度）</b>；主按钮下拉四项；承诺小字 9 字</td><td class="r">FR-43 / NFR-12</td></tr>
+    <tr><td class="n">④</td><td>译文表</td><td class="r">搜索 / 筛选（全部·未翻译·英文残留·已翻译）/ 排序 / 分页 / <b>双击内联编辑</b> / 右键行菜单；工具按钮全为<b>幽灵态</b></td><td class="r">FR-43</td></tr>
+    <tr><td class="n">⑤</td><td><b>唯一主按钮</b></td><td class="r">「翻译未译条目 ▾」；未连通 API 时 disabled + tooltip 说明原因。<b>「继续 · 应用到游戏 →」必须降级</b>（硬伤 1）</td><td class="r">FR-46 / FR-38</td></tr>
+  </table>
+
+  <div class="sub" style="margin-top:14px"><b>★ 高频屏减重两案（待拍板）</b></div>
+  <table class="spec">
+    <tr><th>方案</th><th>做法</th><th>取舍</th></tr>
+    <tr><td><b>A（推荐）</b></td><td>批量卡压成<b>一行</b>：进度条 + 百分比 + 主按钮 + 「预计 22 分钟」；「并发设置」收进齿轮下拉。表格吃满剩余高度。</td><td class="r">不减功能，只减同屏层级；改动小</td></tr>
+    <tr><td>B</td><td>在 A 基础上再给表格一个<b>「专注校对」全屏态</b>：点一下，指标与批量卡收起，表格占满内容区。</td><td class="r">校对手感最好，但多一个模式要维护</td></tr>
+  </table>
+</figure>
+
+<hr class="sep">
+
+<!-- ==================== W-5 第 3 步 ==================== -->
+<figure class="wf" id="w5">
+  <figcaption>W-5 · 第 3 步 提取待翻译文本</figcaption>
+  <div class="sub">FR-42 · 游戏更新后才重跑 · ★ 完成后第 4、5 步<b>同时</b>解锁（FR-49：翻译是可选，不卡保存）</div>
+  <div class="scroll">
+  <div class="frame">
+    <div class="bd">
+      <div class="stub">
+        <div class="d done">✓</div><div class="d done">✓</div><div class="d done">✓</div><div class="d cur">3</div>
+        <div class="d">4</div><div class="d">5</div><div class="d">6</div>
+      </div>
+      <div class="main">
+        <div class="dim">第 3 步 · 游戏更新后才重跑</div>
+        <div style="font-size:26px;font-weight:700;margin:2px 0 4px">提取待翻译文本</div>
+        <div class="t mb12">不用运行游戏，直接从资源里扫出原文。<span class="dim">← 1 行导语</span></div>
+
+        <div class="grid2">
+          <div class="bx">
+            <span class="num">②</span>
+            <div class="bx-h">扫描选项 <span class="dim">必写代价</span></div>
+            <div class="ck on"><div class="dot"></div><div><div class="t b">增量合并（推荐）</div><div class="t s">保留已有译文，只补新条目</div></div></div>
+            <div class="ck"><div class="dot"></div><div><div class="t b">重建</div><div class="t s"><b>丢弃现表</b>，重新扫一遍</div></div></div>
+            <div class="ck"><div class="dot"></div><div><div class="t b">仅标签模式</div><div class="t s"><b>慢 3 倍</b>，长对话命中更好</div></div></div>
+          </div>
+          <div class="bx">
+            <span class="num">③</span>
+            <div class="bx-h">护栏 <span class="dim">辅助文字写实测拦截率，不写形容词</span></div>
+            <div class="sw on"><div class="knob"></div><div><div class="t b">过滤截断碎片</div><div class="t s">上一轮拦掉 8,045 条（占 35.4%），0 误伤</div></div></div>
+            <div class="sw on"><div class="knob"></div><div><div class="t b">过滤污染词条</div><div class="t s">上一轮拦掉 80 / 95，0 误伤</div></div></div>
+            <div class="sw on"><div class="knob"></div><div><div class="t b">排除 resS / .resource</div><div class="t s">占 _Data 的 91.3%，实测 0 条真文本</div></div></div>
+          </div>
+        </div>
+
+        <div class="bx">
+          <span class="num">④</span>
+          <div class="bx-h">开始扫描</div>
+          <div class="t s mb8">Starmaker 1.8E_Data · 排除 StreamingAssets/resS · 预计扫 1,240 个文件</div>
+          <div class="row">
+            <div class="btnp">开始提取</div>
+            <div class="prog" style="flex:1"><i style="width:100%"></i></div>
+            <div class="t s">1,240 / 1,240</div>
+          </div>
+        </div>
+
+        <div class="bx cond">
+          <span class="num">⑤</span>
+          <div class="bx-h">结果四宫格 <span class="dim">跑完才出现</span></div>
+          <div class="grid4">
+            <div class="mini"><div class="k">NEW</div><div class="v">1,204</div><div class="t s">本轮新增</div></div>
+            <div class="mini"><div class="k">SKIP</div><div class="v">13,475</div><div class="t s">已存在跳过</div></div>
+            <div class="mini"><div class="k">BLOCK</div><div class="v">8,045</div><div class="t s">护栏拦截</div></div>
+            <div class="mini"><div class="k">TOTAL</div><div class="v">14,679</div><div class="t s">在表总数</div></div>
+          </div>
+        </div>
+
+        <div class="ib"><span class="ico">!</span><div>已知缺口：约 <b>1,000 条</b>长段对话拿不到（类型树被剥离，需 IL 级 hook），不在本期范围。</div></div>
+        <div class="t s" style="margin:-4px 0 10px">⑥ <b>常驻，不许把这 1,000 条藏起来当不存在</b></div>
+
+        <div class="row" style="justify-content:flex-end;align-items:center;gap:12px">
+          <div class="t s">下一步：翻译校对 → / 保存并应用 →<span class="dim"> ← FR-49 双出口</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+  <table class="spec">
+    <tr><th>#</th><th>区块</th><th>关键交互 / 空态</th><th>依据</th></tr>
+    <tr><td class="n">②</td><td>扫描选项 3 选 1</td><td class="r">每个选项<b>写明代价</b>：「重建」= 丢弃现表；「仅标签」= 慢 3 倍</td><td class="r">FR-42 / NFR-10</td></tr>
+    <tr><td class="n">③</td><td>护栏 3 开关</td><td class="r">辅助文字写<b>实测拦截率</b>（8,045 条 35.4% · 80/95 · 91.3%），不用空泛形容词</td><td class="r">FR-42 / NFR-10</td></tr>
+    <tr><td class="n">④</td><td>扫描区 + 主按钮</td><td class="r">「开始提取」+ 进度行</td><td class="r">FR-42</td></tr>
+    <tr><td class="n">⑤</td><td>结果四宫格</td><td class="r">本轮新增 / 已存在跳过 / 护栏拦截 / 在表总数；未跑过不显示</td><td class="r">FR-42</td></tr>
+    <tr><td class="n">⑥</td><td>已知缺口 InfoBar</td><td class="r"><b>常驻</b>，约 1,000 条长段对话拿不到，需 IL 级 hook，不在本期</td><td class="r">FR-42 / NFR-9</td></tr>
+  </table>
+</figure>
+
+<hr class="sep">
+
+<!-- ==================== W-6 第 5 步 ==================== -->
+<figure class="wf" id="w6">
+  <figcaption>W-6 · 第 5 步 保存并应用到游戏（A 情形 · 主按钮 + 锁）</figcaption>
+  <div class="sub">FR-44 / FR-48 · 每轮迭代 · 本屏样子完全由引擎决定。三情形并排对比见 <a href="#w10" style="color:inherit">W-10</a>。</div>
+  <div class="scroll">
+  <div class="frame">
+    <div class="bd">
+      <div class="stub">
+        <div class="d done">✓</div><div class="d done">✓</div><div class="d done">✓</div><div class="d done">✓</div>
+        <div class="d done">✓</div><div class="d cur">5</div><div class="d">6</div>
+      </div>
+      <div class="main">
+        <div class="dim">第 5 步 · 每轮迭代</div>
+        <div style="font-size:26px;font-weight:700;margin:2px 0 4px">保存并应用到游戏</div>
+        <div class="t mb12">这一步的样子由<b>引擎</b>决定。<span class="dim">← 1 行导语</span></div>
+
+        <div class="bx">
+          <span class="num">②</span>
+          <div class="row" style="align-items:flex-start">
+            <div style="flex:1;min-width:0">
+              <div class="t s">当前管线（第 2 步识别结果）</div>
+              <div style="font-size:18px;font-weight:700">Unity (Mono) <span class="badge">已锁定</span></div>
+              <div class="t s mt8">默认锁定当前游戏的管线；切到其它管线只是<b>预览形态</b>，写入会禁用</div>
+            </div>
+            <div style="border:1px solid var(--line);border-radius:7px;overflow:hidden;display:flex">
+              <div style="padding:6px 12px;background:var(--solid);color:var(--on-solid);font-size:11.5px">Unity</div>
+              <div style="padding:6px 12px;font-size:11.5px;border-left:1px solid var(--line)">RPG Maker</div>
+              <div style="padding:6px 12px;font-size:11.5px;border-left:1px solid var(--line)">无方案</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bx">
+          <span class="num">③</span>
+          <div class="bx-h">A 情形 · 运行时替换 <span class="dim">need=False（Unity 双版本 / Ren'Py）</span></div>
+          <div class="ib"><span class="ico">i</span><div><b>游戏本体一个字节都不动</b> —— 只写词典文件与 config.ini</div></div>
+          <div class="t"><b>译文写到哪</b>　BepInEx 词典 txt</div>
+          <div class="t"><b>怎么才生效</b>　运行时替换 · 不改游戏</div>
+          <div class="row mt8"><div class="btnp">保存并写入词典</div><div class="t s">原子写 + .bak 三代轮转</div></div>
+          <div class="t s mt8">A 情形<b>不显示</b>「应用到游戏」「还原原文」</div>
+        </div>
+
+        <div class="bx cond">
+          <span class="num">④</span>
+          <div class="bx-h">预览态（硬伤 3 的解法）<span class="dim">仅当切到非当前引擎时出现</span></div>
+          <div style="border:2px dashed var(--line-2);border-radius:8px;padding:10px">
+            <div class="ib danger"><span class="ico">!</span><div>你正在<b>预览</b> RPG Maker 的落地形态，不是当前游戏的管线 —— 写入已禁用。点回 <b>Unity</b> 可解锁。</div></div>
+            <div class="row"><div class="btnp" disabled>保存并写入词典</div>
+              <div class="tip" style="max-width:160px">当前引擎是 Unity，预览态不能写入<br><span class="dim">后端二次校验 400 engine_mismatch</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+  <table class="spec">
+    <tr><th>#</th><th>区块</th><th>关键交互 / 空态</th><th>依据</th></tr>
+    <tr><td class="n">②</td><td>当前管线卡</td><td class="r">引擎名带「已锁定」；旁边是<b>「预览其它管线」</b>分段控件（不是"选择引擎"）</td><td class="r">FR-48 / 简报硬伤 3</td></tr>
+    <tr><td class="n">③</td><td>变脸主体</td><td class="r">完全由 <code>sink_apply(engine)</code> 驱动，<b>不做通用版</b></td><td class="r">FR-44</td></tr>
+    <tr><td class="n">④</td><td>预览态</td><td class="r">切到非当前引擎 → <b>虚线边框整包</b> + 警告条 + 主按钮禁用（灰度下靠虚线框与图标，不靠颜色）</td><td class="r">FR-48</td></tr>
+  </table>
+</figure>
+
+<hr class="sep">
+
+<!-- ==================== W-7 第 6 步 ==================== -->
+<figure class="wf" id="w7">
+  <figcaption>W-7 · 第 6 步 启动验证</figcaption>
+  <div class="sub">FR-45 · 每次应用后 · 删除原型残留的「重看一遍流程」，改为"下次改一句台词"的闭环提示</div>
+  <div class="scroll">
+  <div class="frame">
+    <div class="bd">
+      <div class="stub">
+        <div class="d done">✓</div><div class="d done">✓</div><div class="d done">✓</div><div class="d done">✓</div>
+        <div class="d done">✓</div><div class="d done">✓</div><div class="d cur">6</div>
+      </div>
+      <div class="main">
+        <div class="dim">第 6 步 · 每次应用后</div>
+        <div style="font-size:26px;font-weight:700;margin:2px 0 4px">启动验证</div>
+        <div class="t mb12">确认译文已生效，出问题可回滚。<span class="dim">← 1 行导语</span></div>
+
+        <div class="ib"><span class="ico">i</span><div>Unity：需重启游戏才加载新词典，已在跑的先退干净</div></div>
+        <div class="t s" style="margin:-4px 0 10px">② 引擎专属提示（RPG Maker 换为「立绘丢失就点还原原文回滚」） · 删除 rationale：<span style="text-decoration:line-through">Unity 管线下不显示「还原到原文」—— 本来就不需要</span></div>
+
+        <div class="bx">
+          <span class="num">③</span>
+          <div class="bx-h">写入结果自检 <span class="dim">三项，失败给可操作的下一步，不是一句报错</span></div>
+          <div class="tbl">
+            <div class="tr th"><span class="c3">检查项</span><span class="c6">结果</span><span class="c3">失败时的下一步</span></div>
+            <div class="tr"><span class="c3">目标文件存在</span><span class="c6">✓ 通过</span><span class="c3">—</span></div>
+            <div class="tr"><span class="c3">条目数匹配期望</span><span class="c6">✓ 通过</span><span class="c3">14,679 / 14,679</span></div>
+            <div class="tr"><span class="c3">格式合法（无孤立等号、无重复键）</span><span class="c6">✓ 通过</span><span class="c3">—</span></div>
+          </div>
+        </div>
+
+        <div class="bx">
+          <span class="num">④</span>
+          <div class="bx-h">下一步你可以</div>
+          <div class="grid3">
+            <div class="btns" style="justify-content:center;padding:12px 8px">▸ 启动游戏验证</div>
+            <div class="btns" style="justify-content:center;padding:12px 8px">▤ 打开译文目录</div>
+            <div class="btnd" style="justify-content:center;padding:12px 8px;opacity:.45">⚠ 还原到原文<span class="dim" style="display:block;font-size:9px">仅 B 情形显示</span></div>
+          </div>
+          <div class="t s mt8">危险按钮在灰度下靠 <b>⚠ 图标 + 双线边框</b> 识别，<b>不能只靠颜色</b></div>
+        </div>
+
+        <div class="bx">
+          <span class="num">⑤</span>
+          <div class="t b">下次改一句台词：点「4 翻译」→ 改 → 走第 5 步。</div>
+          <div class="row mt8"><div class="btns">回到第 4 步</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+  <table class="spec">
+    <tr><th>#</th><th>区块</th><th>关键交互 / 空态</th><th>依据</th></tr>
+    <tr><td class="n">②</td><td>引擎专属提示</td><td class="r">Unity：需重启游戏才加载新词典；RPG Maker：立绘丢失就点还原原文回滚</td><td class="r">FR-45</td></tr>
+    <tr><td class="n">③</td><td>写入结果自检三项</td><td class="r">目标文件存在 / 条目数匹配 / 格式合法；每项通过-失败，<b>失败给可操作下一步</b></td><td class="r">FR-45</td></tr>
+    <tr><td class="n">④</td><td>操作区</td><td class="r">启动游戏验证 / 打开译文目录 / <b>还原到原文（危险，仅 B 情形）</b></td><td class="r">FR-45 / FR-44</td></tr>
+    <tr><td class="n">⑤</td><td>闭环收尾</td><td class="r">一句"下次改一句台词怎么走" + 次要按钮「回到第 4 步」。<b>删除「重看一遍流程」</b></td><td class="r">NFR-12</td></tr>
+  </table>
+</figure>
+
+<hr class="sep">
+
+<!-- ==================== W-8 组件库 ==================== -->
+<figure class="wf" id="w8">
+  <figcaption>W-8 · 组件库（灰度层级）</figcaption>
+  <div class="sub">核心判据：转成灰度后主次仍可辨。主按钮是<b>唯一</b>允许用实心块的元素；危险态靠图标+双线，不靠颜色。</div>
+  <div class="scroll">
+  <div class="frame" style="width:1000px">
+    <div class="main" style="padding:16px 20px">
+
+      <div class="dim mb8">按钮四级 · 每屏主按钮上限 1 个</div>
+      <div class="row wrap mb12" style="gap:10px">
+        <div><div class="btnp" style="min-width:120px">主按钮</div><div class="t s mt8">实心 · 本步唯一动作 · <b>上限 1</b></div></div>
+        <div><div class="btns">次按钮</div><div class="t s mt8">描边 · 每屏 2~3 个</div></div>
+        <div><div class="btng">幽灵按钮</div><div class="t s mt8">无边框 · 低频工具</div></div>
+        <div><div class="btnd">⚠ 危险按钮</div><div class="t s mt8">双线 + ⚠ 图标 · 还原/销毁</div></div>
+        <div><div class="link">文字链 →</div><div class="t s mt8">「下一步：…」降级用</div></div>
+        <div><div class="btnp" disabled>主按钮（禁用）</div><div class="t s mt8">虚线 + tooltip 说明原因+解锁方式</div></div>
+      </div>
+
+      <div class="grid3">
+        <div>
+          <div class="dim mb8">卡片</div>
+          <div class="bx"><div class="bx-h">卡片标题</div><div class="ph" style="width:80%"></div><div class="ph" style="width:62%"></div></div>
+          <div class="t s">标题 14px/700 + <b>至多 1 行副标题</b>（NFR-12）</div>
+        </div>
+        <div>
+          <div class="dim mb8">InfoBar 四档</div>
+          <div class="ib"><span class="ico">i</span><div>info · 说明</div></div>
+          <div class="ib"><span class="ico">✓</span><div>ok · 通过 / 已就位</div></div>
+          <div class="ib"><span class="ico">!</span><div>warn · 需注意</div></div>
+          <div class="ib danger"><span class="ico">✕</span><div>danger · 阻断</div></div>
+          <div class="t s">灰度下靠<b>图标形状</b>区分 · 1~2 行封顶</div>
+        </div>
+        <div>
+          <div class="dim mb8">开关 / 单选</div>
+          <div class="sw on"><div class="knob"></div><div><div class="t b">过滤截断碎片</div><div class="t s">上一轮拦掉 8,045 条（35.4%），0 误伤</div></div></div>
+          <div class="ck"><div class="dot"></div><div><div class="t b">重建</div><div class="t s"><b>丢弃现表</b>，重新扫一遍</div></div></div>
+          <div class="t s">控件 + <b>1 行实测数据或后果</b>（NFR-10）</div>
+        </div>
+      </div>
+
+      <div class="grid3 mt8">
+        <div>
+          <div class="dim mb8">进度条</div>
+          <div class="prog"><i style="width:62%"></i></div>
+          <div class="t s mt8">常态：细条 + 百分比</div>
+          <div class="prog thin mt8" style="width:120px"><i style="width:0%"></i></div>
+          <div class="t s">空闲：<b>淡出</b>，不占视觉重量（FR-47）</div>
+        </div>
+        <div>
+          <div class="dim mb8">徽章 / chip</div>
+          <div class="row wrap" style="gap:5px">
+            <span class="badge">已配置</span><span class="badge">确定性高</span><span class="badge">需确认</span>
+            <span class="chip">已验证</span><span class="chip">仅查过 API</span><span class="chip">UnityPlayer.dll</span>
+          </div>
+          <div class="t s mt8">语义优先于样式 · 等宽小字</div>
+        </div>
+        <div>
+          <div class="dim mb8">输入框</div>
+          <div class="inp" style="display:block;width:100%">可编辑 · 可粘贴 · 有焦点态</div>
+          <div class="t s mt8">路径框<b>绝不 readonly</b>（FR-39）</div>
+        </div>
+      </div>
+
+      <div class="dim mb8 mt8">表格</div>
+      <div class="tbl">
+        <div class="tr th"><span class="c1">#</span><span class="c2">状态</span><span class="c3">原文</span><span class="c4">译文</span></div>
+        <div class="tr"><span class="c1">1</span><span class="c2">✓</span><span class="c3">Are you sure about this?</span><span class="c4">你确定要这么做吗？</span></div>
+        <div class="tr"><span class="c1">3</span><span class="c2">—</span><span class="c3">Don't worry, I'll handle it.</span><span class="c4" style="color:var(--ink-3)">（空）</span></div>
+      </div>
+      <div class="t s mt8">列：# / 状态 / 原文 / 译文 · 行高紧凑 · <b>双击内联编辑</b> · 14,679 条分页不卡</div>
+    </div>
+  </div>
+  </div>
+</figure>
+
+<hr class="sep">
+
+<!-- ==================== W-9 导航轨四态 ==================== -->
+<figure class="wf" id="w9">
+  <figcaption>W-9 · 导航轨四态</figcaption>
+  <div class="sub">FR-35 · 节点 = 序号状态标记 + 步骤名 + 动态副标题；灰度下靠<b>填充/边框/透明度</b>区分，不靠颜色</div>
+  <div class="scroll">
+  <div class="frame" style="width:1000px">
+    <div class="main" style="padding:16px 20px">
+      <div class="grid4">
+        <div class="bx">
+          <div class="row" style="align-items:flex-start">
+            <div style="width:22px;height:22px;border-radius:50%;background:var(--line-3);color:var(--panel);
+              display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;flex:none">✓</div>
+            <div style="min-width:0"><div class="t b">已完成</div><div class="t s">Unity (Mono) · 3 个已就位</div></div>
+          </div>
+          <div class="t s mt8">实心灰底 + ✓；行背景透明；<b>可点击回跳</b></div>
+        </div>
+        <div class="bx" style="background:var(--ph)">
+          <div class="row" style="align-items:flex-start">
+            <div style="width:22px;height:22px;border-radius:50%;background:var(--solid);color:var(--on-solid);
+              display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;flex:none;font-weight:700">4</div>
+            <div style="min-width:0"><div class="t b">当前</div><div class="t s">已译 9,102 / 14,679</div></div>
+          </div>
+          <div class="t s mt8"><b>实心深色</b>（灰度下最强）+ 整行填充 + 左缘条</div>
+        </div>
+        <div class="bx" style="opacity:.45">
+          <div class="row" style="align-items:flex-start">
+            <div style="width:22px;height:22px;border-radius:50%;border:1px solid var(--line-3);
+              display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;flex:none">6</div>
+            <div style="min-width:0"><div class="t">未解锁</div><div class="t s">待执行</div></div>
+          </div>
+          <div class="t s mt8">空心圈 + 整行 42% 透明 + <b>不可点击</b></div>
+        </div>
+        <div class="bx">
+          <div class="row" style="align-items:flex-start">
+            <div style="width:22px;height:22px;border-radius:50%;border:2px double var(--line);
+              display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;flex:none;font-weight:700">!</div>
+            <div style="min-width:0"><div class="t b">有告警</div><div class="t s">工具未就位 · 3 项</div></div>
+          </div>
+          <div class="t s mt8">双线圈 + ! ；行背景透明</div>
+        </div>
+      </div>
+      <div class="t s mt8">副标题铁律：<b>没跑过的步骤写「待执行」，不许编造数值</b>（NFR-9 / FR-35）</div>
+    </div>
+  </div>
+  </div>
+</figure>
+
+<hr class="sep">
+
+<!-- ==================== W-10 三情形对比 ==================== -->
+<figure class="wf" id="w10">
+  <figcaption>W-10 · 第 5 步三情形并排对比</figcaption>
+  <div class="sub">FR-44 · 完全由 <code>kit_catalog.sink_apply(engine)</code> 驱动，不做通用版</div>
+  <div class="scroll">
+  <div class="frame" style="width:1000px">
+    <div class="main" style="padding:16px 20px">
+      <div class="grid3" style="gap:12px">
+
+        <!-- A -->
+        <div class="bx">
+          <div class="bx-h">A · 运行时替换</div>
+          <div class="t s mb8">判定 <code>need=False</code> · Unity 双版本 / Ren'Py</div>
+          <div class="ib"><span class="ico">i</span><div><b>游戏本体一个字节都不动</b></div></div>
+          <div class="t">译文写到哪：BepInEx 词典 txt</div>
+          <div class="t mb8">怎么才生效：运行时替换 · 不改游戏</div>
+          <div class="btnp" style="min-width:0;width:100%">保存并写入词典</div>
+          <div class="t s mt8" style="text-decoration:line-through">应用到游戏</div>
+          <div class="t s" style="text-decoration:line-through">还原原文</div>
+          <div class="t s mt8"><b>必须没有：</b>「应用到游戏」「还原原文」</div>
+        </div>
+
+        <!-- B -->
+        <div class="bx">
+          <div class="bx-h">B · 必须回写</div>
+          <div class="t s mb8">判定 <code>need=True</code> 且 <code>kind='rpgmaker'</code></div>
+          <div class="ib danger"><span class="ico">!</span><div>会改<b>真实游戏文件</b>，执行前自动备份</div></div>
+          <div class="t s">可翻字段（白名单）：</div>
+          <div class="ph" style="width:70%"></div>
+          <div class="t s">不翻字段（黑名单 8 项）：</div>
+          <div class="row wrap" style="gap:4px;margin:4px 0 6px">
+            <span class="chip">characterName</span><span class="chip">faceName</span><span class="chip">battlerName</span>
+            <span class="chip">switches</span><span class="chip">variables</span><span class="chip">JS 355·655</span>
+            <span class="chip">注释 108</span><span class="chip">note</span>
+          </div>
+          <div class="t s mb8">备份位置：<code>_原文备份/data-时间戳/</code></div>
+          <div class="btnp" style="min-width:0;width:100%">备份原文并回写游戏</div>
+          <div class="btnd" style="width:100%;justify-content:center;margin-top:7px">⚠ 还原原文</div>
+          <div class="t s mt8"><b>必须有：</b>警示 + 白名单 + 黑名单 + 备份位置 + 危险色还原</div>
+        </div>
+
+        <!-- C -->
+        <div class="bx">
+          <div class="bx-h">C · 无自动方案</div>
+          <div class="t s mb8">判定 <code>need=True</code> 且 <code>kind=None</code></div>
+          <div class="ib danger"><span class="ico">!</span><div>这个引擎<b>没有自动落地方案</b></div></div>
+          <div class="t s">真实缺失原因（≥2 条）：</div>
+          <div class="ph" style="width:86%"></div>
+          <div class="ph" style="width:74%"></div>
+          <div class="t s mt8">退路建议：Textractor / LunaTranslator</div>
+          <div class="btnp" style="min-width:0;width:100%">导出 CSV</div>
+          <div class="t s mt8" style="text-decoration:line-through">应用到游戏</div>
+          <div class="t s mt8"><b>必须没有：</b>「应用到游戏」按钮；<b>必须有：</b>≥2 条真实原因 + 退路</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  </div>
+  <table class="spec">
+    <tr><th>情形</th><th>主按钮</th><th>改动范围</th><th>依据</th></tr>
+    <tr><td><b>A</b> 运行时替换</td><td>保存并写入词典</td><td class="r">词典文件 + config.ini，<b>不动游戏本体</b></td><td class="r">FR-44</td></tr>
+    <tr><td><b>B</b> 必须回写</td><td>备份原文并回写游戏</td><td class="r">www/data/*.json + 自动备份；唯一允许改游戏本体的例外</td><td class="r">FR-44 / NFR-7</td></tr>
+    <tr><td><b>C</b> 无自动方案</td><td>导出 CSV</td><td class="r">仅本地草稿</td><td class="r">FR-44</td></tr>
+  </table>
+</figure>
+
+<footer>
+  G-POT 翻译器 v4.0 · 界面线框图（骨架层）· 2026-10-09 ·
+  配套文档 <code>docs/界面简报.md</code>（区块表与结构验收）·
+  需求权威 <code>docs/需求说明书.md</code>（FR-35~FR-49）·
+  视觉层待骨架定稿后单独重做
+</footer>
+
+<script>
+function setMode(m){
+  document.documentElement.setAttribute('data-mode', m);
+  document.getElementById('mLight').setAttribute('aria-pressed', m === 'light');
+  document.getElementById('mDark').setAttribute('aria-pressed', m === 'dark');
+  try { localStorage.setItem('wf-mode', m); } catch (e) {}
+}
+(function(){
+  var m = 'light';
+  try { m = localStorage.getItem('wf-mode') || 'light'; } catch (e) {}
+  if (m !== 'light' && m !== 'dark') m = 'light';
+  setMode(m);
+})();
+</script>
+</body>
+</html>

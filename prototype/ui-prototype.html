@@ -106,9 +106,9 @@ button{font-family:inherit;cursor:pointer}
   border-color:var(--rose-hi);color:#fff;animation:simmer 2.6s ease-in-out infinite}
 @keyframes simmer{0%,100%{box-shadow:0 0 8px var(--violet-soft)}
   50%{box-shadow:0 0 20px var(--rose-soft),0 0 8px var(--violet-soft)}}
-.step-title{font-size:13px;font-weight:700;line-height:1.35;color:var(--text)}
+.step-title{display:block;font-size:13px;font-weight:700;line-height:1.35;color:var(--text)}
 .step.current .step-title{color:var(--ink)}
-.step-sub{font-size:11px;color:var(--text-mute);line-height:1.35;margin-top:2px;
+.step-sub{display:block;font-size:11px;color:var(--text-mute);line-height:1.35;margin-top:2px;
   font-family:var(--mono);letter-spacing:.01em}
 .step.current .step-sub{color:var(--rose-hi)}
 .rail-foot{margin-top:auto;padding-top:14px;border-top:1px solid var(--border);
@@ -309,6 +309,7 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
 .pipe-arrow{color:var(--rose-hi);font-size:17px;text-align:center}
 
 .hidden{display:none}
+[hidden]{display:none!important} /* 修复：display:flex 类会压过 UA 的 [hidden] 规则，导致带 hidden 的 infobar 空壳显示 */
 .subtle{font-size:12px;color:var(--text-mute);line-height:1.6}
 .nowrap{white-space:nowrap}
 
@@ -880,9 +881,8 @@ td.c-jp{white-space:normal;font-family:'Yu Gothic UI','Meiryo',var(--sans);font-
             <button class="btn btn-lg" style="justify-content:center">
               <svg width="14" height="14"><use href="#i-folder"/></svg> 打开译文目录
             </button>
-            <button class="btn btn-lg btn-danger" style="justify-content:center">还原到原文</button>
+            <button class="btn btn-lg btn-danger" style="justify-content:center" hidden>还原到原文</button>
           </div>
-          <div class="subtle" style="margin-top:13px">Unity 管线下不显示「还原到原文」—— 本来就不需要。</div>
         </div>
 
         <div class="card">
@@ -927,7 +927,7 @@ function render(){
     var locked = i > state.max;
     var mark = i < state.cur
       ? '<svg width="13" height="13"><use href="#i-check"/></svg>'
-      : (i+1);
+      : i;  /* 序号与内容区「第 N 步」对齐：0~6，不再 i+1 */
     html += '<button class="step '+cls+'" data-i="'+i+'"'+(locked?' disabled':'')+
             ' onclick="goto('+i+')">'+
             '<span class="step-mark">'+mark+'</span>'+
