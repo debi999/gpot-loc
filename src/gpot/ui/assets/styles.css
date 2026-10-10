@@ -457,3 +457,7 @@ tbody tr:hover td{background:rgba(221,160,188,.05)}
   *{animation:none!important;transition:none!important}
   .page.active{animation:none}
 }
+
+/* ---- FR-43: 翻译范围下拉 & 右键菜单 ---- */
+.dd-item{display:block;width:100%;text-align:left;background:none;border:none;color:var(--text);font:inherit;font-size:13px;padding:7px 14px;cursor:pointer}
+.dd-item:hover{background:rgba(232,98,154,.10)}

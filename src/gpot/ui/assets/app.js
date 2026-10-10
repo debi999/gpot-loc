@@ -93,6 +93,16 @@ function _demoApi(method, path, body) {
     return Promise.resolve({ ok: true, exe: '演示模式 · 不真启动' });
   if (path === '/api/open-dir')
     return Promise.resolve({ ok: true, dir: '演示模式 · 不真打开' });
+  if (path === '/api/recent')
+    return Promise.resolve({ recent: [{ path: 'F:\\erogame\\demo', name: 'Starmaker Story（演示）', entries: 14679, configured: true }] });
+  if (path === '/api/export-csv')
+    return Promise.resolve({ ok: true, path: '演示模式 · 不真导出', rows: 14679 });
+  if (path === '/api/import-csv')
+    return Promise.resolve({ canceled: true });
+  if (path === '/api/replace')
+    return Promise.resolve({ ok: true, replaced: 0 });
+  if (path === '/api/dedup')
+    return Promise.resolve({ ok: true, removed: 0, total: 14679 });
   return Promise.resolve({});
 }
 async function api(method, path, body) {
@@ -301,6 +311,12 @@ async function testConn() {
   renderCfgStatus(r);
 }
 function renderCfgStatus(r) {
+  // FR-38:「保存并继续」在完成连接测试（成功）前保持禁用，悬停提示原因
+  const save = document.getElementById('btnSaveCfg');
+  if (save) {
+    save.disabled = !r.connected;
+    if (r.connected) save.removeAttribute('title');
+  }
   // 探测到的模型列表 → 下拉（datalist）：可点选也可手输；当前值无效时自动选第一个
   if (r.models && r.models.length) {
     document.getElementById('modelList').innerHTML =
@@ -322,6 +338,26 @@ function renderCfgStatus(r) {
 }
 
 /* ---------------- Step 1：游戏目录 ---------------- */
+/* FR-39: 最近使用列表（游戏名 + 路径 + 已积累条数 + 已配置徽章） */
+async function loadRecent() {
+  const el = document.getElementById('recentBox');
+  if (!el || DEMO) return;
+  const r = await api('GET', '/api/recent');
+  const list = (r && r.recent) || [];
+  if (!list.length) { el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="subtle" style="margin-bottom:6px">最近使用</div>'
+    + list.map(x => `
+    <div class="rowitem" style="cursor:pointer" onclick="selectRecent('${esc(x.path).replace(/'/g, '&#39;')}')">
+      <div class="ri-main"><div class="ri-t">${esc(x.name)}</div><div class="ri-s mono">${esc(x.path)}</div></div>
+      <div class="ri-side">${x.configured
+        ? `<span class="badge b-ok">已配置 · ${(x.entries || 0).toLocaleString()} 条</span>`
+        : '<span class="badge b-muted">未配置</span>'}</div>
+    </div>`).join('');
+}
+async function selectRecent(path) {
+  document.getElementById('gamePath').value = path;
+  await selectGame();
+}
 async function selectGame() {
   const path = document.getElementById('gamePath').value;
   const g = await api('POST', '/api/game', { path });
@@ -336,7 +372,7 @@ async function selectGame() {
   goNext();
 }
 async function pickFolder() {
-  // 第 1 步「浏览」：后端弹 Windows 原生文件夹选择对话框（/api/pick-folder）
+  // FR-52: 第 1 步「浏览」——后端弹 Windows 现代版文件夹选择对话框（/api/pick-folder）
   if (DEMO) { sb('离线演示模式没有目录选择器 · 请直接粘贴路径'); return; }
   sb('正在打开文件夹选择器…');
   const r = await api('GET', '/api/pick-folder');
@@ -356,6 +392,7 @@ async function detectEngine() {
   btn.disabled = true; btn.textContent = '识别中…';
   const eng = await api('POST', '/api/detect');
   STATE.engine = eng;
+  STATE.kit = eng.kit || { deployed: false, tools: [] };   // FR-41: 工具清单随识别返回
   const ev = (eng.evidence || []).map(e => `<span class="chip"><span class="chip-mono">${e}</span></span>`).join('');
   document.getElementById('engineResult').innerHTML = `
     <div class="card">
@@ -381,18 +418,31 @@ async function detectEngine() {
     </div>
     <div id="kitBox"></div>
       <div class="btn-row spread">
-        <button class="btn btn-accent btn-lg" id="btnDeploy" onclick="deployKit()">部署注入工具</button>
-        <button class="btn btn-ghost" onclick="goNext()">跳过，我手动装</button>
+        <button class="btn btn-accent btn-lg" id="btnDeploy" onclick="deployKit()">下载并部署</button>
+        <button class="btn btn-ghost" onclick="skipKit()">跳过，我手动装</button>
       </div>`;
   /* 主按钮移交（简报硬伤 2）：识别后底部「识别引擎」撤下，主按钮归部署区 */
   const detectRow = document.getElementById('detectRow');
   if (detectRow) detectRow.hidden = true;
+  /* FR-41: 主按钮文案随状态变化 —— 无清单隐藏按钮；有清单显示「下载并部署（约 N MB）」 */
+  const tools = (STATE.kit && STATE.kit.tools) || [];
+  const dbtn = document.getElementById('btnDeploy');
+  if (tools.length) {
+    const total = tools.reduce((a, t) => a + (parseFloat(t.size) || 0), 0);
+    dbtn.textContent = '下载并部署' + (total ? `（约 ${total.toFixed(1)} MB）` : '');
+  } else {
+    dbtn.hidden = true;
+    document.getElementById('kitBox').innerHTML = `
+      <div class="infobar ib-warn"><svg class="ib-ico" width="17" height="17"><use href="#i-warn"/></svg>
+        <div>该引擎暂无可靠工具包清单 —— 请点「跳过，我手动装」，或用第 5 步给出的替代方案。</div></div>`;
+  }
   sb('识别为 ' + eng.name);
 }
 async function deployKit() {
   const btn = document.getElementById('btnDeploy');
   btn.disabled = true; btn.textContent = '部署中…';
   const kit = await api('POST', '/api/deploy');
+  STATE.kit = kit;   // FR-41: 记录部署态（重新校验文案用）
   const rows = (kit.tools || []).map(t => `
     <tr><td>${t.name}</td><td class="mono">${t.version}</td><td class="mono">${t.size}</td>
     <td>${t.verified ? '<span class="badge b-ok">已验证</span>' : '<span class="badge b-warn">仅查过</span>'}</td>
@@ -405,9 +455,14 @@ async function deployKit() {
         <tbody>${rows || '<tr><td colspan="5" class="subtle">该引擎暂无可靠工具包</td></tr>'}</tbody>
       </table></div>
     </div>`;
-  btn.textContent = '重新校验';
+  btn.textContent = '重新校验';   // FR-41: 部署过 → 文案变「重新校验」
   btn.disabled = false;
   sb('注入工具已就位');
+  goNext();
+}
+function skipKit() {   // FR-41: 「跳过，我手动装」→ 第 5 步顶部常驻提示
+  STATE.kit = STATE.kit || {};
+  STATE.kit.skipped = true;
   goNext();
 }
 
@@ -416,7 +471,15 @@ async function runExtract() {
   const btn = document.getElementById('btnExtract');
   btn.disabled = true; btn.textContent = '扫描中…';
   document.getElementById('p3prog').classList.remove('hidden');
-  const r = await api('POST', '/api/extract');
+  // FR-42: 扫描选项 + 护栏开关接真实后端（重建=replace，仅标签=deep，护栏可关）
+  const mode = (document.querySelector('input[name=mode]:checked') || {}).value || 'merge';
+  const body = {
+    mode: mode === 'replace' ? 'replace' : 'merge',
+    deep: mode === 'labels',
+    guard_frag: document.getElementById('gFrag').checked,
+    guard_poll: document.getElementById('gPoll').checked,
+  };
+  const r = await api('POST', '/api/extract', body);
   document.getElementById('p3result').classList.remove('hidden');
   document.getElementById('p3result').innerHTML = `
     <div class="metric"><div class="metric-l">在表总数</div><div class="metric-v">${r.total.toLocaleString()}</div><div class="metric-n">全部条目（含已有 ${(r.translated || 0).toLocaleString()} 条译文）</div></div>
@@ -573,42 +636,73 @@ function onRowDblClick(ev) {
   });
   inp.addEventListener('blur', () => finish(true));
 }
-async function runTranslate(retry) {
+/* FR-43: 翻译范围下拉（仅未翻译/当前筛选/全部/仅重试失败） */
+function ddToggle(ev) {
+  ev.stopPropagation();
+  document.getElementById('ddScope').classList.toggle('hidden');
+}
+let _t0 = 0, _tBase = 0, _tBaseAt = 0;   // ETA 采样：起始 done 与时间点
+async function runTranslate(scope) {
+  document.getElementById('ddScope').classList.add('hidden');
   const btn = document.getElementById('btnTrans');
   btn.disabled = true;
   document.getElementById('btnStop').disabled = false;
-  const r = await api('POST', '/api/translate/start', { retry: !!retry });
+  _t0 = Date.now(); _tBase = 0; _tBaseAt = _t0;
+  // FR-43: 「当前筛选」要带上第 4 步工具栏的搜索词与状态筛选（后端同一套规则选条目）
+  const body = { scope };
+  if (scope === 'filtered') {
+    body.q = (document.getElementById('p4q') || {}).value || '';
+    body.status = (document.getElementById('p4filter') || {}).value || 'all';
+  }
+  const r = await api('POST', '/api/translate/start', body);
   if (r.done_all) {           // 没有需要翻译的条目 → 直接完成
     document.getElementById('p4bar').classList.add('ok');
     document.getElementById('btnTrans').textContent = '已全部翻译';
     document.getElementById('btnNext4').disabled = false;
-    sb('没有未翻译条目，无需翻译');
+    sb('没有需要翻译的条目');
     return;
   }
   TRANS_JOB = r.job_id;
   pollJob();
+}
+function _etaText(job) {
+  // FR-43: 预计剩余时间 —— 按本任务实测速度算，不给空白承诺
+  const el = document.getElementById('p4eta');
+  if (!el) return;
+  const now = Date.now();
+  if (job.done > _tBase) { _tBase = job.done; _tBaseAt = now; }
+  const speed = job.done / Math.max(0.5, (now - _t0) / 1000);   // 条/秒（全程均值）
+  const remain = Math.max(0, job.total - job.done);
+  const eta = speed > 0 ? Math.ceil(remain / speed) : null;
+  el.textContent = (eta !== null
+    ? `预计剩余 ${eta >= 60 ? Math.ceil(eta / 60) + ' 分钟' : eta + ' 秒'}`
+    : '计算中…') + ' · 已译文不会被覆盖';
 }
 async function pollJob() {
   if (!TRANS_JOB) return;
   const j = await api('GET', '/api/jobs/' + TRANS_JOB);
   if (!j || j.error) return;
   // FR-43: 翻译与人工校对 —— 渲染进度与逐条结果，供人工确认/重试
-  const done = j.done, total = STATE.translate.total;
-  const todo = Math.max(0, total - done - STATE.translate.failed);
+  const done = j.done, total = j.total || STATE.translate.total;
+  const todo = Math.max(0, total - done - (j.failed || 0));
   document.getElementById('p4bar').firstElementChild.style.width = j.progress + '%';
   document.getElementById('p4txt').textContent = Math.round(j.progress) + '%';
-  const md = document.getElementById('m-done'); if (md) md.textContent = done.toLocaleString();
+  const md = document.getElementById('m-done'); if (md) md.textContent = (STATE.translate.done + done).toLocaleString();
   const mt = document.getElementById('m-todo'); if (mt) mt.textContent = todo.toLocaleString();
+  _etaText({ done, total });
   setSbProg(j.progress);
   sb('翻译进行中 · ' + done.toLocaleString() + ' / ' + total.toLocaleString());
   if (j.progress >= 100 || !j.running) {
     document.getElementById('p4bar').classList.add('ok');
     document.getElementById('btnTrans').textContent = '已全部翻译';
     document.getElementById('btnStop').disabled = true;
+    STATE.translate.done += done;
+    STATE.translate.failed += (j.failed || 0);
     document.getElementById('m-fail').textContent = STATE.translate.failed;
     document.getElementById('btnNext4').disabled = false;
+    renderStep4Metrics();
     if (!DEMO) loadRows();      // 任务结束 → 表格刷成真实条目
-    sb('翻译完成 · 失败 ' + STATE.translate.failed + ' 条，可单独重试');
+    sb('翻译完成 · 失败 ' + (j.failed || 0) + ' 条，可下拉选「仅重试失败」');
     TRANS_JOB = null;
     return;
   }
@@ -621,6 +715,77 @@ async function stopTranslate() {
   document.getElementById('btnTrans').disabled = false;
   sb('已停止翻译');
   TRANS_JOB = null;
+}
+
+/* ---------------- 第 4 步表格工具（FR-43：CSV / 查找替换 / 清理重复 / 右键菜单） ---------------- */
+async function exportCsv() {
+  const r = await api('POST', '/api/export-csv');
+  if (r && r.ok) sb('已导出 ' + r.rows.toLocaleString() + ' 条 → ' + r.path);
+  else sb((r && r.message) || '导出失败');
+}
+async function importCsv() {
+  const r = await api('POST', '/api/import-csv');
+  if (r && r.canceled) return;
+  if (r && r.ok) {
+    STATE.translate.total = r.total;
+    STATE.translate.done = r.translated;
+    renderStep4Metrics(); loadRows();
+    sb('CSV 导入完成 · 更新 ' + r.updated.toLocaleString() + ' 条');
+  } else sb((r && r.message) || '导入失败');
+}
+function openReplace() {
+  document.getElementById('replModal').classList.remove('hidden');
+  document.getElementById('replFind').focus();
+}
+function closeReplace() { document.getElementById('replModal').classList.add('hidden'); }
+async function doReplace() {
+  const find = document.getElementById('replFind').value;
+  if (!find) { sb('请输入要查找的内容'); return; }
+  const r = await api('POST', '/api/replace', {
+    find,
+    replace: document.getElementById('replWith').value,
+    field: document.getElementById('replField').value,
+  });
+  closeReplace();
+  if (r && r.ok) {
+    renderStep4Metrics(); loadRows();
+    sb('查找替换完成 · 改动 ' + r.replaced.toLocaleString() + ' 条');
+  } else sb((r && r.message) || '替换失败');
+}
+async function dedupRows() {
+  if (!confirm('按原文清理重复条目（有译文的优先保留），确定执行？')) return;
+  const r = await api('POST', '/api/dedup');
+  if (r && r.ok) {
+    renderStep4Metrics(); loadRows();
+    sb('清理完成 · 删除重复 ' + r.removed.toLocaleString() + ' 条，剩 ' + r.total.toLocaleString() + ' 条');
+  } else sb((r && r.message) || '清理失败');
+}
+/* 右键行菜单：复制原文 / 复制译文 / 清空译文 */
+function _copy(text) {
+  if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => sb('已复制'));
+  else sb('复制失败 · 浏览器不支持剪贴板');
+}
+function onRowCtx(ev) {
+  const tr = ev.target.closest && ev.target.closest('tr');
+  if (!tr || !tr.dataset.ei) return;
+  ev.preventDefault();
+  const ei = +tr.dataset.ei;
+  const orig = tr.cells[2] ? tr.cells[2].textContent : '';
+  const trans = tr.dataset.t || '';
+  const menu = document.getElementById('ctxMenu');
+  menu.innerHTML = `
+    <button class="dd-item" onclick="_copy(${JSON.stringify(orig)});_hideCtx()">复制原文</button>
+    <button class="dd-item" onclick="_copy(${JSON.stringify(trans)});_hideCtx()">复制译文</button>
+    <button class="dd-item" onclick="_clearRow(${ei});_hideCtx()">清空译文</button>`;
+  menu.classList.remove('hidden');
+  menu.style.left = Math.min(ev.clientX, innerWidth - 150) + 'px';
+  menu.style.top = Math.min(ev.clientY, innerHeight - 120) + 'px';
+}
+function _hideCtx() { document.getElementById('ctxMenu').classList.add('hidden'); }
+async function _clearRow(ei) {
+  const r = await api('POST', '/api/row/edit', { i: ei, translation: '' });
+  if (r && r.ok) { sb('已清空该条译文（状态回「未翻译」）'); loadRows(); }
+  else sb((r && r.message) || '操作失败');
 }
 
 /* ---------------- Step 5：落盘（按引擎变脸） ---------------- */
@@ -693,7 +858,13 @@ async function loadSink(engineKey) {
     ? `<div class="infobar ib-warn"><svg class="ib-ico" width="17" height="17"><use href="#i-warn"/></svg>
         <div>当前游戏识别为 <b>${engineName(detected)}</b>，不能按 <b>${engineName(engineKey)}</b> 管线写入。点回上方「${engineName(detected)}」即可解锁保存。</div></div>`
     : '';
+  // FR-41: 第 2 步点了「跳过，我手动装」→ 本步顶部常驻提示
+  const skipHint = (STATE.kit && STATE.kit.skipped)
+    ? `<div class="infobar ib-warn"><svg class="ib-ico" width="17" height="17"><use href="#i-warn"/></svg>
+        <div>注入工具为手动安装 —— 保存前请自行确认对应插件已在游戏目录就位，否则译文不生效。</div></div>`
+    : '';
   document.getElementById('sinkView').innerHTML = `
+    ${skipHint}
     <div class="grid3">${m}</div>
     <div class="infobar ib-${v.kind==='none'?'danger':(v.kind==='rewrite'?'warn':'ok')}">
       <svg class="ib-ico" width="17" height="17"><use href="#i-${v.kind==='none'?'warn':'info'}"/></svg>
@@ -735,9 +906,12 @@ async function restoreOriginal() {
 async function loadVerify() {
   const r = await api('GET', '/api/verify');
   document.getElementById('p6hint').innerHTML = '<b>' + r.hint + '</b>';
-  document.getElementById('p6checks').innerHTML = (r.checks || []).map(c =>
-    `<div class="rowitem"><div class="ri-main"><div class="ri-t">${c.t}</div><div class="ri-s mono">${c.s}</div></div>
-     <div class="ri-side"><span class="badge b-ok">通过</span></div></div>`).join('');
+  // FR-45: 自检三项按真实结果渲染「通过 / 失败」，失败给可操作线索而非一句报错
+  document.getElementById('p6checks').innerHTML = (r.checks || []).map(c => {
+    const ok = c.ok !== false;
+    return `<div class="rowitem"><div class="ri-main"><div class="ri-t">${c.t}</div><div class="ri-s mono">${c.s}</div></div>
+     <div class="ri-side"><span class="badge b-${ok ? 'ok' : 'danger'}">${ok ? '通过' : '失败'}</span></div></div>`;
+  }).join('');
   document.getElementById('btnRestore').hidden = !(STATE.sink && STATE.sink.backup);
 }
 async function launchGame() {
@@ -753,7 +927,7 @@ async function openTransDir() {
 }
 
 /* ---------------- 启动 ---------------- */
-/* v0.4：无边框窗口控制——仅 pywebview 宿主内显示（浏览器/DEMO 无桥自动隐藏） */
+/* FR-50: 无边框窗口控制（v0.4）——仅 pywebview 宿主内显示（浏览器/DEMO 无桥自动隐藏） */
 function initWinCtl() {
   const box = document.getElementById('winCtl');
   if (!box) return;
@@ -775,8 +949,20 @@ function initWinCtl() {
   await loadState();
   fillTable();
   initWinCtl();
+  loadRecent();                                             // FR-39: 最近使用列表
+  // FR-38: 上次已连通（config 记忆）→ 保存按钮直接可用
+  if (STATE.config && STATE.config.connected) {
+    const save = document.getElementById('btnSaveCfg');
+    if (save) { save.disabled = false; save.removeAttribute('title'); }
+  }
   const tb4 = document.getElementById('p4tbody');
   if (tb4) tb4.addEventListener('dblclick', onRowDblClick);   // 双击行改译文
+  if (tb4) tb4.addEventListener('contextmenu', onRowCtx);     // FR-43: 右键行菜单
+  document.addEventListener('click', () => {                  // 点空白收起下拉/右键菜单
+    const dd = document.getElementById('ddScope'); if (dd) dd.classList.add('hidden');
+    _hideCtx();
+  });
+  // FR-51: 版本号常显状态栏（真源 = server.APP_VERSION，随 /api/state 下发）
   if (!DEMO && STATE.app_version)
     document.getElementById('appVer').textContent = 'v' + STATE.app_version;
   if (DEMO) sb('离线预览模式 · 未连接后端（双击「启动 G-POT 翻译器.bat」为完整功能）');

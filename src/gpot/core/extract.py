@@ -12,8 +12,13 @@ from gpot.core import pipeline
 from . import kernel, rpgmaker_engine
 
 
-def _collect(game_dir: str, deep: bool = False, with_labels: bool = False):
-    """按引擎分流扫描。返回 (kept, labels, guarded_counts)。"""
+def _collect(game_dir: str, deep: bool = False, with_labels: bool = False,
+             guard_frag: bool = True, guard_poll: bool = True):
+    """按引擎分流扫描。返回 (kept, labels, guarded_counts)。
+
+    guard_frag / guard_poll（FR-42）：护栏开关，关掉后对应判据直接放行
+    （计数也为 0）——用户明确选择「不过滤」时生效，默认全开。
+    """
     kept: dict = {}
     labels: dict = {} if with_labels else None
 
@@ -26,12 +31,16 @@ def _collect(game_dir: str, deep: bool = False, with_labels: bool = False):
     orig_poll = kernel.is_polluted_cjk_key
 
     def frag(s):  # noqa: ANN001 —— 包装器签名与原函数一致
+        if not guard_frag:
+            return False
         r = orig_frag(s)
         if r:
             counts["frag"].add(s)
         return r
 
     def poll(s):  # noqa: ANN001
+        if not guard_poll:
+            return False
         r = orig_poll(s)
         if r:
             counts["poll"].add(s)
@@ -63,9 +72,11 @@ def _collect(game_dir: str, deep: bool = False, with_labels: bool = False):
     return kept, counts
 
 
-def extract(store, options: dict) -> dict:  # FR-42: 文本提取与护栏（真实提取+护栏）
+def extract(store, options: dict) -> dict:  # FR-42: 文本提取与护栏（真实提取+护栏；选项：mode/deep/guard_*）
     mode = options.get("mode", "merge")   # merge=仅补缺失（默认）| replace=全量替换
     deep = bool(options.get("deep", False))
+    guard_frag = options.get("guard_frag", True) is not False
+    guard_poll = options.get("guard_poll", True) is not False
     gdir = store.game.get("path", "")
     tstore = store.tstore
 
@@ -74,7 +85,8 @@ def extract(store, options: dict) -> dict:  # FR-42: 文本提取与护栏（真
     if not tstore.entries and tstore.path and kernel.os.path.isfile(tstore.path):
         tstore.load(tstore.path)   # 已有译文先入表（merge 时保留已翻译内容）
 
-    kept, guarded = _collect(gdir, deep=deep)
+    kept, guarded = _collect(gdir, deep=deep,
+                             guard_frag=guard_frag, guard_poll=guard_poll)
 
     if mode == "replace":
         # 全量替换：清空所有现有条目（含已翻译），重建为未翻译原文（旧库 v39-2 语义）

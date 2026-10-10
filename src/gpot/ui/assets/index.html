@@ -113,7 +113,7 @@
         <div id="cfgStatus"></div>
         <div class="btn-row spread">
           <button class="btn" onclick="testConn()">测试连接</button>
-          <button class="btn btn-accent btn-lg" onclick="saveConfig()">保存并继续 · 选择游戏 →</button>
+          <button class="btn btn-accent btn-lg" id="btnSaveCfg" onclick="saveConfig()" disabled title="先做一次连接测试">保存并继续 · 选择游戏 →</button>
         </div>
       </section>
 
@@ -127,10 +127,12 @@
         <div class="card">
           <div class="card-h">游戏位置</div>
           <div class="btn-row" style="margin-bottom:12px">
-            <input class="inp" id="gamePath" style="flex:1" value="F:\erogame\Starmaker_Story\Starmaker Story(1.8e\Starmaker 1.8E">
+            <input class="inp" id="gamePath" style="flex:1" value="F:\erogame\Starmaker_Story\Starmaker Story(1.8e\Starmaker 1.8E"
+                   onkeydown="if(event.key==='Enter')selectGame()" ondblclick="pickFolder()">
             <button class="btn" onclick="pickFolder()"><svg width="14" height="14"><use href="#i-folder"/></svg> 浏览</button>
           </div>
           <div class="drop-hint">把文件夹拖进窗口任意位置也可以 · 或点上方 <b>浏览</b></div>
+          <div id="recentBox" style="margin-top:14px"></div>
         </div>
         <div id="gameInfo"></div>
         <div class="btn-row" style="justify-content:flex-end">
@@ -167,16 +169,16 @@
           <div class="card">
             <div class="card-h">扫描选项</div>
             <div class="cklist">
-              <label class="ck"><input type="radio" name="mode" checked><div><div class="ck-t">增量合并（推荐）</div><div class="ck-d">保留已有译文，只补新条目</div></div></label>
-              <label class="ck"><input type="radio" name="mode"><div><div class="ck-t">重建</div><div class="ck-d">丢弃现表，重新扫一遍</div></div></label>
-              <label class="ck"><input type="radio" name="mode"><div><div class="ck-t">仅标签模式</div><div class="ck-d">慢 3 倍，长对话命中更好</div></div></label>
+              <label class="ck"><input type="radio" name="mode" value="merge" checked><div><div class="ck-t">增量合并（推荐）</div><div class="ck-d">保留已有译文，只补新条目</div></div></label>
+              <label class="ck"><input type="radio" name="mode" value="replace"><div><div class="ck-t">重建</div><div class="ck-d">丢弃现表，重新扫一遍</div></div></label>
+              <label class="ck"><input type="radio" name="mode" value="labels"><div><div class="ck-t">仅标签模式</div><div class="ck-d">慢 3 倍，长对话命中更好</div></div></label>
             </div>
           </div>
           <div class="card">
             <div class="card-h">护栏</div>
-            <label class="sw"><input type="checkbox" checked><div><div>过滤截断碎片</div><div class="sw-d">上一轮拦掉 8,045 条（占 35.4%），0 误伤</div></div></label>
-            <label class="sw"><input type="checkbox" checked><div><div>过滤污染词条</div><div class="sw-d">上一轮拦掉 80 / 95，0 误伤</div></div></label>
-            <label class="sw"><input type="checkbox" checked><div><div>排除 resS / .resource</div><div class="sw-d">占 _Data 的 91.3%，实测 0 条真文本</div></div></label>
+            <label class="sw"><input type="checkbox" checked id="gFrag"><div><div>过滤截断碎片</div><div class="sw-d">上一轮拦掉 8,045 条（占 35.4%），0 误伤</div></div></label>
+            <label class="sw"><input type="checkbox" checked id="gPoll"><div><div>过滤污染词条</div><div class="sw-d">上一轮拦掉 80 / 95，0 误伤</div></div></label>
+            <label class="sw"><input type="checkbox" checked disabled><div><div>排除 resS / .resource</div><div class="sw-d">占 _Data 的 91.3%，实测 0 条真文本（恒开）</div></div></label>
           </div>
         </div>
         <div class="card">
@@ -210,9 +212,17 @@
             <div class="prog" id="p4bar"><i style="width:62%"></i></div>
             <div class="prog-txt" id="p4txt">62%</div>
           </div>
-          <span class="subtle nowrap">预计 22 分钟 · 并发 4 · 已译文不会被覆盖</span>
-          <button class="btn btn-accent" id="btnTrans" onclick="runTranslate()">翻译未译条目</button>
-          <button class="btn" onclick="runTranslate(true)">仅重试失败</button>
+          <span class="subtle nowrap" id="p4eta">预计剩余 —— · 已译文不会被覆盖</span>
+          <div style="position:relative;display:flex">
+            <button class="btn btn-accent" id="btnTrans" onclick="runTranslate('todo')">翻译未译条目</button>
+            <button class="btn btn-accent" onclick="ddToggle(event)" title="选择翻译范围" style="border-left:1px solid var(--border)">▾</button>
+            <div id="ddScope" class="hidden" style="position:absolute;top:100%;right:0;z-index:30;background:var(--surface);border:1px solid var(--border);border-radius:3px;min-width:150px;padding:4px 0;box-shadow:0 6px 18px rgba(0,0,0,.35)">
+              <button class="dd-item" onclick="runTranslate('todo')">仅未翻译</button>
+              <button class="dd-item" onclick="runTranslate('filtered')">当前筛选</button>
+              <button class="dd-item" onclick="runTranslate('all')">全部</button>
+              <button class="dd-item" onclick="runTranslate('retry')">仅重试失败</button>
+            </div>
+          </div>
           <button class="btn" id="btnStop" onclick="stopTranslate()" disabled>停止</button>
         </div>
         <div class="tbl-zone">
@@ -227,10 +237,10 @@
             </select>
             <span class="subtle nowrap" id="p4count">共 0 条</span>
             <div class="spacer"></div>
-            <button class="btn btn-ghost">导入 CSV</button>
-            <button class="btn btn-ghost">导出 CSV</button>
-            <button class="btn btn-ghost">查找替换</button>
-            <button class="btn btn-ghost">清理重复</button>
+            <button class="btn btn-ghost" onclick="importCsv()">导入 CSV</button>
+            <button class="btn btn-ghost" onclick="exportCsv()">导出 CSV</button>
+            <button class="btn btn-ghost" onclick="openReplace()">查找替换</button>
+            <button class="btn btn-ghost" onclick="dedupRows()">清理重复</button>
           </div>
           <div class="tblwrap">
             <table>
@@ -332,6 +342,28 @@
     <span class="mono" id="appVer" style="opacity:.55;font-size:10.5px;margin-left:12px"></span>
   </div>
 </div>
+
+<!-- 查找替换（FR-43） -->
+<div id="replModal" class="hidden" onclick="if(event.target===this)closeReplace()"
+     style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:60;display:flex;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:18px 20px;min-width:340px">
+    <div class="card-h" style="margin-bottom:12px">查找替换</div>
+    <div class="field"><label class="lbl">查找</label><input class="inp" id="replFind" style="width:100%"></div>
+    <div class="field" style="margin-top:10px"><label class="lbl">替换为</label><input class="inp" id="replWith" style="width:100%"></div>
+    <div class="field" style="margin-top:10px"><label class="lbl">范围</label>
+      <select class="inp" id="replField" style="width:100%">
+        <option value="translation">仅译文</option>
+        <option value="original">仅原文</option>
+        <option value="both">原文 + 译文</option>
+      </select></div>
+    <div class="btn-row" style="justify-content:flex-end;margin-top:14px">
+      <button class="btn" onclick="closeReplace()">取消</button>
+      <button class="btn btn-accent" onclick="doReplace()">全部替换</button>
+    </div>
+  </div>
+</div>
+<!-- 表格右键菜单（FR-43） -->
+<div id="ctxMenu" class="hidden" style="position:fixed;z-index:70;background:var(--surface);border:1px solid var(--border);border-radius:3px;min-width:132px;padding:4px 0;box-shadow:0 6px 18px rgba(0,0,0,.35)"></div>
 
 <script src="app.js"></script>
 </body>

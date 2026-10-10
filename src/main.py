@@ -56,7 +56,7 @@ if os.environ.get("GPOT_NOWIN") != "1" and sys.argv and \
                 pass
             subprocess.Popen(
                 [sys.executable, _script] + sys.argv[1:],
-                creationflags=0x08000000,  # CREATE_NO_WINDOW：子进程完全没有控制台
+                creationflags=0x08000000,  # FR-50: CREATE_NO_WINDOW——子进程完全没有控制台（黑窗根治）
                 env=_env, cwd=os.path.dirname(_script) or None,
                 stdin=subprocess.DEVNULL, stdout=_logf, stderr=_logf)
             sys.exit(0)

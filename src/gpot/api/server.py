@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import os
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
@@ -22,9 +23,9 @@ from gpot.core import (store as _store, detection, providers,
 # 应用级唯一状态实例
 _STATE = _store.Store()
 
-# 应用版本（老板 2026-10-10 指定：修改版从 V0.4* 起编号；/api/state 暴露，
-# main.py 双开复用前比对——旧版本实例不复用，避免「双击 bat 还是老版本」）
-APP_VERSION = "0.4.3"
+# 应用版本（FR-51: 版本唯一真源，随 /api/state 暴露、状态栏常显、双开复用前比对——
+# 旧版本实例不复用，避免「双击 bat 还是老版本」；老板 2026-10-10 指定 V0.4* 起编号）
+APP_VERSION = "0.4.4"
 
 # 旧库格式 config.ini（随 kernel 落在 core/ 目录）—— 提供方/游戏目录记忆
 _CFG = kernel.load_config()
@@ -67,6 +68,27 @@ def _restore_config() -> None:
         c["model"] = _CFG["model"]
 
 
+def _persist_flow() -> None:
+    """FR-37: 步骤状态持久化 —— current_step / max_step 写 config.ini（flow.* 键）。"""
+    _CFG["flow.current_step"] = str(_STATE.current_step)
+    _CFG["flow.max_step"] = str(_STATE.max_step)
+    try:
+        kernel.save_config(_CFG)
+    except Exception:
+        pass
+
+
+def _restore_flow() -> None:
+    """FR-37: 启动时回到上次所在步骤（无记录 / 首次启动 → 第 0 步）。"""
+    try:
+        cur = int(str(_CFG.get("flow.current_step", "") or ""), 10)
+        mx = int(str(_CFG.get("flow.max_step", "") or ""), 10)
+    except ValueError:
+        return                      # 从未走过流程 → 保持第 0 步
+    _STATE.max_step = max(0, min(mx, len(_store.STEPS) - 1))
+    _STATE.current_step = max(0, min(cur, _STATE.max_step))
+
+
 def _kit_tools(engine: dict | None, deployed: bool = False) -> list:
     """注入工具清单（真实数据：kit_catalog.required_tools）。"""
     eng = (engine or {}).get("engine")
@@ -86,9 +108,74 @@ def _kit_tools(engine: dict | None, deployed: bool = False) -> list:
     return out
 
 
+def _recent_list() -> list:  # FR-39: 最近使用列表（游戏名+路径+已积累条数+已配置徽章）
+    out = []
+    for d in (_CFG.get("recent_dirs") or [])[:5]:
+        if not d or not os.path.isdir(d):
+            continue
+        root, _rel = detection.resolve_game_root(d)
+        tp = kernel.translation_file_path(root) if root else ""
+        n = 0
+        if tp and os.path.isfile(tp):
+            probe = kernel.TranslationStore()
+            try:
+                probe.load(tp)
+                n = len(probe.entries)
+            except Exception:
+                n = 0
+        out.append({"path": d, "name": _name_from_path(root or d),
+                    "entries": n, "configured": n > 0})
+    return out
+
+
 def _name_from_path(p: str) -> str:
     p = (p or "").rstrip("/\\")
     return p.split("/")[-1].split("\\")[-1] or "未命名游戏"
+
+
+# ----------------------------- 第 4 步表格工具（FR-43） -----------------------------
+def _replace_rows(find: str, repl: str, field: str = "translation") -> int:
+    """查找替换：field = translation | original | both。返回改动的条数。"""
+    if not find:
+        return 0
+    fields = {"translation", "original"} if field == "both" else {field}
+    n = 0
+    for e in _STATE.tstore.entries:
+        hit = False
+        for f in fields:
+            if find in (e.get(f) or ""):
+                e[f] = (e.get(f) or "").replace(find, repl)
+                hit = True
+        if hit:
+            _STATE.tstore.update_status(e)
+            n += 1
+    if n:
+        _STATE.tstore.save(_STATE.tstore.path)
+    return n
+
+
+def _dedup_rows() -> int:
+    """清理重复：同原文多条 → 保留有译文的一条，返回删除条数。"""
+    t = _STATE.tstore
+    keep: list = []
+    idx: dict = {}
+    removed = 0
+    for e in t.entries:
+        k = kernel.normalize(e["original"])
+        if k not in idx:
+            idx[k] = e
+            keep.append(e)
+            continue
+        removed += 1
+        old = idx[k]
+        if not old.get("translation") and e.get("translation"):
+            keep[keep.index(old)] = e   # 换成带译文的那条
+            idx[k] = e
+    if removed:
+        t.entries = keep
+        t.dirty = True
+        t.save(t.path)
+    return removed
 
 
 # 游戏目录里不算「游戏本体」的 exe（按名字排除）
@@ -121,7 +208,7 @@ _CLSID_FILE_OPEN_DIALOG = "DC1C5A9C-E88A-4DDE-A5A1-60F82A20AEF7"
 _IID_I_FILE_OPEN_DIALOG = "D57C7288-D4AD-4768-BE02-9D969532D960"
 
 
-def _pick_folder() -> dict:
+def _pick_folder() -> dict:  # FR-52: 第 1 步「浏览」——现代版目录选择器（老式 SHBrowse 仅兜底）
     """Windows「浏览文件夹」对话框（在 HTTP worker 线程内打开）。
 
     首选现代版 IFileOpenDialog（Vista 通用项对话框，老板 2026-10-10 指定），
@@ -199,6 +286,86 @@ def _pick_folder_modern() -> dict:
             _m(psi.value, 2, wintypes.DWORD)(psi)      # Release
     finally:
         _m(dlg.value, 2, wintypes.DWORD)(dlg)          # Release
+        ole32.CoUninitialize()
+
+
+def _pick_file() -> dict:  # FR-52: 文件选择（CSV 导入用）——同族对话框，选文件不选文件夹
+    if os.name != "nt":
+        return {"path": None, "canceled": True,
+                "message": "当前系统无原生对话框 · 请直接输入 CSV 路径"}
+    try:
+        return _pick_file_modern()
+    except Exception:
+        return {"path": None, "canceled": True, "message": "无法打开文件选择器"}
+
+
+def _pick_file_modern() -> dict:
+    """现代版文件选择（IFileDialog，FOS_FILEMUSTEXIST，CSV 过滤）。"""
+    import ctypes
+    from ctypes import wintypes
+
+    PVOID = ctypes.c_void_p
+
+    class GUID(ctypes.Structure):
+        _fields_ = [("Data1", wintypes.DWORD), ("Data2", wintypes.WORD),
+                    ("Data3", wintypes.WORD), ("Data4", ctypes.c_ubyte * 8)]
+
+    class FILTERSPEC(ctypes.Structure):
+        _fields_ = [("name", wintypes.LPCWSTR), ("spec", wintypes.LPCWSTR)]
+
+    def _guid(s: str) -> GUID:
+        g = GUID()
+        hr = ctypes.windll.ole32.CLSIDFromString(
+            ctypes.c_wchar_p("{%s}" % s.strip("{}")), ctypes.byref(g))
+        if hr != 0:
+            raise OSError("CLSIDFromString 0x%08X" % (hr & 0xFFFFFFFF))
+        return g
+
+    def _m(obj: int, idx: int, restype, *argtypes):
+        vtbl = ctypes.cast(PVOID(obj), ctypes.POINTER(PVOID)).contents.value
+        fp = ctypes.cast(PVOID(vtbl + idx * ctypes.sizeof(PVOID)),
+                         ctypes.POINTER(PVOID)).contents.value
+        return ctypes.WINFUNCTYPE(restype, PVOID, *argtypes)(fp)
+
+    ole32 = ctypes.windll.ole32
+    ole32.CoInitialize(None)
+    dlg = PVOID()
+    hr = ole32.CoCreateInstance(ctypes.byref(_guid(_CLSID_FILE_OPEN_DIALOG)),
+                                None, 1, ctypes.byref(_guid(_IID_I_FILE_OPEN_DIALOG)),
+                                ctypes.byref(dlg))
+    if hr != 0 or not dlg.value:
+        raise OSError("CoCreateInstance 0x%08X" % (hr & 0xFFFFFFFF))
+    try:
+        # SetFileTypes（vtable=4）：CSV / 全部文件
+        filters = (FILTERSPEC * 2)(
+            FILTERSPEC(name="CSV 译文表", spec="*.csv"),
+            FILTERSPEC(name="全部文件", spec="*.*"))
+        _m(dlg.value, 4, HRESULT, wintypes.UINT, PVOID)(dlg, 2, filters)
+        # SetOptions：FOS_FILEMUSTEXIST | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST
+        _m(dlg.value, 9, HRESULT, wintypes.DWORD)(dlg, 0x4 | 0x40 | 0x800)
+        _m(dlg.value, 17, HRESULT, wintypes.LPCWSTR)(dlg, "选择要导入的 CSV 译文表")
+        hr = _m(dlg.value, 3, HRESULT, wintypes.HWND)(dlg, None)   # Show
+        if hr != 0:
+            return {"path": None, "canceled": True}
+        psi = PVOID()
+        hr = _m(dlg.value, 20, HRESULT, PVOID)(dlg, ctypes.byref(psi))  # GetResult
+        if hr != 0 or not psi.value:
+            return {"path": None, "canceled": True}
+        try:
+            ppsz = PVOID()
+            hr = _m(psi.value, 5, HRESULT, wintypes.DWORD, PVOID)(
+                psi, 0x80058000, ctypes.byref(ppsz))
+            if hr != 0 or not ppsz.value:
+                return {"path": None, "canceled": True}
+            try:
+                path = ctypes.wstring_at(ppsz.value)
+            finally:
+                ole32.CoTaskMemFree(ppsz)
+            return {"path": path, "canceled": False}
+        finally:
+            _m(psi.value, 2, wintypes.DWORD)(psi)
+    finally:
+        _m(dlg.value, 2, wintypes.DWORD)(dlg)
         ole32.CoUninitialize()
 
 
@@ -326,7 +493,9 @@ class _Handler(BaseHTTPRequestHandler):
             jid = path.rsplit("/", 1)[-1]
             j = translate.get_job(_STATE, jid)
             return self._send(200 if j else 404, j or {"error": "no such job"})
-        if path == "/api/pick-folder":  # 第 1 步「浏览」：原生文件夹选择对话框
+        if path == "/api/recent":  # FR-39: 最近使用列表
+            return self._send(200, {"recent": _recent_list()})
+        if path == "/api/pick-folder":  # FR-52: 第 1 步「浏览」——原生文件夹选择对话框
             return self._send(200, _pick_folder())
         if path == "/api/rows":   # 第 4 步表格：真实条目（分页/筛选/搜索）
             return self._send(200, self._rows(parse_qs(p.query)))
@@ -396,6 +565,7 @@ class _Handler(BaseHTTPRequestHandler):
             if r["connected"]:
                 pipeline.complete_step(_STATE, 0)
             _persist_config()
+            _persist_flow()   # FR-37
             return self._send(200, {"config": _STATE.config, **r})
 
         if path == "/api/game":  # FR-39: 选择游戏目录（第 1 步，真实载入已有译文）
@@ -429,14 +599,16 @@ class _Handler(BaseHTTPRequestHandler):
             _CFG["recent_dirs"] = ([gp_norm] + recent)[:5]
             _persist_config()
             pipeline.complete_step(_STATE, 1)
+            _persist_flow()   # FR-37
             return self._send(200, _STATE.game)
 
-        if path == "/api/detect":  # FR-40: 识别引擎（第 2 步，真实启发式）
+        if path == "/api/detect":  # FR-40: 识别引擎（第 2 步，真实启发式）· FR-41: 工具清单随回
             eng = detection.detect_engine(_STATE.game.get("path", ""))
             _STATE.engine = eng
-            _STATE.kit = {"deployed": False, "tools": _kit_tools(eng)}
+            _STATE.kit = {"deployed": False, "tools": _kit_tools(eng), "skipped": False}
             pipeline.complete_step(_STATE, 2)
-            return self._send(200, eng)
+            _persist_flow()   # FR-37
+            return self._send(200, {**eng, "kit": _STATE.kit})
 
         if path == "/api/deploy":  # FR-41: 部署注入工具（第 2 步·真实下载部署）
             eng = (_STATE.engine or {}).get("engine")
@@ -460,13 +632,19 @@ class _Handler(BaseHTTPRequestHandler):
 
         if path == "/api/extract":  # FR-42: 提取待翻译文本与护栏（第 3 步，真实提取）
             try:
-                return self._send(200, extract.extract(_STATE, b))
+                out = extract.extract(_STATE, b)
+                _persist_flow()   # FR-37
+                return self._send(200, out)
             except Exception as e:
                 return self._send(500, {"error": "extract_failed",
                                         "message": str(e)[:300]})
 
-        if path == "/api/translate/start":  # FR-43: 启动翻译任务（第 4 步，真实后端）
-            jid = translate.start_translate(_STATE, bool(b.get("retry")))
+        if path == "/api/translate/start":  # FR-43: 启动翻译任务（第 4 步，真实后端；scope=todo/filtered/all/retry）
+            scope = b.get("scope") or ("retry" if b.get("retry") else "todo")
+            flt = {"q": b.get("q", ""), "status": b.get("status", "all")}
+            jid = translate.start_translate(_STATE, bool(b.get("retry")),
+                                            scope=scope, flt=flt)
+            _persist_flow()   # FR-37
             if jid is None:
                 return self._send(409, {"error": "running",
                                         "message": "已有翻译任务在进行"})
@@ -484,7 +662,9 @@ class _Handler(BaseHTTPRequestHandler):
                 return self._send(400, {"error": "engine_mismatch",
                                         "message": f"当前游戏管线为 {detected}，不能按 {ek} 管线写入"})
             try:
-                return self._send(200, sink.apply(_STATE, ek))
+                out = sink.apply(_STATE, ek)
+                _persist_flow()   # FR-37
+                return self._send(200, out)
             except Exception as e:
                 return self._send(500, {"error": "apply_failed",
                                         "message": str(e)[:300]})
@@ -540,12 +720,62 @@ class _Handler(BaseHTTPRequestHandler):
             code, payload = self._row_edit(b)
             return self._send(code, payload)
 
-        if path == "/api/nav":  # FR-36: 导航锁（只落已解锁区间）
+        if path == "/api/export-csv":  # FR-43: 导出 CSV（UTF-8-sig，人工回填/备份用）
+            t = _STATE.tstore
+            if not t.entries:
+                return self._send(400, {"error": "empty",
+                                        "message": "还没有条目可导出（先在第 3 步提取）"})
+            out_dir = os.path.dirname(t.path) if t.path else os.getcwd()
+            os.makedirs(out_dir, exist_ok=True)
+            out = os.path.join(out_dir,
+                               "gpot-export-%s.csv" % time.strftime("%Y%m%d-%H%M%S"))
+            try:
+                kernel.export_csv(t, out)
+            except Exception as e:
+                return self._send(500, {"error": "export_failed",
+                                        "message": str(e)[:200]})
+            return self._send(200, {"ok": True, "path": out, "rows": len(t.entries)})
+
+        if path == "/api/import-csv":  # FR-43: 导入 CSV（merge：按原文合并，无路径时先弹文件对话框）
+            ip = b.get("path")
+            if not ip:
+                ip = (_pick_file() or {}).get("path")
+                if not ip:
+                    return self._send(200, {"canceled": True})
+            if not os.path.isfile(ip):
+                return self._send(400, {"error": "bad_file",
+                                        "message": "文件不存在：%s" % ip})
+            try:
+                n = kernel.import_csv(_STATE.tstore, ip, mode="merge")
+            except Exception as e:
+                return self._send(500, {"error": "import_failed",
+                                        "message": str(e)[:200]})
+            if n:
+                _STATE.tstore.save(_STATE.tstore.path)   # 立即落盘
+            st = _STATE.tstore.stats()
+            _STATE.translate.update({"total": st["total"], "done": st["translated"]})
+            return self._send(200, {"ok": True, "updated": n, "path": ip,
+                                    "total": st["total"], "translated": st["translated"]})
+
+        if path == "/api/replace":  # FR-43: 查找替换（立即落盘）
+            n = _replace_rows(b.get("find", ""), b.get("replace", ""),
+                              b.get("field", "translation"))
+            return self._send(200, {"ok": True, "replaced": n})
+
+        if path == "/api/dedup":  # FR-43: 清理重复（同原文保留有译文的一条）
+            removed = _dedup_rows()
+            return self._send(200, {"ok": True, "removed": removed,
+                                    "total": len(_STATE.tstore.entries)})
+
+        if path == "/api/nav":  # FR-36: 导航锁（只落已解锁区间）· FR-37: 位置持久化
             ok = _STATE.nav(int(b.get("step", 0)))
+            if ok:
+                _persist_flow()
             return self._send(200 if ok else 400, _STATE.to_dict())
 
         if path == "/api/reset":
             _STATE.reset()
+            _persist_flow()   # FR-37: 重置后从第 0 步重新开始
             return self._send(200, _STATE.to_dict())
 
         return self._send(404, {"error": "not found"})
@@ -560,6 +790,7 @@ class _Srv(ThreadingHTTPServer):
 
 def build_server(port: int = 8731) -> ThreadingHTTPServer:
     _restore_config()
+    _restore_flow()   # FR-37: 下次打开回到上次所在步骤（首次启动落第 0 步）
     return _Srv(("127.0.0.1", port), _Handler)
 
 

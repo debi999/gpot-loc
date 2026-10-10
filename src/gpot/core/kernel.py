@@ -1890,6 +1890,10 @@ def load_config():
         # v3.28: 保存时是否同步把译文写到「注入工具认的位置」（默认开）。
         #       关掉的方法：config.ini 里 [translate] sync_kit = 0
         'sync_kit': '1',
+        # v4.0 (FR-37): 七步流水线状态持久化 —— 启动时回到上次所在步骤。
+        #       空串 = 从未走过流程（首次启动落第 0 步）
+        'flow.current_step': '',
+        'flow.max_step': '',
     }
     cp = configparser.RawConfigParser()  # RawConfigParser: % 不触发插值(prompt 含 %s)
     if os.path.isfile(CONFIG_PATH):
@@ -1936,6 +1940,9 @@ def save_config(cfg):
     # v3.18: 游戏目录记忆(简单字符串键, 单独追加)
     cp['translate']['game_dir'] = str(cfg.get('game_dir', '') or '')
     cp['translate']['recent_dirs'] = '|'.join(cfg.get('recent_dirs') or [])
+    # v4.0 (FR-37): 步骤状态（键名带点，RawConfigParser 原样存取）
+    cp['translate']['flow.current_step'] = str(cfg.get('flow.current_step', '') or '')
+    cp['translate']['flow.max_step'] = str(cfg.get('flow.max_step', '') or '')
     # 每提供方自定义记忆段 [provider:xxx]: 仅写非空且有差异的自定义值
     for nm, m in (cfg.get('provider_mem') or {}).items():
         if nm not in PROVIDERS:

@@ -79,10 +79,29 @@ class Store:
             self.sink = {"applied": False, "engine": None, "files": [],
                          "backup": None, "note": ""}
 
+    def _steps_dynamic(self) -> list:  # FR-35: 副标题 = 该步真实结果，没跑过写「待执行」，不许编造
+        c = self.config
+        e = self.engine or {}
+        ext = self.extract
+        t = self.translate
+        subs = [
+            (f"{c.get('provider', '')} · 已连接" if c.get("connected")
+             else "未连接"),
+            (self.game.get("name") or "未选择"),
+            ((e.get("name") or "未识别") + (" · 工具就位" if self.kit.get("deployed") else "")),
+            (f"在表 {ext.get('total', 0):,} 条" if ext.get("status") == "done"
+             else "未提取"),
+            (f"已译 {t.get('done', 0):,} / {t.get('total', 0):,}" if t.get("total")
+             else "未翻译"),
+            ("已应用" if self.sink.get("applied") else "待执行"),
+            "待执行",
+        ]
+        return [dict(s, sub=subs[s["n"]]) for s in STEPS]
+
     def to_dict(self) -> dict:
         with self.lock:
             return {
-                "steps": STEPS,
+                "steps": self._steps_dynamic(),
                 "current_step": self.current_step,
                 "max_step": self.max_step,
                 "config": self.config,

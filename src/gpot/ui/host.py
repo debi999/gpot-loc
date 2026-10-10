@@ -66,7 +66,7 @@ def open_window(url: str, title: str = "G-POT 翻译器") -> None:
     ctl = WinCtl()
     win = webview.create_window(title, url, width=1180, height=760,
                                 min_size=(900, 600),
-                                frameless=True,   # v0.4：去原生标题栏
+                                frameless=True,   # FR-50: 去原生标题栏（min/max/close 整合顶栏 WinCtl）
                                 easy_drag=False,  # 拖动交给顶栏 drag-region
                                 js_api=ctl)
     ctl._bind(win)
