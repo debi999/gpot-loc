@@ -30,16 +30,22 @@
 
 <div class="app">
 
-  <!-- ============ 标题栏 ============ -->
+  <!-- ============ 顶栏（v0.4：无边框窗口——本栏即拖动把手 + 窗口控制） ============ -->
   <div class="titlebar">
-    <div class="tb-brand">
+    <div class="tb-brand pywebview-drag-region">
       <div class="tb-logo"><svg width="16" height="16" viewBox="0 0 24 24"><use href="#i-pot"/></svg></div>
       <span class="tb-name"><b>G-POT</b> 翻译器</span>
       <span class="tb-sub">把生肉熬成蜜语 · HOOK/EXTRACT/TRANSLATE</span>
     </div>
+    <div class="tb-drag pywebview-drag-region"></div>
     <div class="tb-right">
       <button class="iconbtn" id="themeBtn" title="切换明暗模式" onclick="toggleTheme()"><svg width="15" height="15"><use href="#i-sun"/></svg></button>
       <button class="iconbtn" title="设置"><svg width="15" height="15"><use href="#i-gear"/></svg></button>
+      <div class="winctl" id="winCtl" hidden>
+        <button class="wbtn" id="winMin" title="最小化"><svg width="12" height="12" viewBox="0 0 12 12"><rect x="1.5" y="5.2" width="9" height="1.6" rx=".8" fill="currentColor"/></svg></button>
+        <button class="wbtn" id="winMax" title="最大化 / 还原"><svg width="12" height="12" viewBox="0 0 12 12"><rect x="2" y="2" width="8" height="8" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
+        <button class="wbtn wbtn-close" id="winClose" title="关闭"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.4 2.4 L9.6 9.6 M9.6 2.4 L2.4 9.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+      </div>
     </div>
   </div>
 

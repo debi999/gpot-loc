@@ -78,10 +78,13 @@ REM ---------------------------------------------------------------------------
 REM 2) 启动：pythonw 无黑窗，bat 窗口随即关闭。运行日志: %TEMP%\gpot-run.log
 REM ---------------------------------------------------------------------------
 set "PYW=!PY:python.exe=pythonw.exe!"
+echo [G-POT] 解释器: !PY! >> "%LOG%"
+echo [G-POT] pythonw: !PYW! >> "%LOG%"
 if exist "!PYW!" (
+  echo [G-POT] 分支: pythonw 无黑窗启动 >> "%LOG%"
   start "" "!PYW!" main.py
 ) else (
-  echo [G-POT] 未找到 pythonw，改用最小化窗口启动...
+  echo [G-POT] 未找到 pythonw，回退 python 最小化启动（控制台会由程序自行隐藏）>> "%LOG%"
   start /min "" "!PY!" main.py
 )
 endlocal

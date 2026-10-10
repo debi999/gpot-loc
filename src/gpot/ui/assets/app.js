@@ -625,10 +625,28 @@ async function loadVerify() {
 }
 
 /* ---------------- 启动 ---------------- */
+/* v0.4：无边框窗口控制——仅 pywebview 宿主内显示（浏览器/DEMO 无桥自动隐藏） */
+function initWinCtl() {
+  const box = document.getElementById('winCtl');
+  if (!box) return;
+  const bind = () => {
+    const api = window.pywebview && window.pywebview.api;
+    if (!api || typeof api.minimize !== 'function') return false;
+    document.getElementById('winMin').onclick = () => api.minimize();
+    document.getElementById('winMax').onclick = () => api.toggle_max();
+    document.getElementById('winClose').onclick = () => api.close();
+    box.hidden = false;
+    return true;
+  };
+  if (bind()) return;
+  window.addEventListener('pywebviewready', bind, { once: true });
+}
+
 (async function init() {
   await loadProviders();
   await loadState();
   fillTable();
+  initWinCtl();
   if (!DEMO && STATE.app_version)
     document.getElementById('appVer').textContent = 'v' + STATE.app_version;
   if (DEMO) sb('离线预览模式 · 未连接后端（双击「启动 G-POT 翻译器.bat」为完整功能）');

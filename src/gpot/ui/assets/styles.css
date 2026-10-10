@@ -122,6 +122,18 @@ button{font-family:inherit;cursor:pointer}
 .iconbtn:hover{background:rgba(221,160,188,.08);color:var(--ink)}
 .iconbtn:active{transform:scale(.96)}
 
+/* v0.4 无边框窗口：拖动带 + 页面内窗口控制按钮（仅 WebView2 模式显示） */
+.tb-drag{flex:1 1 auto;align-self:stretch;min-width:24px}
+.winctl{display:flex;align-items:center;gap:2px;margin-left:8px;
+  padding-left:10px;border-left:1px solid var(--hairline)}
+.winctl[hidden]{display:none}
+.wbtn{width:34px;height:30px;border:none;background:transparent;border-radius:var(--r);
+  display:flex;align-items:center;justify-content:center;color:var(--text-mute);cursor:pointer;
+  transition:background .15s,color .15s}
+.wbtn:hover{background:rgba(221,160,188,.10);color:var(--ink)}
+.wbtn:active{transform:scale(.94)}
+.wbtn-close:hover{background:var(--danger-soft);color:var(--danger)}
+
 /* ---------- 主体 ---------- */
 .body{flex:1;display:flex;min-height:0;position:relative;z-index:1}
 

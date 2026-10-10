@@ -48,6 +48,29 @@ def _gpot_alive(port: int) -> str | None:
         return None
 
 
+def _detach_console() -> None:
+    """GUI 模式下隐藏后端黑窗（v0.4 老板实测反馈）。
+
+    bat 已改用 pythonw 启动，但解释器探测存在回退分支（如 `py` 启动器/
+    未找到 pythonw 时 start /min 仍用 python.exe）——那种情况下会留下一个
+    控制台窗口。这里先输出重定向到日志、再 FreeConsole：控制台窗口只要
+    没有其他进程附着就会随之关闭，python/pythonw 两种启动方式通吃。
+    --no-gui（调试模式）绝不调用，保留控制台看日志。
+    """
+    try:
+        log = open(os.path.join(os.environ.get("TEMP", os.getcwd()),
+                                "gpot-run.log"), "a", encoding="utf-8", buffering=1)
+        log.write("[%s] === G-POT run ===\n" % time.strftime("%Y-%m-%d %H:%M:%S"))
+        sys.stdout = sys.stderr = log
+    except Exception:
+        pass
+    try:
+        import ctypes
+        ctypes.windll.kernel32.FreeConsole()
+    except Exception:
+        pass
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="G-POT Loc (C-route prototype)")
     ap.add_argument("--no-gui", action="store_true", help="只启动 API 服务")
@@ -87,6 +110,10 @@ def main() -> None:
     else:
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         print(f"[G-POT] API 监听于 {url}")
+
+    # GUI / 浏览器模式都属「无控制台交付形态」：隐藏黑窗（--no-gui 调试除外）
+    if not args.no_gui:
+        _detach_console()
 
     if args.no_gui or args.open_browser:
         if args.open_browser:

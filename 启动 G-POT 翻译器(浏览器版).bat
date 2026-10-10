@@ -49,10 +49,13 @@ REM 2) 启动（--open-browser：仅本地服务 + 系统浏览器，不依赖 W
 REM    pythonw 无黑窗，bat 窗口随即关闭。运行日志: %TEMP%\gpot-run.log
 REM ---------------------------------------------------------------------------
 set "PYW=!PY:python.exe=pythonw.exe!"
+echo [G-POT] 解释器: !PY! >> "%LOG%"
+echo [G-POT] pythonw: !PYW! >> "%LOG%"
 if exist "!PYW!" (
-  start "" "!PYW!" main.py --open-browser
+  echo [G-POT] 分支: pythonw 无黑窗启动 >> "%LOG%"
+  start "" "!PYW!" main.py --open-browser --open-browser
 ) else (
-  echo [G-POT] 未找到 pythonw，改用最小化窗口启动...
+  echo [G-POT] 未找到 pythonw，回退 python 最小化启动（控制台会由程序自行隐藏）>> "%LOG%"
   start /min "" "!PY!" main.py --open-browser
 )
 endlocal
