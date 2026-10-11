@@ -280,6 +280,91 @@ async function resetAll() {
 
 /* ---------------- Step 0：配置 ---------------- */
 let PROVS = [];                  // 真实提供方目录（含默认地址/模型/needs_key）
+/* ---------------- FR-67: 模型选择器（select + 自定义手输，单源口径） ----------------
+   背景：原实现是 `<input list>` + `<datalist>`。datalist 在 Edge/Chrome 里按输入框
+   **当前值做前缀过滤** —— 框里预填着 `hy-mt2-30b-a3b-apex:nano`，点下拉就只剩它自己，
+   而后端明明返回 2 个、DOM 里也确实是 2 个 <option>。老板看到的现象是
+   「可用模型 2 个，下拉列表却只有一个」。换成真 <select> 根治（select 不做前缀过滤）。
+
+   ⚠️ 手输能力不能丢：模型名常带 `:latest` 之类不在列表里的后缀，老版也允许手填，
+   所以保留一个「自定义…」项，切过去展开 #cfgModel 输入框。
+   以下 4 个函数是**唯一真源**，读/写/填列表三件事都从这里走，别在别处直接摸 DOM。 */
+const MODEL_CUSTOM = '__custom__';      // 「自定义…」项的哨兵值（不可能与模型名撞车）
+
+function modelList() {          // 已拉取到的模型名列表
+  return _MODELS.slice();
+}
+function curModel() {           // 当前生效的模型名（select 选中项 或 手输框内容）
+  const sel = document.getElementById('cfgModelSel');
+  const inp = document.getElementById('cfgModel');
+  if (sel && sel.value === MODEL_CUSTOM) return (inp && inp.value || '').trim();
+  if (sel && sel.value) return sel.value;
+  return (inp && inp.value || '').trim();
+}
+function setModel(name) {       // 把模型名写回控件：列表里有就选中，没有就落到手输框
+  const sel = document.getElementById('cfgModelSel');
+  const inp = document.getElementById('cfgModel');
+  const v = (name || '').trim();
+  if (!sel) { if (inp) inp.value = v; return; }
+  if (v && modelList().includes(v)) {
+    sel.value = v;
+    if (inp) { inp.value = ''; inp.classList.add('hidden'); }
+  } else {
+    // 不在列表里：切「自定义…」让用户能看见并改这个值（不静默吞掉）
+    sel.value = MODEL_CUSTOM;
+    if (inp) { inp.value = v; inp.classList.remove('hidden'); }
+  }
+}
+function fillModelSelect(models) {   // 填下拉；保留当前选择（当前值仍在列表里就不动它）
+  const sel = document.getElementById('cfgModelSel');
+  const inp = document.getElementById('cfgModel');
+  if (!sel) return;
+  const list = (models || []).filter(m => typeof m === 'string' && m);
+  _MODELS = list;
+  const keep = curModel();
+  // ⚠️ FR-67 坑一：`<option value="x">`（自闭合无文本）在 HTML 里**不被当作自闭合**——
+  //   解析器会把它当开标签，后面的模型名全被丢弃，option 文本为空 → 下拉一片空白。
+  //   必须写成 `<option value="x">文本</option>` 或至少给个文本节点。
+  // ⚠️ FR-67 坑二：模型名含 `&`/`<` 等字符时必须转义，否则 option 文本被吞/串行。
+  sel.innerHTML =
+    (list.length ? list.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('')
+                 : '<option value="">（先点「获取模型」拉取列表）</option>')
+    + `<option value="${MODEL_CUSTOM}">自定义…（列表里没有，手输模型名）</option>`;
+  if (keep && list.includes(keep)) {
+    // 当前值就在刚拉到的列表里 → 选中它（最常见：连着点两次「获取模型」）
+    sel.value = keep;
+    if (inp) { inp.value = ''; inp.classList.add('hidden'); }
+  } else if (list.length && _MODELS_PREF_ON_FILL) {
+    // 上一次的选中值不在新列表里，但**这次是用户主动点「获取模型」**——
+    // 此时应落到列表里真能用的一项（旧做法：直接选第一个）。老行为保留，
+    // 否则用户永远停在「自定义…」而看不到接口真实给了什么。
+    sel.value = list[0];
+    if (inp) { inp.value = ''; inp.classList.add('hidden'); }
+  } else {
+    // 没有任何可用选择（还没拉过列表，或只是切了提供方想看默认值）→ 落到自定义项
+    sel.value = MODEL_CUSTOM;
+    if (inp) inp.classList.remove('hidden');
+  }
+  onModelSelChange();       // 让提示文案与手输框可见性跟着走（单源，不在两处各写一遍）
+}
+let _MODELS_PREF_ON_FILL = false;   // 本次 fill 是否该在旧值失效时改选列表第一项
+function onModelSelChange() {     // 选中「自定义…」时展开输入框
+  const sel = document.getElementById('cfgModelSel');
+  const inp = document.getElementById('cfgModel');
+  const custom = sel && sel.value === MODEL_CUSTOM;
+  if (inp) {
+    inp.classList.toggle('hidden', !custom);
+    if (custom) { inp.focus(); inp.select(); }
+  }
+  const hint = document.getElementById('modelHint');
+  if (hint) {
+    hint.textContent = custom
+      ? '手输模型名（与接口返回的完全一致才有效）· 切换回下拉项请重新点「获取模型」'
+      : '从接口拉取后可下拉选择；列表里没有的模型可切「自定义…」手输';
+  }
+}
+let _MODELS = [];                // 已拉取到的模型名（MODEL_CUSTOM 的值不进这里）
+
 async function loadProviders() {
   const r = await api('GET', '/api/providers');
   PROVS = r.providers || [];
@@ -303,9 +388,8 @@ function pickDefaults() {
   // 选中提供方的默认地址/模型回填输入框；需要密钥时展开 Key 行
   const p = PROVS.find(x => x.key === SEL_PROV) || {};
   const addr = document.getElementById('cfgAddr');
-  const model = document.getElementById('cfgModel');
   if (p.address) addr.value = p.address;
-  if (p.model) model.value = p.model;
+  if (p.model) setModel(p.model);      // FR-67：走单源，别直接摸 #cfgModel
   document.getElementById('cfgSecretRow').hidden = !p.needs_key;
   document.getElementById('cfgAppidField').hidden = !p.needs_appid;
 }
@@ -318,7 +402,7 @@ function pickProv(el) {
 function _cfgBody() {
   return {
     provider: SEL_PROV,
-    model: document.getElementById('cfgModel').value,
+    model: curModel(),                   // FR-67：读当前模型（select 或手输框）
     address: document.getElementById('cfgAddr').value,
     key: document.getElementById('cfgKey').value.trim(),
     appid: document.getElementById('cfgSecret').value.split('/')[0].trim(),
@@ -338,14 +422,21 @@ async function fetchModels() {
   const r = await api('GET', '/api/models');
   btn.disabled = false; btn.textContent = '获取模型';
   if (r && r.ok && r.models && r.models.length) {
-    document.getElementById('modelList').innerHTML =
-      r.models.map(m => `<option value="${esc(m)}">`).join('');
-    const model = document.getElementById('cfgModel');
-    if (!model.value.trim() || !r.models.includes(model.value.trim())) {
-      model.value = r.models[0];
-      sb('已选中模型 ' + r.models[0]);
+    const had = curModel();                      // 拉取前的选择
+    _MODELS_PREF_ON_FILL = true;                 // 用户主动拉的 → 旧值失效就落到列表里真能用的
+    fillModelSelect(r.models);                   // FR-67：单源填充
+    _MODELS_PREF_ON_FILL = false;
+    const now = curModel();
+    // 计数口径按**下拉里真能选到的项数**说，且必须点明「当前值不在列表里」这件
+    // 事 —— 否则用户看到「2 个」却停在「自定义…」，又是一处看不懂（FR-66/67 同一类病）。
+    const n = modelList().length;
+    if (now === had) {
+      sb(`${r.message} · 下拉可切换`);
+    } else if (had && !r.models.includes(had)) {
+      sb(`接口返回 ${n} 个模型，但当前设置的「${had}」不在其中 —— 已保留手输，仍照它翻译；`
+         + `要换成上面这些请从下拉选`);
     } else {
-      sb(r.message);
+      sb(`已选中模型 ${now} · 共 ${n} 个可选（可在下拉切换或手输）`);
     }
   } else sb((r && r.message) || '未获取到模型列表');
 }
@@ -371,15 +462,14 @@ function renderCfgStatus(r) {
     save.disabled = !r.connected;
     if (r.connected) save.removeAttribute('title');
   }
-  // 探测到的模型列表 → 下拉（datalist）：可点选也可手输；当前值无效时自动选第一个
+  // 探测到的模型列表 → 下拉（select）：可点选也可手输；当前值无效时自动选第一个
   if (r.models && r.models.length) {
-    document.getElementById('modelList').innerHTML =
-      r.models.map(m => `<option value="${esc(m)}">`).join('');
-    const model = document.getElementById('cfgModel');
-    if (!model.value.trim() || !r.models.includes(model.value.trim())) {
-      model.value = r.models[0];
-      sb('已选中模型 ' + r.models[0] + ' · 可在模型框下拉更换');
-    }
+    const had = curModel();
+    _MODELS_PREF_ON_FILL = true;                 // 连通测试同样代表「用户想要可用模型」
+    fillModelSelect(r.models);                   // FR-67：单源填充（原来这里是第二份）
+    _MODELS_PREF_ON_FILL = false;
+    const now = curModel();
+    if (now !== had) sb('已选中模型 ' + now + ' · 可在模型下拉更换');
   }
   const box = document.getElementById('cfgStatus');
   if (r.connected) {

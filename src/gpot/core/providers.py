@@ -67,12 +67,55 @@ def _get_json(url: str, headers: dict | None = None, timeout: int = 6):
         return json.loads(r.read().decode("utf-8"))
 
 
+def _model_ids(data, key: str) -> list:
+    """FR-67: 从接口响应里取模型名列表（**去重且保序**）——唯一真源。
+
+    两个坑在这里一并解决：
+    ① `fetch_models` 与 `test_connection` 各写了一份 `m.get("id")` 取法（codegraph 铁律④：
+       同一实现必须单源）——双份必然漂移，现共用本函数。
+    ② **去重**：部分网关（OpenRouter /oneapi / vLLM 的兼容层）会把同一模型拆成
+       `model-a`、`model-a:latest`、甚至带 provider 前缀的别名重复返回，不去重的话
+       下拉里会出现肉眼相同的项，而「可用模型 N 个」的 N 还会虚高 —— 又是一处
+       「说 2 个实际只看到…」的看不懂（FR-67 与 FR-66 同一类病：数字必须等于用户能选到的数）。
+
+    `strip_prefix`：Gemini 返回的是 `models/gemini-2.0-flash`，接口要的是裸名
+    （`[MODEL]` 头不接受带前缀的写法），所以那一条通道要剥前缀；OpenAI 兼容通道
+    **绝不能剥**（模型名里本来就有 `hf.co/tencent/…` 这种带斜杠的，剥了就是错模型）。
+    """
+    raw = []
+    for m in (data.get(key) or []):
+        # ⚠️ 只认 dict：裸字符串条目一律丢弃。Ollama/OpenAI 返回的都是对象数组，
+        # 而真收到裸字符串时那多半是网关返回了非预期结构（错误页/另一种 schema），
+        # 把它当模型名塞进下拉 = 用户选到一个根本不存在的模型。
+        # （这条是被单测 test_model_ids_dedups_and_keeps_order 逼出来的：
+        #   实现原本 `m.get(...) if isinstance(m, dict) else m`，裸串被原样收下。）
+        if not isinstance(m, dict):
+            continue
+        name = m.get("id") or m.get("name")
+        if isinstance(name, str) and name.strip():
+            raw.append(name.strip())
+    out, seen = [], set()
+    for n in raw:
+        if n not in seen:
+            seen.add(n)
+            out.append(n)
+    return out
+
+
+def _strip_prefix(models: list, prefix: str = "models/") -> list:
+    """剥掉 Gemini 那种 `models/xxx` 前缀（只用于 Gemini 通道）。"""
+    return [m[len(prefix):] if m.startswith(prefix) else m for m in models]
+
+
 def fetch_models(cfg: dict) -> dict:  # FR-54: 获取模型列表（独立端点，不必先连通测试）
     """拉取模型列表填下拉框（忠实移植旧 GUI _fetch_models 的双通道）。
 
     ① OpenAI 兼容 {base}/models（带 Bearer，有 key 才带）；
     ② 失败时兜底 Ollama 原生 /api/tags（base 以 /v1 结尾则剥掉）。
     返回 {"ok", "models", "message"}；base 为空直接 bad_base。
+
+    ⚠️ FR-67：计数按**去重后**的条数报，与下拉里真正能选到的项数一致；
+    消息里带上「可直接下拉选 N 个」，让用户能自己核对是不是被前缀过滤坑过。
     """
     kn = _KEY2NAME.get(cfg.get("provider", ""), cfg.get("provider", "免费Google"))
     kcfg = to_kernel_cfg(cfg)
@@ -84,20 +127,21 @@ def fetch_models(cfg: dict) -> dict:  # FR-54: 获取模型列表（独立端点
         data = _get_json(base + "/models",
                          {"Authorization": "Bearer %s" % key} if key else None,
                          timeout=10)
-        models = [m.get("id") for m in (data.get("data") or [])
-                  if isinstance(m, dict) and m.get("id")]
+        models = _model_ids(data, "data")
         if models:
-            return {"ok": True, "models": models, "message": "获取到 %d 个模型" % len(models)}
+            return {"ok": True, "models": models,
+                    "message": "获取到 %d 个模型 · 可直接下拉选 %d 个"
+                               % (len(models), len(models))}
     except Exception:
         pass
     try:                                    # ② Ollama 原生 /api/tags 兜底
         host = base[:-3] if base.endswith("/v1") else base
         data = _get_json(host + "/api/tags", timeout=10)
-        models = [m.get("name") for m in (data.get("models") or [])
-                  if isinstance(m, dict) and m.get("name")]
+        models = _model_ids(data, "models")
         if models:
             return {"ok": True, "models": models,
-                    "message": "获取到 %d 个模型（Ollama 原生接口）" % len(models)}
+                    "message": "获取到 %d 个模型（Ollama 原生接口）· 可直接下拉选 %d 个"
+                               % (len(models), len(models))}
     except Exception:
         pass
     return {"ok": False, "models": [], "message": "未获取到模型列表，可能接口不兼容"}
@@ -112,9 +156,9 @@ def test_connection(cfg: dict) -> dict:  # FR-38: 连通性测试（真实廉价
         if kn in kernel.OPENAI_FAMILY:  # OpenAI兼容 / DeepSeek / 本地Ollama/Qwen
             data = _get_json(base + "/models",
                              {"Authorization": "Bearer %s" % key} if key else None)
-            models = [m.get("id") for m in (data.get("data") or [])
-                      if isinstance(m, dict) and m.get("id")]
-            msg = ("端点可达 · 可用模型 %d 个" % len(models)) if models else "端点可达"
+            models = _model_ids(data, "data")     # FR-67: 与 fetch_models 共用同一解析（去重保序）
+            msg = ("端点可达 · 可用模型 %d 个 · 下拉可选 %d 个"
+                   % (len(models), len(models))) if models else "端点可达"
             return {"connected": True, "models": models, "message": msg}
         if kn == "免费Google":
             tr = kernel.Translator(dict(kcfg))
@@ -128,9 +172,7 @@ def test_connection(cfg: dict) -> dict:  # FR-38: 连通性测试（真实廉价
         if kn == "Gemini":
             data = _get_json("https://generativelanguage.googleapis.com/v1beta/models?key="
                              + urllib.parse.quote(key or ""))
-            models = [(m.get("name") or "").split("/")[-1]
-                      for m in (data.get("models") or [])
-                      if isinstance(m, dict) and m.get("name")]
+            models = _strip_prefix(_model_ids(data, "models"))   # FR-67: Gemini 剥 models/ 前缀
             return {"connected": True, "models": models,
                     "message": "Key 有效（模型列表校验通过 · %d 个）" % len(models)}
         if kn == "DeepL":

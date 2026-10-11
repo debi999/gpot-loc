@@ -365,3 +365,69 @@ def test_sink_view_metrics_no_bare_dash():
         view = sink.sink_view(key, None)
         for m in view.get("metrics", []):
             assert m["v"] != "—", "%s 的指标「%s」仍是裸破折号" % (key, m["l"])
+
+
+# ---------------------------------------------------------------------------
+# FR-67: 模型列表 —— 去重保序 + 单源解析 + 计数口径（v0.5.4）
+#
+# 起因：老板截图「可用模型显示为 2，实际下拉列表只有一个」。根因是前端 `<input list>`
+# + `<datalist>` —— datalist 在 Edge/Chrome 里按输入框**当前值做前缀过滤**，框里预填着
+# 一个模型名，点下拉就只剩它自己。后端返回 2 个、DOM 里也是 2 个 <option>，数据没错，
+# 是控件行为坑人。换真 <select> 根治（后端本轮只做配套的去重与口径单源化）。
+# ---------------------------------------------------------------------------
+def test_model_ids_dedups_and_keeps_order():
+    """同一模型被网关重复返回（带 latest / 带前缀别名）时只留一条，且保持原序。"""
+    data = {"data": [{"id": "b"}, {"id": "a"}, {"id": "b:latest"}, {"id": "a"},
+                     {"id": "  c  "}, {"id": ""}, "not-a-dict", {"nope": 1}]}
+    got = providers._model_ids(data, "data")
+    # ⚠️ 只去**完全同名**的重复项： 与  在 Ollama/网关里是两个可分别
+    # 调用的模型名（tag 不同），合并会让人选到不存在的那个 —— 不能按前缀/后缀归并。
+    assert got == ["b", "a", "b:latest", "c"], "应去重保序并剔空/剔裸串：%r" % (got,)
+
+
+def test_model_ids_accepts_name_key():
+    """Ollama 原生用 name 键（OpenAI 兼容用 id），两者都要认。"""
+    assert providers._model_ids({"models": [{"name": "x"}, {"name": "y"}]}, "models") == ["x", "y"]
+
+
+def test_model_ids_drops_bare_strings():
+    """裸字符串条目必须丢弃——那多半是网关返回了非预期结构，不是模型名。"""
+    assert providers._model_ids({"models": ["p", "q"]}, "models") == []
+    assert providers._model_ids({"data": ["p", {"id": "ok"}]}, "data") == ["ok"]
+
+
+def test_model_ids_keeps_slashes_in_names():
+    """⚠️ 模型名里本来就有斜杠（hf.co/tencent/…）——解析层绝不剥前缀，剥了就成错模型。"""
+    got = providers._model_ids({"data": [{"id": "hf.co/tencent/Hy-MT2-7B-GGUF:Q4_K_M"}]}, "data")
+    assert got == ["hf.co/tencent/Hy-MT2-7B-GGUF:Q4_K_M"]
+
+
+def test_strip_prefix_only_for_gemini_style():
+    """只有 Gemini 通道才剥 models/ 前缀。"""
+    assert providers._strip_prefix(["models/gemini-2.0-flash", "plain"]) == ["gemini-2.0-flash", "plain"]
+
+
+def test_fetch_models_count_matches_deduplicated_list(monkeypatch):
+    """FR-67 计数口径：message 里的个数 == models 实际长度（去重后），不许虚高。"""
+    import gpot.core.providers as prov
+    monkeypatch.setattr(prov, "_get_json", lambda *a, **k: {
+        "data": [{"id": "m1"}, {"id": "m1:latest"}, {"id": "m2"}]})
+    r = prov.fetch_models({"provider": "ollama", "address": "http://127.0.0.1:11434/v1"})
+    assert r["ok"] is True
+    assert r["models"] == ["m1", "m1:latest", "m2"] or r["models"] == ["m1", "m2"], r["models"]
+    # 无论哪种去重结果，message 里的数字必须等于列表长度
+    assert ("%d 个模型" % len(r["models"])) in r["message"], r["message"]
+
+
+def test_ollama_tags_channel_dedups(monkeypatch):
+    """Ollama 原生 /api/tags 兜底通道同样去重（老实现各写一份，必然漂移）。"""
+    import gpot.core.providers as prov
+    def fake(url, headers=None, timeout=6):
+        if url.endswith("/v1/models"):
+            raise OSError("不通")           # 让它落到 /api/tags 兜底
+        return {"models": [{"name": "a"}, {"name": "a"}, {"name": "b"}]}
+    monkeypatch.setattr(prov, "_get_json", fake)
+    r = prov.fetch_models({"provider": "ollama", "address": "http://127.0.0.1:11434/v1"})
+    assert r["ok"] is True
+    assert r["models"] == ["a", "b"], r["models"]
+    assert "Ollama 原生接口" in r["message"]

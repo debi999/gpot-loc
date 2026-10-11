@@ -34,8 +34,28 @@ const { chromium } = require('playwright-core');
   // 4. 获取模型（本机 Ollama 在跑）
   await page.click('#btnModels');
   await page.waitForTimeout(3000);
-  const mo = await page.evaluate(() => document.getElementById('modelList').children.length);
-  check('fetch models fills datalist (' + mo + ')', mo > 0);
+  // FR-67：datalist → select。除了「有选项」，还必须验证**每个模型项真能选中**
+  // —— 原 bug 正是「DOM 里 2 个 option，但下拉只显示 1 个」，只看 children.length 会漏。
+  const mo = await page.evaluate(() => [...document.getElementById('cfgModelSel').options]
+    .map(o => o.value).filter(v => v && v !== '__custom__'));
+  check('fetch models fills model select (' + mo.length + ')', mo.length > 0);
+  const mtext = await page.evaluate(() => [...document.getElementById('cfgModelSel').options]
+    .map(o => o.textContent).filter(t => t && t.includes('__custom__') === false));
+  check('model options carry visible text (not blank)', mtext.length > 0 && mtext.every(t => t.trim().length > 0));
+  let selectable = true;
+  for (const m of mo) {
+    await page.selectOption('#cfgModelSel', m);
+    await page.waitForTimeout(120);
+    const cur = await page.evaluate(() => curModel());
+    if (cur !== m) selectable = false;
+  }
+  check('every model in dropdown is really selectable', selectable);
+  await page.selectOption('#cfgModelSel', '__custom__');
+  await page.waitForTimeout(150);
+  check('custom option reveals manual input', await page.evaluate(() =>
+    !document.getElementById('cfgModel').classList.contains('hidden')));
+  await page.selectOption('#cfgModelSel', mo[0]);
+  await page.waitForTimeout(150);
   // 5. 第 4 步：TXT 按钮 / 排序表头 / 勾选列
   await page.click('.step[data-i="0"]'); await page.waitForTimeout(200);
   // 直接调 nav 到第 4 步需要解锁——走 API 快速解锁再进

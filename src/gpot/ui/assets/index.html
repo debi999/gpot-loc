@@ -95,11 +95,25 @@
             </div>
             <div class="field">
               <label class="lbl">模型</label>
-              <div class="btn-row" style="margin:0">
-                <input class="inp" id="cfgModel" style="flex:1;min-width:0" list="modelList" value="hy-mt2-30b-a3b-apex:nano">
+              <!-- FR-67: 从 <input list> + <datalist> 换成真 <select>。
+                   根因：datalist 在 Edge/Chrome 里按输入框**当前值做前缀过滤**，
+                   而框里预填着 hy-mt2-30b-a3b-apex:nano → 点下拉只剩它自己一条，
+                   后端明明返回 2 个模型、DOM 里也确实是 2 个 <option>，看着像「少了一个」。
+                   select 不做前缀过滤，列多少就是多少。
+                   ⚠️ 手输能力（填列表里没有的模型名）不能丢：保留一个「自定义…」项，
+                   选中后展开输入框，用 #cfgModel 的旧语义继续。 -->
+              <div class="btn-row" style="margin:0;flex-wrap:nowrap">
+                <!-- FR-67: flex:1 + min-width:0 让 select 吃掉整行剩余宽度；
+                     长模型名（hf.co/tencent/Hy-MT2-7B-GGUF:Q4_K_M 这类带斜杠的）
+                     不会被「获取模型」按钮挤成一条省略号。 -->
+                <select class="inp" id="cfgModelSel" style="flex:1 1 auto;min-width:0" onchange="onModelSelChange()" title="从接口拉取到的模型列表">
+                  <option value="">（先点「获取模型」拉取列表）</option>
+                </select>
+                <input class="inp hidden" id="cfgModel" style="flex:1;min-width:0"
+                       placeholder="输入模型名，如 hy-mt2-30b-a3b-apex:nano">
                 <button class="btn" onclick="fetchModels()" title="从接口拉取模型列表（支持 Ollama 原生 /api/tags 兜底）" id="btnModels">获取模型</button>
               </div>
-              <datalist id="modelList"></datalist>
+              <div class="subtle" id="modelHint" style="margin-top:4px">从接口拉取后可下拉选择；列表里没有的模型可切「自定义…」手输</div>
             </div>
           </div>
           <div class="grid4" style="margin-top:12px">
