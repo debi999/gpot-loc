@@ -467,3 +467,20 @@ tbody tr:hover td{background:rgba(221,160,188,.05)}
 /* ---- FR-43: 翻译范围下拉 & 右键菜单 ---- */
 .dd-item{display:block;width:100%;text-align:left;background:none;border:none;color:var(--text);font:inherit;font-size:13px;padding:7px 14px;cursor:pointer}
 .dd-item:hover{background:rgba(232,98,154,.10)}
+
+/* ================= FR-78 无障碍：跳转链接 + 焦点可见 ================= */
+/* 跳转链接：默认藏起来，键盘 Tab 第一下才现身（FR-78） */
+.skiplink{position:absolute;left:12px;top:-48px;z-index:200;padding:8px 14px;border-radius:var(--r);
+  background:var(--surface);border:1px solid var(--rose);color:var(--text);font-size:13px;
+  text-decoration:none;transition:top .14s ease;pointer-events:none}
+.skiplink:focus{top:12px;pointer-events:auto}
+
+/* 焦点可见：`.inp` 原本 outline:none 只留边框变色 —— 键盘用户看不见焦点在哪。
+   统一用 :focus-visible 补 2px 高对比描边（鼠标点击不显示，不干扰观感）。 */
+:where(button,input,select,textarea,a,[tabindex]):focus-visible{
+  outline:2px solid var(--rose);outline-offset:2px;border-radius:2px}
+/* 输入框聚焦同时保留自己的边框色提示（描边 + 边框双通道） */
+.inp:focus-visible{outline:2px solid var(--rose);outline-offset:1px;border-color:var(--rose)}
+/* 主内容区被跳转链接聚焦时不画描边（只是落点，不是控件） */
+#mainContent:focus{outline:none}
+#mainContent:focus-visible{outline:none}

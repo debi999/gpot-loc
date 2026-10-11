@@ -175,7 +175,10 @@ function renderRail() {
       ? '<svg width="13" height="13"><use href="#i-check"/></svg>'
       : (i + 1);
     // FR-46（单主按钮原则）& NFR-12（文案密度铁律）—— 每页导语≤1行、卡片副标题≤1行（UI 呈现层约束）
-    html += `<button class="step ${cls}" data-i="${i}" ${locked ? 'disabled' : ''} onclick="goto(${i})">
+    // FR-78：导航项补 aria-current（读屏能报「当前第几步」）+ aria-disabled 表达未解锁
+    const aria = current ? ' aria-current="step"' : '';
+    const dis = locked ? ' aria-disabled="true"' : '';
+    html += `<button class="step ${cls}" data-i="${i}" ${locked ? 'disabled' : ''}${aria}${dis} onclick="goto(${i})">
       <span class="step-mark">${mark}</span>
       <span><span class="step-title">${s.title}</span>
       <span class="step-sub">${s.sub}</span></span></button>`;
@@ -1048,13 +1051,93 @@ async function importTxt() {
   } else sb((r && r.message) || '导入失败');
 }
 
-/* ---------------- FR-53: 翻译提示词管理（编辑 / 恢复默认 / 保存） ---------------- */
+/* ---------------- FR-78/79/80 无障碍专项 ----------------
+   FR-78 焦点与 ARIA：跳转链接已在 index.html，状态栏 role=status 已在 index.html；
+          导航按钮补 aria-current（第 1 步纯前端，爆炸半径只到 renderRail）。
+   FR-79 弹窗焦点管理：打开时记住来源、聚焦首个可聚焦元素；关闭时焦点归还来源
+          （键盘用户关弹窗后不会「掉」回文档开头）。单源 = _modalOpen/_modalClose。
+   FR-80 快捷键：Esc 关最上层弹窗 / Alt+1..7 跳步 / Ctrl+F 搜译文 / Ctrl+S 保存应用
+          / Alt+D 明暗切换。输入框内不抢按键（除 Esc）。 */
+
+const _A11Y_MODALS = ['replModal', 'promptModal', 'fullModal', 'logModal', 'kitModal'];
+let _modalReturn = null;   // 关闭弹窗后把焦点还给谁（FR-79）
+
+function _firstFocusable(root) {
+  if (!root) return null;
+  const sel = 'input:not([type=hidden]):not([disabled]), select:not([disabled]), ' +
+              'textarea:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  const list = [...root.querySelectorAll(sel)].filter(el => el.offsetParent !== null);
+  return list[0] || null;
+}
+function _modalOpen(id) {
+  const el = document.getElementById(id);
+  if (!el) return null;
+  // 来源可能是 BODY（用户没聚焦过任何控件就点了按钮）—— BODY 不能当归还目标
+  const src = document.activeElement;
+  _modalReturn = (src && src !== document.body && document.contains(src)) ? src : null;
+  el.classList.remove('hidden');
+  const f = _firstFocusable(el);
+  if (f) f.focus();
+  return el;
+}
+function _modalClose(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.add('hidden');
+  // FR-79：焦点归还来源；来源不存在（BODY / 已重渲染）则落回主内容区
+  if (_modalReturn && document.contains(_modalReturn)) _modalReturn.focus();
+  else document.getElementById('mainContent').focus();
+  _modalReturn = null;
+}
+function _topModal() {
+  for (const id of _A11Y_MODALS) {
+    const el = document.getElementById(id);
+    if (el && !el.classList.contains('hidden')) return id;
+  }
+  return null;
+}
+function _closeTopModal() {
+  const id = _topModal();
+  if (!id) return false;
+  _modalClose(id);
+  return true;
+}
+
+document.addEventListener('keydown', e => {
+  /* FR-80 快捷键。输入框/下拉/文本域里不抢 Ctrl+F、Alt+数字等组合，
+     只保留 Esc（关弹窗）——避免打字时误跳步。 */
+  const tag = (e.target && e.target.tagName) || '';
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(tag) ||
+                 (e.target && e.target.isContentEditable);
+  if (e.key === 'Escape') {                      // Esc：关最上层弹窗
+    if (_closeTopModal()) { e.preventDefault(); return; }
+    if (e.target && e.target.blur) e.target.blur();
+    return;
+  }
+  if (e.ctrlKey && !e.altKey && (e.key.toLowerCase() === 'f')) {
+    /* Ctrl+F 搜索译文：输入框里让位给浏览器原生，其余位置我们自己接管 */
+    if (!typing) { e.preventDefault(); const q = document.getElementById('p4q'); if (q) { q.focus(); q.select(); } }
+    return;
+  }
+  if (typing) return;
+  if (e.altKey && !e.ctrlKey && /^[1-7]$/.test(e.key)) {   // Alt+1..7 直达步骤
+    e.preventDefault();
+    goto(parseInt(e.key, 10) - 1);
+    return;
+  }
+  if (e.altKey && (e.key === 'd' || e.key === 'D')) {       // Alt+D 明暗切换
+    e.preventDefault(); toggleTheme(); return;
+  }
+  if (e.ctrlKey && e.shiftKey && (e.key === 'S' || e.key === 's')) { // Ctrl+Shift+S 保存应用
+    e.preventDefault();
+    if (typeof applyToGame === 'function') applyToGame();
+  }
+});
 function openPrompt() {
   document.getElementById('promptTxt').value = (STATE.config && STATE.config.prompt) || '';
-  document.getElementById('promptModal').classList.remove('hidden');
-  document.getElementById('promptTxt').focus();
+  _modalOpen('promptModal');
 }
-function closePrompt() { document.getElementById('promptModal').classList.add('hidden'); }
+function closePrompt() { _modalClose('promptModal'); }
 function resetPrompt() {
   // 恢复默认 = 内置 LLM_SYSTEM（真源随 /api/state 的 prompt_default 下发）
   document.getElementById('promptTxt').value = STATE.prompt_default || '';
@@ -1071,10 +1154,9 @@ function savePrompt() {
   });
 }
 function openReplace() {
-  document.getElementById('replModal').classList.remove('hidden');
-  document.getElementById('replFind').focus();
+  _modalOpen('replModal');
 }
-function closeReplace() { document.getElementById('replModal').classList.add('hidden'); }
+function closeReplace() { _modalClose('replModal'); }
 async function doReplace() {
   const find = document.getElementById('replFind').value;
   if (!find) { sb('请输入要查找的内容'); return; }
@@ -1134,9 +1216,9 @@ function viewFull(ei) {
   if (!tr) return;
   document.getElementById('fullOrig').textContent = tr.cells[3] ? tr.cells[3].textContent : '';
   document.getElementById('fullTrans').textContent = tr.dataset.t || '（未翻译）';
-  document.getElementById('fullModal').classList.remove('hidden');
+  _modalOpen('fullModal');
 }
-function closeFull() { document.getElementById('fullModal').classList.add('hidden'); }
+function closeFull() { _modalClose('fullModal'); }
 /* FR-57: 删除条目（indices = 条目序号；序号会移位 → 删完清空勾选集） */
 async function deleteRows(indices) {
   if (!indices || !indices.length) return;
@@ -1353,7 +1435,7 @@ async function checkKit() {
   const body = document.getElementById('kitBody');
   head.textContent = '正在核对…';
   body.innerHTML = '';
-  document.getElementById('kitModal').classList.remove('hidden');
+  _modalOpen('kitModal');
   const r = await api('GET', '/api/kit/check');
   if (!r) { head.textContent = '校验失败：后端无响应'; return; }
   if (r.error === 'no_engine' || r.error === 'no_game') {
@@ -1391,7 +1473,7 @@ async function checkKit() {
         该引擎没有需要部署的注入工具${r.reason ? '：' + r.reason : '（原生机制或仅支持导出）'}。</div>`;
   sb('注入工具校验：' + (r.message || ''));
 }
-function closeKit() { document.getElementById('kitModal').classList.add('hidden'); }
+function closeKit() { _modalClose('kitModal'); }
 async function openLogs() {
   const r = await api('GET', '/api/logs');
   const t = r && r.text ? r.text : '（暂无日志）';
@@ -1400,7 +1482,7 @@ async function openLogs() {
   ov.classList.remove('hidden');
   try { navigator.clipboard && navigator.clipboard.writeText(t).then(() => {}); } catch (e) {}
 }
-function closeLogs() { document.getElementById('logModal').classList.add('hidden'); }
+function closeLogs() { _modalClose('logModal'); }
 
 (async function init() {
   await loadProviders();

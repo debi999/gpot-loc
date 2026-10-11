@@ -243,6 +243,72 @@ const { chromium } = require('playwright-core');
   check('FR-69 selectGame lands on step 2 (no overshoot)', fr69a.cur === 2 && fr69a.page === '2');
   check('FR-69 no "这一步还没解锁" left on step2', !fr69a.sb.includes('这一步还没解锁'));
 
+  // FR-78/79/80：无障碍专项 —— ARIA 语义 / 焦点管理 / 快捷键
+  const fr78 = await page.evaluate(() => ({
+    skip: !!document.querySelector('.skiplink[href="#mainContent"]'),
+    live: (document.getElementById('sbMsg').getAttribute('aria-live') || ''),
+    liveRole: document.getElementById('sbMsg').getAttribute('role') || '',
+    mainTab: document.getElementById('mainContent').getAttribute('tabindex'),
+    modalRole: document.getElementById('replModal').getAttribute('role') || '',
+    modalLabel: document.getElementById('replModal').getAttribute('aria-labelledby') || '',
+    labelExists: !!document.getElementById('ttlReplace'),
+    ariaCurrent: document.querySelectorAll('#steps [aria-current="step"]').length,
+    railRole: document.getElementById('steps').getAttribute('role') || '',
+  }));
+  check('FR-78 skip link -> main content', fr78.skip && fr78.mainTab === '-1');
+  check('FR-78 statusbar aria-live=polite role=status', fr78.live === 'polite' && fr78.liveRole === 'status');
+  check('FR-78 modal role=dialog + aria-labelledby resolves',
+    fr78.modalRole === 'dialog' && !!fr78.modalLabel && fr78.labelExists);
+  check('FR-78 nav exposes aria-current step (rail role=tablist)',
+    fr78.railRole === 'tablist' && fr78.ariaCurrent === 1);
+
+  // FR-79：打开弹窗聚焦首个控件，Esc 关闭后焦点归还来源
+  await page.evaluate(() => { window.__a11ySrc = document.getElementById('p4q'); openReplace(); });
+  await page.waitForTimeout(300);
+  const fr79a = await page.evaluate(() => ({
+    focused: document.activeElement && document.activeElement.id,
+    open: !document.getElementById('replModal').classList.contains('hidden'),
+  }));
+  check('FR-79 modal open moves focus to first control', fr79a.open && fr79a.focused === 'replFind');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+  const fr79b = await page.evaluate(() => ({
+    closed: document.getElementById('replModal').classList.contains('hidden'),
+    focused: document.activeElement && document.activeElement.id,
+  }));
+  // 归还目标：来源控件在位则回来源，否则回 #mainContent —— 两者都不是弹窗内元素
+  check('FR-79 Esc closes modal and returns focus to ' + fr79b.focused,
+    fr79b.closed && (fr79b.focused === 'p4q' || fr79b.focused === 'mainContent'));
+
+  // FR-80：Alt+数字跳步 / Alt+D 切主题 / 输入框内不抢键
+  await page.evaluate(() => showPage(0));
+  await page.waitForTimeout(200);
+  await page.keyboard.down('Alt'); await page.keyboard.press('3'); await page.keyboard.up('Alt');
+  await page.waitForTimeout(500);
+  const fr80a = await page.evaluate(() => ({
+    cur: STATE.current_step,
+    page: [...document.querySelectorAll('.page.active')].map(x => x.dataset.page)[0],
+  }));
+  check('FR-80 Alt+3 jumps to step index 2', fr80a.cur === 2 && fr80a.page === '2');
+  const themeBefore = await page.evaluate(() => document.documentElement.getAttribute('data-theme') || '');
+  await page.keyboard.down('Alt'); await page.keyboard.press('d'); await page.keyboard.up('Alt');
+  await page.waitForTimeout(300);
+  const themeAfter = await page.evaluate(() => document.documentElement.getAttribute('data-theme') || '');
+  check('FR-80 Alt+D toggles theme', themeBefore !== themeAfter);
+  // 打字守卫：焦点在输入框时 Alt+数字不得跳步。
+  // ⚠️ 隐藏页面里的 input focus() 无效（activeElement 留在 BODY）—— 必须先切到
+  // 该输入框所属的页面，否则测的是「焦点丢失」而不是「打字守卫」。
+  await page.evaluate(() => { showPage(0); const el = document.getElementById('cfgAddr'); el.focus(); });
+  await page.waitForTimeout(300);
+  const fr80b0 = await page.evaluate(() => document.activeElement && document.activeElement.id);
+  await page.keyboard.down('Alt'); await page.keyboard.press('1'); await page.keyboard.up('Alt');
+  await page.waitForTimeout(400);
+  const fr80b = await page.evaluate(() => ({ cur: STATE.current_step, focused: document.activeElement && document.activeElement.id }));
+  check('FR-80 Alt+digit ignored while typing in input (focus=' + fr80b0 + ')',
+    fr80b0 === 'cfgAddr' && fr80b.focused === 'cfgAddr' && fr80b.cur === 2);
+  await page.evaluate(() => { if (window.toggleTheme) toggleTheme(); showPage(0); });
+  await page.waitForTimeout(300);
+
   // 第 2 步识别引擎 → 跳过（不下载，安全）→ 必须落第 3 步
   await page.evaluate(() => { const b = document.getElementById('btnDetect'); if (b) b.click(); });
   await page.waitForTimeout(2200);
