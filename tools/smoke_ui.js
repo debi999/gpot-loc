@@ -323,10 +323,38 @@ const { chromium } = require('playwright-core');
   check('FR-77 cache location (program dir) shown', fr77.hasCacheLine);
   check('FR-77 deploy button reflects check state (' + fr77.btn + ')',
     /重新校验|部署到游戏（无需下载）|下载并部署/.test(fr77.btn));
+
+  // FR-85：全就位（无缺项）时主按钮必须是「进入下一步」，「重新校验」降级为次要按钮
+  await page.evaluate(async () => {
+    const orig = window.api;
+    window.api = async () => ({ ok: true, cache_dir: 'X:\\mock-cache', tools: [
+      { title: 'Mock Tool A', action: 'skip_exists', verified: true, size: 639118 },
+      { title: 'Mock Tool B', action: 'skip_exists', verified: true, size: 758678 },
+    ] });
+    try { await refreshKitCheck(); } finally { window.api = orig; }
+  });
+  await page.waitForTimeout(300);
+  const fr85 = await page.evaluate(() => ({
+    btn: ((document.getElementById('btnDeploy') || {}).textContent || '').trim(),
+    ghost: ((document.getElementById('btnDeploy') || {}).className || '').includes('btn-ghost'),
+    nextHidden: (document.getElementById('btnKitNext') || {}).hidden,
+    nextText: (((document.getElementById('btnKitNext') || {}).textContent) || '').trim(),
+    skipHidden: (document.getElementById('btnKitSkip') || {}).hidden,
+  }));
+  check('FR-85 all-injected: recheck demoted to ghost (' + fr85.btn + ')',
+    fr85.btn === '重新校验' && fr85.ghost);
+  check('FR-85 all-injected: primary 进入下一步 visible, skip hidden',
+    !fr85.nextHidden && fr85.nextText === '进入下一步' && fr85.skipHidden);
+
+  // 还原真实校验态，避免 mock 表格泄漏到后续用例
+  await page.evaluate(() => refreshKitCheck());
+  await page.waitForTimeout(600);
   await page.evaluate(() => {
-    const bs = [...document.querySelectorAll('.page[data-page="2"] button')];
-    const t = bs.find(x => x.textContent.includes('跳过'));
-    if (t) t.click();
+    // FR-85: 全就位时「跳过」被隐藏，改点「进入下一步」——两者都应落第 3 步
+    const skip = document.getElementById('btnKitSkip');
+    const next = document.getElementById('btnKitNext');
+    if (skip && !skip.hidden) skip.click();
+    else if (next && !next.hidden) next.click();
   });
   await page.waitForTimeout(1200);
   const fr69b = await page.evaluate(() => ({

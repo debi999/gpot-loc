@@ -623,8 +623,11 @@ async function detectEngine() {
     </div>
     <div id="kitBox"></div>
       <div class="btn-row spread">
-        <button class="btn btn-accent btn-lg" id="btnDeploy" onclick="deployKit()">重新校验</button>
-        <button class="btn btn-ghost" onclick="skipKit()">跳过，我手动装</button>
+        <div class="btn-row">
+          <button class="btn btn-accent btn-lg" id="btnDeploy" onclick="deployKit()">校验中…</button>
+          <button class="btn btn-accent btn-lg hidden" id="btnKitNext" onclick="goto(3)">进入下一步</button>
+        </div>
+        <button class="btn btn-ghost" id="btnKitSkip" onclick="skipKit()">跳过，我手动装</button>
       </div>`;
   /* 主按钮移交（简报硬伤 2）：识别后底部「识别引擎」撤下，主按钮归部署区 */
   const detectRow = document.getElementById('detectRow');
@@ -634,7 +637,11 @@ async function detectEngine() {
      ——不再是「先点下载并部署、部署完才看到校验」。 */
   try {
     await refreshKitCheck();
-  } catch (_) { /* 校验失败时 kitBox 留空，按钮仍是「重新校验」可手点 */ }
+  } catch (_) {
+    /* FR-69: 校验失败时按钮恢复「重新校验」可手点，别停在「校验中…」 */
+    const b = document.getElementById('btnDeploy');
+    if (b) { b.textContent = '重新校验'; b.hidden = false; }
+  }
   sb('识别为 ' + eng.name);
   } catch (e) {
     /* FR-69: 识别失败必须恢复按钮并如实报错 —— 否则卡在「识别中…」且 disabled，
@@ -646,8 +653,9 @@ async function detectEngine() {
 }
 /* FR-77: 只读校验并渲染工具表 —— 三态状态徽章：
    已注入游戏（skip_exists）/ 已缓存·待注入（cached，无需下载）/ 需下载。
-   按钮文案按缺项自动切：全就位→「重新校验」；缺项全有缓存→「部署到游戏（无需下载）」；
-   有缺缓存→「下载并部署（缺 N 项，约 N MB）」。缓存母本位置明示在卡片底部。 */
+   按钮文案按缺项自动切：全就位→主按钮「进入下一步」+次要「重新校验」（FR-85）；
+   缺项全有缓存→「部署到游戏（无需下载）」；有缺缓存→「下载并部署（缺 N 项，约 N MB）」。
+   缓存母本位置明示在卡片底部。 */
 let _KIT_CHK = null;
 async function refreshKitCheck() {
   const dbtn = document.getElementById('btnDeploy');
@@ -683,13 +691,25 @@ async function refreshKitCheck() {
   if (dbtn) {
     const miss = (chk.tools || []).filter(t => t.action === 'install');
     const dl = miss.filter(t => !t.cached);
+    /* FR-85: 全就位时主按钮是「进入下一步」，「重新校验」降级为次要按钮——
+       否则工具已注入却只剩「重新校验」，没有去下一步的入口。 */
+    const nextBtn = document.getElementById('btnKitNext');
+    const skipBtn = document.getElementById('btnKitSkip');
     if (!miss.length) {
       dbtn.textContent = '重新校验';
-    } else if (!dl.length) {
-      dbtn.textContent = '部署到游戏（无需下载）';
+      dbtn.classList.remove('btn-accent'); dbtn.classList.add('btn-ghost');
+      if (nextBtn) nextBtn.hidden = false;
+      if (skipBtn) skipBtn.hidden = true;   // 工具已注入，「跳过，我手动装」没有意义
     } else {
-      const total = dl.reduce((a, t) => a + (parseFloat(t.size) || 0), 0);
-      dbtn.textContent = '下载并部署（缺 ' + dl.length + ' 项' + (total ? '，约 ' + total.toFixed(1) + ' MB' : '') + '）';
+      if (!dl.length) {
+        dbtn.textContent = '部署到游戏（无需下载）';
+      } else {
+        const total = dl.reduce((a, t) => a + (parseFloat(t.size) || 0), 0);
+        dbtn.textContent = '下载并部署（缺 ' + dl.length + ' 项' + (total ? '，约 ' + total.toFixed(1) + ' MB' : '') + '）';
+      }
+      dbtn.classList.remove('btn-ghost'); dbtn.classList.add('btn-accent');
+      if (nextBtn) nextBtn.hidden = true;
+      if (skipBtn) skipBtn.hidden = false;
     }
     dbtn.hidden = false;
   }
