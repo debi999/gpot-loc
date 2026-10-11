@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import os
+import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -25,7 +26,7 @@ _STATE = _store.Store()
 
 # 应用版本（FR-51: 版本唯一真源，随 /api/state 暴露、状态栏常显、双开复用前比对——
 # 旧版本实例不复用，避免「双击 bat 还是老版本」；老板 2026-10-10 指定 V0.4* 起编号）
-APP_VERSION = "0.6.0"
+APP_VERSION = "0.6.1"
 
 # 旧库格式 config.ini（随 kernel 落在 core/ 目录）—— 提供方/游戏目录记忆
 _CFG = kernel.load_config()
@@ -451,7 +452,18 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send(404, {"error": "not found"})
         self._send_raw(200, data, ctype)
 
+    # FR-83：Python 的 mimetypes **不认识 .woff2**（guess_type 返回 None），
+    # 会兜底成 application/octet-stream，WebView2 按 MIME 校验拒绝加载 @font-face
+    # → 字体静默失效、中文掉回雅黑。所以字体扩展名必须显式登记。
+    _FONT_MIME = {
+        ".woff2": "font/woff2", ".woff": "font/woff", ".ttf": "font/ttf",
+        ".otf": "font/otf", ".eot": "application/vnd.ms-fontobject",
+    }
+
     def _ctype(self, path: str) -> str:
+        ext = os.path.splitext(path)[1].lower()
+        if ext in self._FONT_MIME:
+            return self._FONT_MIME[ext]
         mt, _ = mimetypes.guess_type(path)
         if mt in ("text/css", "application/javascript", "text/html"):
             return f"{mt}; charset=utf-8"
@@ -951,6 +963,27 @@ def build_server(port: int = 8731) -> ThreadingHTTPServer:
     return _Srv(("127.0.0.1", port), _Handler)
 
 
+def _cli_port() -> int:
+    """命令行/环境变量端口（`--port N` 与 `GPOT_PORT=N`）。
+
+    以前 `__main__` 写死 `build_server()`，**端口参数被完全忽略**：传 `--port 8802`
+    照样去抢 8731，报「端口只允许使用一次」，排查时极具误导性（真源见 AGENTS 坑表）。
+    这里让参数真正生效，冒烟与并行起服务才能各占一个端口。
+    """
+    for i, a in enumerate(sys.argv):
+        if a == "--port" and i + 1 < len(sys.argv):
+            try:
+                return int(sys.argv[i + 1])
+            except ValueError:
+                pass
+        if a.startswith("--port="):
+            try:
+                return int(a.split("=", 1)[1])
+            except ValueError:
+                pass
+    return int(os.environ.get("GPOT_PORT") or 8731)
+
+
 if __name__ == "__main__":
-    srv = build_server()
+    srv = build_server(_cli_port())
     srv.serve_forever()

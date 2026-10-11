@@ -7,9 +7,24 @@
  *   色彩预算（每色语义 ≤2）：
  *   · 玫瑰粉 = 主按钮 + 当前步（仅此两处）
  *   · 紫 = 信息 / 导管 / 进度；蜜金 = 通过 / 成品数字；品红 = 警告 + 危险（形状区分）
- *   字体：Georgia + Cascadia Code + 微软雅黑，全部 Windows 自带，零联网。
+ *   字体（v0.6.1 起「可爱化」）：Comic Sans MS（英文数字）+ 站酷快乐体（中文）。
+ *   ⚠️ Comic Sans MS **只有拉丁字形、零中文字形**，单用它中文会全部掉回雅黑
+ *     （英文可爱 + 中文板正，反而割裂）。故中文必须显式补一款圆体：
+ *     站酷快乐体 ZCOOL KuaiLe（SIL OFL 1.1，可商用）内嵌为 woff2 随包分发，
+ *     零联网。拉丁/数字命中 Comic Sans，中文自动落到 ZCOOL KuaiLe。
+ *   ⚠️ --font-mono 刻意**保持等宽**：路径/代码/参数标签靠列对齐，可爱化会破坏
+ *     可读性与功能性（这是刻意的例外，不是漏改）。
  * 所有类名与 app.js 严格对应，改样式不动结构。
  * ========================================================================= */
+
+/* FR-83 可爱字体：站酷快乐体（OFL-1.1，© 站酷酷黑）。
+ * 为什么单独打 @font-face 而不是只靠 font-family 兜底：中文圆体是**随包内嵌**，
+ * 不依赖用户机器装没装幼圆/华文琥珀 —— 保证任何机器上中文都不会静默掉回雅黑。 */
+@font-face{
+  font-family:'ZCOOL KuaiLe';
+  src:url('fonts/ZCOOLKuaiLe-Regular.woff2') format('woff2');
+  font-weight:400;font-style:normal;font-display:swap;
+}
 
 :root{
   --rose:#E8629A; --rose-hi:#F58BC0; --rose-deep:#C24E82;
@@ -46,9 +61,18 @@
   --amber-dim:var(--rose-dim); --amber-grad:var(--rose-grad);
   --sh-amber:none;
 
-  --font:'Segoe UI','Microsoft YaHei UI','Microsoft YaHei',system-ui,sans-serif;
-  --font-display:Georgia,'Times New Roman','Songti SC',serif;
+  /* FR-83 可爱字体栈。
+   * 顺序即优先级：Comic Sans MS 先吃掉全部拉丁字母与数字，中文字形它没有 →
+   * 浏览器逐字符回退到 ZCOOL KuaiLe。这就是「一段文字里中英文各用各的可爱字体」
+   * 的实现方式，不要把中文体往前挪（会挤掉 Comic Sans 的英文）。
+   * 末尾兜底保留雅黑：字体未加载完成的瞬间不至于无字形。 */
+  --font-cute:'Comic Sans MS','Comic Sans','Chalkboard SE','ZCOOL KuaiLe','幼圆','Microsoft YaHei UI',sans-serif;
+  --font-display:'Comic Sans MS','ZCOOL KuaiLe','幼圆','Microsoft YaHei UI',cursive;
+  /* 例外：等宽不动（路径/代码/参数列要对齐，见文件头注释） */
   --font-mono:'Cascadia Code','Cascadia Mono',Consolas,ui-monospace,monospace;
+
+  /* 旧变量保留为别名，避免漏网引用 var(--font) 失效 */
+  --font:var(--font-cute);
 }
 
 /* ---------- 明亮模式：白粉基调（html[data-theme="light"]，默认暗色） ---------- */
@@ -111,7 +135,7 @@ button{font-family:inherit;cursor:pointer}
 .tb-logo{width:26px;height:26px;flex:0 0 26px;border-radius:var(--r);color:var(--rose);
   border:1px solid rgba(232,98,154,.4);
   display:flex;align-items:center;justify-content:center}
-.tb-name{font-family:var(--font-display);font-size:15.5px;font-weight:700;letter-spacing:.02em;
+.tb-name{font-family:var(--font-display);font-size:15.5px;font-weight:400;letter-spacing:.02em;
   color:var(--ink)}
 .tb-name b{color:var(--ink);font-weight:700}
 .tb-sub{font-family:var(--font-mono);font-size:10px;color:var(--text-mute);letter-spacing:.14em}
@@ -147,9 +171,9 @@ button{font-family:inherit;cursor:pointer}
 .gc-cover{width:34px;height:34px;flex:0 0 34px;border-radius:var(--r);
   background:transparent;border:1px solid rgba(232,98,154,.4);
   display:flex;align-items:center;justify-content:center;color:var(--rose);
-  font-family:var(--font-display);font-size:15px;font-weight:700;
+  font-family:var(--font-display);font-size:15px;font-weight:400;
   box-shadow:none}
-.gc-name{font-family:var(--font-display);font-size:14.5px;font-weight:700;line-height:1.35;color:var(--ink);
+.gc-name{font-family:var(--font-display);font-size:14.5px;font-weight:400;line-height:1.35;color:var(--ink);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .gc-meta{font-family:var(--font-mono);font-size:10.5px;color:var(--text-mute);margin-top:2px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -201,7 +225,9 @@ button{font-family:inherit;cursor:pointer}
 .pg-step{display:inline;font-family:var(--font-mono);font-size:10.5px;
   font-weight:600;color:var(--violet);letter-spacing:.18em;text-transform:uppercase;
   border:none;background:none;padding:0;border-radius:0}
-.pg-title{font-family:var(--font-display);font-size:30px;font-weight:700;letter-spacing:.01em;
+/* FR-83：大标题降到 400。站酷快乐体只有 400 字重，font-weight:700 会让浏览器
+   合成伪粗体（描边叠加）——30px 下笔画直接糊成一团。层级改由字号 + --ink 亮度建立。 */
+.pg-title{font-family:var(--font-display);font-size:30px;font-weight:400;letter-spacing:.01em;
   margin:6px 0 6px;color:var(--ink)}
 .pg-desc{font-size:13px;color:var(--text-sub);line-height:1.65;max-width:760px}
 .pg-desc b{color:var(--ink);font-weight:600}
@@ -232,7 +258,7 @@ button{font-family:inherit;cursor:pointer}
 .metric::before{display:none}
 .metric-l{font-family:var(--font-mono);font-size:10px;color:var(--text-mute);font-weight:600;
   letter-spacing:.12em;text-transform:uppercase}
-.metric-v{font-family:var(--font-display);font-size:27px;font-weight:700;letter-spacing:-.01em;
+.metric-v{font-family:var(--font-display);font-size:27px;font-weight:400;letter-spacing:-.01em;
   margin-top:6px;font-variant-numeric:tabular-nums;color:var(--ink);
   text-shadow:none}
 .metric-n{font-family:var(--font-mono);font-size:10px;color:var(--text-mute);margin-top:4px;letter-spacing:.04em}

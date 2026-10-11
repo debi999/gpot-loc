@@ -347,6 +347,34 @@ const { chromium } = require('playwright-core');
   await page.evaluate(() => loadSink('unity'));   // 还原到当前引擎视图
   await page.waitForTimeout(400);
 
+  // FR-83：全局字体可爱化。
+  // 真正的风险不是「好不好看」，而是中文字形**静默掉回雅黑**——Comic Sans MS 是
+  // 纯拉丁字体、零中文字形。下面用 canvas 量字符宽度反证字体是否真命中。
+  await page.evaluate(() => document.fonts.ready);
+  const fr83 = await page.evaluate(async () => {
+    await document.fonts.ready;
+    const c = document.createElement('canvas').getContext('2d');
+    const w = (font, ch) => { c.font = font; return c.measureText(ch).width; };
+    const cute = '16px "Comic Sans MS","ZCOOL KuaiLe"';
+    const yahei = '16px "Microsoft YaHei UI"';
+    return {
+      faceLoaded: [...document.fonts].some(f => f.family === 'ZCOOL KuaiLe' && f.status === 'loaded'),
+      cnDiff: w(cute, '中文') !== w(yahei, '中文'),
+      enDiff: w(cute, 'Hello') !== w(yahei, 'Hello'),
+      titleWeight: getComputedStyle(document.querySelector('.pg-title')).fontWeight,
+    };
+  });
+  check('FR-83 ZCOOL KuaiLe @font-face loaded', fr83.faceLoaded);
+  check('FR-83 CJK not falling back to YaHei', fr83.cnDiff);
+  check('FR-83 latin hits Comic Sans', fr83.enDiff);
+  check('FR-83 display headings at weight 400 (no fake bold)', fr83.titleWeight === '400');
+
+  // 字体静态资源必须以 font/woff2 下发（mimetypes 不认 woff2，会漏成 octet-stream 被拒）
+  const fontResp = await page.request.get(
+    `http://127.0.0.1:${PORT}/assets/fonts/ZCOOLKuaiLe-Regular.woff2`);
+  check('FR-83 font served as font/woff2',
+    fontResp.status() === 200 && (fontResp.headers()['content-type'] || '').includes('font/woff2'));
+
   await page.screenshot({ path: 'I:/AIcoding/gpot-loc/_smoke_v058.png', fullPage: false });
   await browser.close();
   console.log(results.join('\n'));

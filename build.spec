@@ -57,6 +57,9 @@ for _extra in ('clr_loader', 'pythonnet'):
             break
 
 # 静态前端资源必须原样带进包里（index.html/app.js/styles.css/icon.ico）
+# FR-83：含 fonts/ 子目录（ZCOOL KuaiLe woff2）——这里是整目录递归拷贝，
+# 子目录自动带上；但若日后改成逐文件列举，**务必别漏 fonts/**，
+# 漏了字体在打包版里会静默失效（中文掉回雅黑，且界面不报错）。
 datas.append((ASSETS, 'gpot/ui/assets'))
 # main.py 里 `from ..core import ...` 是相对导入，必须声明 package 以保留层级
 hiddenimports = [

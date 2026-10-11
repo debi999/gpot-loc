@@ -42,8 +42,11 @@
    输入框=内嵌凹槽（`--inset`）。机身有纸张颗粒与暗角，但没有玻璃和光晕。
 3. **动效只做状态变化**：页面 `rise` 入场、悬停微反馈、状态栏进度空闲淡出。
    纯装饰的呼吸/脉冲/流光已全部删除——判据：动效必须传达状态，否则删。
-4. **字体零联网**：`Georgia`（衬线展示体，编辑式气质）+ `Cascadia Code`（等宽标注：
-   铭牌、徽章、数字带）+ `Microsoft YaHei`（正文），不依赖任何 CDN 字体。
+4. **字体零联网**（v0.6.1 起为「可爱化」栈，FR-83）：`Comic Sans MS`（拉丁/数字）
+   + **站酷快乐体 ZCOOL KuaiLe**（中文，`@font-face` 内嵌 woff2 随包分发）+ `Cascadia Code`
+   （等宽标注）+ 雅黑兜底，不依赖任何 CDN 字体。
+   - ⚠️ Comic Sans MS **零中文字形**，必须显式补中文圆体，否则中文全部掉回雅黑。
+   - ⚠️ 等宽字体**刻意保持 Cascadia Code 不变**（路径/代码/参数靠列对齐）。
 
 **明暗双主题（定稿）**：暗色为默认（无 `data-theme` 属性即暗）；亮色 = 白粉纸面
 （`html[data-theme="light"]` 变量块）；标题栏太阳/月亮按钮切换，`localStorage`
@@ -136,7 +139,8 @@
 
 | 项 | 定稿值 |
 |---|---|
-| 字体 | `Georgia` 衬线展示体（页面标题/数字带大数）→ `Cascadia Code` 等宽（铭牌/徽章/读数）→ `Microsoft YaHei` 正文；零联网 |
+| 字体 | **v0.6.1 可爱化栈（FR-83）**：`Comic Sans MS` + `ZCOOL KuaiLe`（中文，内嵌 woff2）正文/展示体（页面标题/数字带大数）→ `Cascadia Code` 等宽（铭牌/徽章/读数，**不变**）→ 雅黑兜底；零联网 |
+| 标题字重 | **400**（FR-83）——ZCOOL KuaiLe 仅 400 字重，700 会合成伪粗体糊死笔画；层级靠字号与亮度建立 |
 | 字号 | 正文 14px、页面标题 30px（第 4 步高频屏 23px）、卡片标题 14px/700、等宽标注 10.5~11px 大字距全大写 |
 | 动效 | 仅状态变化类：页面 `rise` 入场、悬停微反馈、状态栏进度空闲 2.6s 淡出。呼吸/脉冲/shimmer 流光已删 |
 | 主题切换 | 标题栏 `#themeBtn`（太阳/月亮 symbol）→ `toggleTheme()`；`localStorage['gpot-theme']` 记忆；暗色默认（无属性即暗） |
@@ -268,3 +272,4 @@
 4. **FR-35 副标题的数据来源**：部分需要在 `config.ini` 新增 `flow.*` 小节，存储结构待设计。
 5. ~~**键盘 / 读屏无障碍**~~：**已做**（2026-10-11 实施于 v0.5.9，FR-78~80）——跳转链接、`#sbMsg` `role=status aria-live=polite`（全站唯一播报出口）、五弹窗 `role=dialog`+`aria-labelledby`、导航 `role=tablist`+`aria-current`、弹窗焦点归还（单源 `_modalOpen/_modalClose`）、快捷键 `Esc`/`Alt+1..7`/`Alt+D`/`Ctrl+F`/`Ctrl+Shift+S` + 输入框打字守卫、`:focus-visible` 焦点可见描边。
 6. ~~**无边框窗口边缘缩放**~~：**已做**（2026-10-11 实施于 v0.6.0，FR-81）——Win32 子类化拦 `WM_NCHITTEST`，四边四角返回缩放命中码，由系统原生接管拖拽；判定逻辑下沉 `core/winframe.py:hit_test`（纯函数可单测），失败静默降级并写 `[edge-resize]` 日志。
+7. ~~**字体太板正，想要更可爱**~~：**已做**（2026-10-11 实施于 v0.6.1，FR-83）——正文/展示体换成 `Comic Sans MS` + 内嵌 `ZCOOL KuaiLe`（中文圆体）栈，标题字重降 400 避免合成粗体糊笔画；等宽字体保留不变（功能性依赖列对齐）。若日后想再换更"甜"的圆体，只改 `styles.css` 的 `@font-face` + 字体栈即可，中文字体文件本身是随包资源。
