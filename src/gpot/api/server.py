@@ -25,7 +25,7 @@ _STATE = _store.Store()
 
 # 应用版本（FR-51: 版本唯一真源，随 /api/state 暴露、状态栏常显、双开复用前比对——
 # 旧版本实例不复用，避免「双击 bat 还是老版本」；老板 2026-10-10 指定 V0.4* 起编号）
-APP_VERSION = "0.5.5"
+APP_VERSION = "0.5.6"
 
 # 旧库格式 config.ini（随 kernel 落在 core/ 目录）—— 提供方/游戏目录记忆
 _CFG = kernel.load_config()
@@ -103,14 +103,20 @@ def _ensure_engine(gp: str = None) -> dict | None:
 
 
 def _restore_flow() -> None:
-    """FR-37: 启动时回到上次所在步骤（无记录 / 首次启动 → 第 0 步）。
+    """FR-37 + FR-70: 启动时**永远落在第 1 步**，只恢复「解锁进度」（max_step）。
 
     FR-63 修正：恢复出来的 max_step 必须再过一道**事实闸**——
-    游戏目录不在 / 引擎没识别 / 词典为空，就不许停在那么后面。
+    游戏目录不在 / 引擎没识别 / 词典为空，就不许解锁到那么后面。
     （v0.5.0 事故：只看数字导致第 2 步形同虚设、提取扫不到文件。）
+
+    FR-70 修正（老板 2026-10-11 反馈「为什么启动程序就进了第四步」）：
+    原实现把 current_step 也恢复 —— 用户上次停在第 4 步，一打开就砸在第 4 步，
+    像程序自作主张。七步是向导式流程，打开就该从第 1 步开始；上次的进度
+    体现在**导航轨的解锁状态**里（max_step 照常恢复 + 事实闸校验），
+    想回哪一步点导航轨即可，不再替用户做「落点」决定。
+    词典/游戏目录/引擎照常回读（第 4 步表格不空白的前提），只是不落在那里。
     """
     try:
-        cur = int(str(_CFG.get("flow.current_step", "") or ""), 10)
         mx = int(str(_CFG.get("flow.max_step", "") or ""), 10)
     except ValueError:
         return                      # 从未走过流程 → 保持第 0 步
@@ -142,7 +148,7 @@ def _restore_flow() -> None:
     while max_step > 0 and not _STATE.prereq_ok(max_step):
         max_step -= 1
     _STATE.max_step = max_step
-    _STATE.current_step = max(0, min(cur, max_step))
+    _STATE.current_step = 0        # FR-70: 落点恒第 1 步，进度只在导航轨体现
 
 
 def _kit_tools(engine: dict | None, deployed: bool = False) -> list:
@@ -470,7 +476,9 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send(200, d)
         if path == "/api/providers":  # FR-38: 列出翻译后端（第 0 步配置）
             return self._send(200, {"providers": providers.list_providers()})
-        if path == "/api/models":     # FR-54: 获取模型列表（不必先连通测试）
+        if path == "/api/models":     # FR-54/FR-71: 获取模型列表
+            # FR-71：界面「获取模型」走 POST 并带上当前所选提供方（见 do_POST）；
+            # GET 兼容旧客户端/冒烟，按已保存配置拉。
             return self._send(200, providers.fetch_models(_STATE.config))
         if path.startswith("/api/sink"):
             q = parse_qs(p.query)
@@ -595,6 +603,13 @@ class _Handler(BaseHTTPRequestHandler):
         p = urlparse(self.path)
         path = p.path
         b = self._json_body()
+
+        if path == "/api/models":     # FR-71: 按界面当前所选提供方拉模型列表
+            merged = dict(_STATE.config)
+            for k in ("provider", "address", "key", "appid", "secret"):
+                if b.get(k):
+                    merged[k] = b[k]
+            return self._send(200, providers.fetch_models(merged))
 
         if path == "/api/config":  # FR-38: 配置翻译服务 + 连通测试（第 0 步）
             for k in ("provider", "model", "address", "key", "appid",

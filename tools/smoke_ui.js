@@ -10,6 +10,10 @@ const { chromium } = require('playwright-core');
   await page.evaluate(() => showPage(0));   // 流程状态可能停在别的步 → 强制回第 0 步
   await page.waitForTimeout(300);
 
+  // FR-70：无论上次停在哪一步，启动一律落第 1 步（index 0）—— 进度只体现在导航轨解锁
+  check('FR-70 startup always lands on step 1 (index 0)',
+    await page.evaluate(() => STATE.current_step) === 0);
+
   // 1. 三个弹窗初始全部隐藏（v0.4.6 回归 + 新增两个）
   for (const id of ['replModal', 'promptModal', 'fullModal']) {
     const d = await page.evaluate(id => getComputedStyle(document.getElementById(id)).display, id);
@@ -56,6 +60,26 @@ const { chromium } = require('playwright-core');
     !document.getElementById('cfgModel').classList.contains('hidden')));
   await page.selectOption('#cfgModelSel', mo[0]);
   await page.waitForTimeout(150);
+
+  // FR-71：切换提供方必须清空上一家的模型列表 —— 选 Claude 不能还挂着本地 Ollama 模型
+  await page.click('.prov[data-k="claude"]');
+  await page.waitForTimeout(250);
+  const fr71 = await page.evaluate(() => ({
+    opts: [...document.getElementById('cfgModelSel').options].map(o => o.value),
+    model: curModel(),
+  }));
+  check('FR-71 provider switch clears foreign model list',
+    fr71.opts.length <= 2 && fr71.opts.every(v => v === '' || v === '__custom__'));
+  check('FR-71 provider switch falls back to preset model (' + fr71.model + ')',
+    fr71.model === 'claude-3-5-sonnet-latest');
+  // 切回 ollama 并重拉列表（列表被 FR-71 清空了，后续步骤还要用）
+  await page.click('.prov[data-k="ollama"]');
+  await page.waitForTimeout(150);
+  await page.click('#btnModels');
+  await page.waitForTimeout(2500);
+  const mo2 = await page.evaluate(() => [...document.getElementById('cfgModelSel').options]
+    .map(o => o.value).filter(v => v && v !== '__custom__'));
+  check('FR-71 re-fetch after switching back (' + mo2.length + ')', mo2.length > 0);
   // 5. 第 4 步：TXT 按钮 / 排序表头 / 勾选列
   await page.click('.step[data-i="0"]'); await page.waitForTimeout(200);
   // 直接调 nav 到第 4 步需要解锁——走 API 快速解锁再进
@@ -71,6 +95,15 @@ const { chromium } = require('playwright-core');
   await page.waitForTimeout(600);
   check('TXT import button', await page.locator('button:has-text("导入 TXT")').count() === 1);
   check('checkbox column', await page.locator('#p4tbody input[type=checkbox]').count() > 0);
+  // FR-73：冻结表头必须实底 —— 透明底会让滚动行从表头底下透出来（首行文字压列表项）
+  const thBg = await page.evaluate(() =>
+    getComputedStyle(document.querySelector('.tblwrap thead th')).backgroundColor);
+  check('FR-73 sticky thead has opaque background (' + thBg + ')',
+    thBg !== 'rgba(0, 0, 0, 0)' && thBg !== 'transparent');
+  // FR-74：统计带压缩 —— 注释行整个不显示，把高度还给校对列表
+  const mnDisp = await page.evaluate(() =>
+    getComputedStyle(document.querySelector('#p4metrics .metric-n')).display);
+  check('FR-74 step4 metrics note hidden (compact band)', mnDisp === 'none');
   // 6. 排序：点原文表头 → 第一行变化且箭头出现
   const firstBefore = await page.evaluate(() => document.querySelector('#p4tbody tr td:nth-child(4)').textContent);
   await page.click('th:has-text("原文")');
@@ -213,7 +246,19 @@ const { chromium } = require('playwright-core');
   }));
   check('FR-69 skip lands on step 3', fr69b.cur === 3 && fr69b.page === '3');
 
-  await page.screenshot({ path: 'I:/AIcoding/gpot-loc/_smoke_v055.png', fullPage: false });
+  // FR-75：非当前引擎只给切换提示，不摆别家的指标/落点/白名单详情
+  await page.evaluate(() => loadSink('rm'));
+  await page.waitForTimeout(700);
+  const fr75 = await page.evaluate(() => ({
+    html: document.getElementById('sinkView').innerHTML,
+    metrics: document.querySelectorAll('#sinkView .metric').length,
+  }));
+  check('FR-75 non-current engine shows switch prompt', fr75.html.includes('回到当前管线'));
+  check('FR-75 non-current engine hides detail metrics', fr75.metrics === 0);
+  await page.evaluate(() => loadSink('unity'));   // 还原到当前引擎视图
+  await page.waitForTimeout(400);
+
+  await page.screenshot({ path: 'I:/AIcoding/gpot-loc/_smoke_v056.png', fullPage: false });
   await browser.close();
   console.log(results.join('\n'));
   const fails = results.filter(r => r.startsWith('FAIL')).length;

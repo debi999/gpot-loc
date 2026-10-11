@@ -397,6 +397,11 @@ function pickProv(el) {
   document.querySelectorAll('.prov').forEach(x => x.classList.remove('on'));
   el.classList.add('on');
   SEL_PROV = el.dataset.k;
+  /* FR-71: 切换提供方必须清空上一个提供方拉来的模型列表 —— 不然选 Claude
+     下拉里还挂着本地 Ollama 的模型名，选了必错（老板 2026-10-11 实测截图）。
+     清空后下拉只剩占位项，模型回落到该提供方的预设值（pickDefaults → setModel）。 */
+  fillModelSelect([]);
+  _MODELS_PREF_ON_FILL = false;
   pickDefaults();
 }
 function _cfgBody() {
@@ -415,11 +420,19 @@ function _cfgBody() {
     prompt: (STATE.config && STATE.config.prompt) || '',
   };
 }
-/* FR-54: 独立获取模型列表（不必先跑连接测试；后端带 Ollama /api/tags 兜底） */
+/* FR-54: 独立获取模型列表（不必先跑连接测试；后端带 Ollama /api/tags 兜底）
+   FR-71: 必须把**界面当前所选的提供方**一起传给后端 —— 不然后端拿上次保存的
+   配置去拉，选了 Claude 却列出本地 Ollama 的模型（老板 2026-10-11 实测）。 */
 async function fetchModels() {
   const btn = document.getElementById('btnModels');
   btn.disabled = true; btn.textContent = '获取中…';
-  const r = await api('GET', '/api/models');
+  const r = await api('POST', '/api/models', {
+    provider: SEL_PROV,
+    address: document.getElementById('cfgAddr').value,
+    key: document.getElementById('cfgKey').value.trim(),
+    appid: document.getElementById('cfgSecret').value.split('/')[0].trim(),
+    secret: document.getElementById('cfgSecret').value.split('/')[1]?.trim() || '',
+  });
   btn.disabled = false; btn.textContent = '获取模型';
   if (r && r.ok && r.models && r.models.length) {
     const had = curModel();                      // 拉取前的选择
@@ -1154,6 +1167,19 @@ async function loadSink(engineKey) {
     ? `<div class="infobar ib-warn"><svg class="ib-ico" width="17" height="17"><use href="#i-warn"/></svg>
         <div>注入工具为手动安装 —— 保存前请自行确认对应插件已在游戏目录就位，否则译文不生效。</div></div>`
     : '';
+  /* FR-75（老板 2026-10-11 截图）：选了**非当前引擎**（如 Unity 游戏点开 RPG Maker 预览）
+     时，不要把带回写条目/数据文件/备份/回写位置这些详情摆出来 —— 那些数字和落点
+     全是别的引擎的，看了只会误导。只给一句话：请点回当前引擎。
+     详情（指标/落点/白名单/替代方案/保存按钮）只在当前引擎管线里展示。 */
+  if (locked) {
+    document.getElementById('sinkView').innerHTML = `
+      ${skipHint}
+      <div class="infobar ib-warn"><svg class="ib-ico" width="17" height="17"><use href="#i-warn"/></svg>
+        <div>当前游戏识别为 <b>${engineName(detected)}</b>（第 2 步的识别结果）。
+        ${engineName(engineKey)} 的方案详情这里不展示 —— 请点上方「<b>${engineName(detected)}</b>」回到当前管线，
+        那里才有本游戏真实的写入方式与保存按钮。</div></div>`;
+    return;
+  }
   document.getElementById('sinkView').innerHTML = `
     ${skipHint}
     <div class="grid3">${m}</div>

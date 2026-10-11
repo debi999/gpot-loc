@@ -59,8 +59,12 @@ class LowSpeed(KitError):
 # ----------------------------------------------------------------------------
 # 默认路径
 # ----------------------------------------------------------------------------
-# 缓存跟着**源码库**走（I 盘），不进游戏目录 —— 按项目的盘位铁律：
-#   开发过程产物 → I 盘代码库；交付产物 → F 盘游戏目录。
+# FR-72（老板 2026-10-11）：工具包缓存必须落在**程序文件夹**根目录（toolcache/），
+# 不再埋进 src/gpot 包内部 ——
+#   ① 下载下来的包是程序的资产，放程序根一目了然、好备份、重装不丢；
+#   ② 用户可以**自己预置**：把校验界面列出的包（按文件名）提前放进
+#      toolcache/，部署时缓存命中直接安装，完全不联网；
+#   ③ 预置/缓存都没有才走下载（离线优先的老规矩不变）。
 # ----------------------------------------------------------------------------
 # ⚠️ PyInstaller 从 PYZ **内存加载**模块时 `__file__` 不存在（不是 None，是直接
 # NameError）。打包成 exe 后若这里不设防，`import kit_installer` 会在**模块级**
@@ -70,15 +74,22 @@ try:
     _HERE = os.path.dirname(os.path.abspath(__file__))
 except NameError:
     _HERE = os.getcwd()          # exe 双击启动时 cwd 通常就是 exe 所在目录
-_REPO_ROOT = os.path.abspath(os.path.join(_HERE, '..'))
+# 源码布局：…/程序根/src/gpot/core → 上爬三层到程序根；
+# 其余（exe / 未知布局）→ 就用当前目录当程序根。
+if (os.path.basename(_HERE) == 'core'
+        and os.path.basename(os.path.dirname(_HERE)) == 'gpot'):
+    _APP_ROOT = os.path.abspath(os.path.join(_HERE, '..', '..', '..'))
+else:
+    _APP_ROOT = _HERE
+_REPO_ROOT = _APP_ROOT            # 旧名保留，避免漏网引用
 
 
 def default_cache_dir():
-    """工具包下载缓存根目录。"""
+    """工具包下载缓存根目录（程序文件夹/toolcache/，FR-72）。"""
     env = os.environ.get('ST_TOOL_CACHE', '').strip()
     if env:
         return os.path.abspath(env)
-    return os.path.join(_REPO_ROOT, 'toolcache')
+    return os.path.join(_APP_ROOT, 'toolcache')
 
 
 def default_tool_dir():

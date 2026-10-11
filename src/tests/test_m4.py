@@ -65,6 +65,58 @@ def test_fetch_models_shape():
 
 
 # ---------------------------------------------------------------------------
+# FR-71: 模型列表按提供方分通道（老板 2026-10-11：选 Claude 却列出本地 Ollama 模型）
+# ---------------------------------------------------------------------------
+def test_fetch_models_claude_channel(monkeypatch):
+    """Claude 走 x-api-key 专用通道，去重保序，不带 Bearer。"""
+    seen = {}
+
+    def fake_get(url, headers=None, timeout=6):
+        seen["url"], seen["headers"] = url, headers
+        return {"data": [{"id": "claude-3-5-sonnet-latest"},
+                         {"id": "claude-opus-4-1"},
+                         {"id": "claude-3-5-sonnet-latest"}]}   # 重复项必须去重
+    monkeypatch.setattr(providers, "_get_json", fake_get)
+    r = providers.fetch_models({"provider": "claude",
+                                "address": "https://api.anthropic.com/v1",
+                                "key": "sk-test"})
+    assert r["ok"] is True
+    assert r["models"] == ["claude-3-5-sonnet-latest", "claude-opus-4-1"]
+    assert seen["headers"]["x-api-key"] == "sk-test"
+    assert seen["headers"]["anthropic-version"] == "2023-06-01"
+    assert "Bearer" not in (seen["headers"].get("Authorization") or "")
+
+
+def test_fetch_models_gemini_channel_strips_prefix(monkeypatch):
+    """Gemini 走 key 查询参数通道，models/ 前缀只在这条通道剥。"""
+    seen = {}
+
+    def fake_get(url, headers=None, timeout=6):
+        seen["url"] = url
+        return {"models": [{"name": "models/gemini-2.0-flash"},
+                           {"name": "models/gemini-2.5-pro"}]}
+    monkeypatch.setattr(providers, "_get_json", fake_get)
+    r = providers.fetch_models({"provider": "gemini",
+                                "address": "https://generativelanguage.googleapis.com/v1beta",
+                                "key": "AIzatest"})
+    assert r["ok"] is True
+    assert r["models"] == ["gemini-2.0-flash", "gemini-2.5-pro"]
+    assert "key=AIzatest" in seen["url"]
+
+
+def test_fetch_models_never_falls_cross_provider(monkeypatch):
+    """FR-71 病根回归：Claude 接口失败时**绝不**兜底去 Ollama 通道拉本地模型。"""
+    def boom(url, headers=None, timeout=6):
+        raise OSError("refused")
+    monkeypatch.setattr(providers, "_get_json", boom)
+    r = providers.fetch_models({"provider": "claude",
+                                "address": "https://api.anthropic.com/v1",
+                                "key": "sk-test"})
+    assert r["ok"] is False and r["models"] == []
+    assert "Claude" in r["message"]
+
+
+# ---------------------------------------------------------------------------
 # FR-56: TXT 导入三形态（忠实移植旧 _import_txt 语义）
 # ---------------------------------------------------------------------------
 def _tstore():
@@ -312,6 +364,24 @@ def test_norm_show_keeps_write_path_untouched():
     assert ki._norm_show(raw) == expected
     # 原函数返回值未被就地改写（仍是混用斜杠 —— 那是 sink.py 写盘要用的原值）
     assert "/" in raw, "catalog.sink_path 的返回值不应被展示层归一污染"
+
+
+# ---------------------------------------------------------------------------
+# FR-72: 工具包缓存落程序文件夹（老板 2026-10-11：优先用程序文件夹里的预置包）
+# ---------------------------------------------------------------------------
+def test_default_cache_dir_in_app_root():
+    """缓存根必须是 <程序根>/toolcache —— 不再埋进 src/gpot 包内部。
+
+    源码布局（…/程序根/src/gpot/core）上爬三层到程序根；其余（exe）用当前目录。
+    两种布局的共同不变量：toolcache 的父目录绝不叫 gpot。
+    """
+    from gpot.core import kit_installer as ki
+    d = os.path.abspath(ki.default_cache_dir())
+    assert os.path.basename(d) == "toolcache"
+    assert os.path.basename(os.path.dirname(d)) != "gpot", \
+        "缓存不许再埋进 src/gpot 包内（FR-72：要放在程序文件夹根，用户可预置）"
+    # env 覆盖仍然优先（部署机自定义位置用）
+    assert ki.default_cache_dir() == os.path.join(ki._APP_ROOT, "toolcache")
 
 
 # ---------------------------------------------------------------------------

@@ -116,6 +116,13 @@ def fetch_models(cfg: dict) -> dict:  # FR-54: 获取模型列表（独立端点
 
     ⚠️ FR-67：计数按**去重后**的条数报，与下拉里真正能选到的项数一致；
     消息里带上「可直接下拉选 N 个」，让用户能自己核对是不是被前缀过滤坑过。
+
+    ⚠️ FR-71（老板 2026-10-11：选了 Claude 却列出本地 Ollama 模型）：除了前端要把
+    **当前所选提供方**传进来，后端还得按提供方分通道 —— Claude / Gemini 的模型
+    列表接口不吃 Bearer 认证，通用 OpenAI 通道必然 401，之前 401 后一路兜底到
+    Ollama /api/tags（base 不是 Ollama 就失败）→ 返回空。现在 Claude/Gemini
+    有各自的通道（与 test_connection 同一套头/URL，铁律④：能单源的口径保持
+    一致），其余提供方仍走通用通道 + Ollama 兜底。
     """
     kn = _KEY2NAME.get(cfg.get("provider", ""), cfg.get("provider", "免费Google"))
     kcfg = to_kernel_cfg(cfg)
@@ -123,6 +130,33 @@ def fetch_models(cfg: dict) -> dict:  # FR-54: 获取模型列表（独立端点
     key = kcfg["key"]
     if not base:
         return {"ok": False, "models": [], "message": "请先填写服务地址"}
+    if kn == "Claude":                    # FR-71: Anthropic 专用通道（x-api-key）
+        try:
+            data = _get_json(base + "/models",
+                             {"x-api-key": key, "anthropic-version": "2023-06-01"},
+                             timeout=10)
+            models = _model_ids(data, "data")
+            if models:
+                return {"ok": True, "models": models,
+                        "message": "获取到 %d 个模型（Claude 接口）· 可直接下拉选 %d 个"
+                                   % (len(models), len(models))}
+        except Exception:
+            pass
+        return {"ok": False, "models": [],
+                "message": "Claude 接口未返回模型列表（检查 Key 与网络）"}
+    if kn == "Gemini":                    # FR-71: Gemini 专用通道（key 走查询参数）
+        try:
+            data = _get_json(base + "/models?key=" + urllib.parse.quote(key or ""),
+                             timeout=10)
+            models = _strip_prefix(_model_ids(data, "models"))
+            if models:
+                return {"ok": True, "models": models,
+                        "message": "获取到 %d 个模型（Gemini 接口）· 可直接下拉选 %d 个"
+                                   % (len(models), len(models))}
+        except Exception:
+            pass
+        return {"ok": False, "models": [],
+                "message": "Gemini 接口未返回模型列表（检查 Key 与网络）"}
     try:                                    # ① OpenAI 兼容通道
         data = _get_json(base + "/models",
                          {"Authorization": "Bearer %s" % key} if key else None,

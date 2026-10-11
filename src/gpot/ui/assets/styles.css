@@ -331,7 +331,11 @@ select.inp option{background:var(--surface);color:var(--text)}
 table{width:100%;border-collapse:collapse;table-layout:fixed}
 th{text-align:left;font-family:var(--font-mono);font-size:10px;font-weight:600;color:var(--text-mute);
   letter-spacing:.14em;text-transform:uppercase;padding:9px 12px;
-  border-bottom:1px solid var(--border);background:none;white-space:nowrap;position:sticky;top:0}
+  border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0;z-index:2;
+  /* FR-73：表头冻结必须有**实底**——原来 background:none，行滚到表头底下时
+     文字互相透叠（老板 2026-10-11 截图：首行文字覆盖到列表项）。实底取页面
+     同色 var(--bg)，滚动的行被挡在表头下面，视觉才是一张「冻结的首行」。 */
+  background:var(--bg)}
 td{padding:9px 12px;border-bottom:1px solid var(--hairline);font-size:13px;vertical-align:top;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
 tr:last-child td{border-bottom:none}
@@ -438,10 +442,12 @@ tbody tr:hover td{background:rgba(221,160,188,.05)}
 .page.active.page-fill{display:flex;flex-direction:column;height:100%;padding-bottom:18px}
 .page-fill .tblwrap{flex:1;min-height:150px;overflow-y:auto}
 .page-fill .pg-title{font-size:23px;margin:4px 0 3px}
-.grid4.sm>*{padding:8px 16px 7px}
-.grid4.sm .metric-l{margin-bottom:2px}
-.grid4.sm .metric-v{font-size:19px}
-.grid4.sm .metric-n{margin-top:1px}
+/* FR-74（老板 2026-10-11）：第 4 步的主角是校对列表，统计带只配当「页眉数字」——
+   压成两行（标签+数字），注释行整个去掉，高度再砍一截。 */
+.grid4.sm>*{padding:4px 14px 3px}
+.grid4.sm .metric-l{margin-bottom:1px}
+.grid4.sm .metric-v{font-size:15px;margin-top:0}
+.grid4.sm .metric-n{display:none}
 .batchline{display:flex;align-items:center;gap:13px;padding:10px 0;
   border-bottom:1px solid var(--hairline);white-space:nowrap}
 .batchline .prog{height:4px}

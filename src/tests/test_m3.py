@@ -39,6 +39,11 @@ def test_restore_flow_bounds(tmp_path, monkeypatch):
 
     FR-63 分工：越界**只管夹取**（99 → 6，与事实无关）；
     「能不能真停在第 N 步」归 prereq_ok 事实闸管（另见 test_nav_facts_gate_m3）。
+
+    FR-70 修订（老板 2026-10-11「为什么启动程序就进了第四步」）：落点不再恢复 ——
+    无论 flow.current_step 记的是几，启动一律落第 0 步；只有 max_step（解锁
+    进度）照常恢复并过事实闸。下面的期望从「current_step == 恢复值」改为
+    「current_step 恒 0、max_step == 夹取后的解锁值」。
     """
     import gpot.api.server as server
     monkeypatch.setattr(kernel, "CONFIG_PATH", str(tmp_path / "config.ini"))
@@ -51,13 +56,14 @@ def test_restore_flow_bounds(tmp_path, monkeypatch):
     server._CFG["flow.current_step"] = "4"
     server._CFG["flow.max_step"] = "4"
     server._restore_flow()
-    assert server._STATE.current_step == 4 and server._STATE.max_step == 4
+    # FR-70：解锁进度恢复到 4，但落点恒第 1 步（index 0）
+    assert server._STATE.current_step == 0 and server._STATE.max_step == 4
 
     server._CFG["flow.current_step"] = "99"
     server._CFG["flow.max_step"] = "99"
     server._restore_flow()
-    # 夹取上限仍是 6（不是 99），事实闸只会往下压不会往上抬
-    assert server._STATE.max_step <= 6 and server._STATE.current_step == server._STATE.max_step
+    # 夹取上限仍是 6（不是 99），事实闸只会往下压不会往上抬；落点仍恒 0
+    assert server._STATE.max_step <= 6 and server._STATE.current_step == 0
 
 
 # ---------------------------------------------------------------------------
