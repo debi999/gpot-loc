@@ -600,7 +600,7 @@ async function detectEngine() {
   document.getElementById('engineResult').innerHTML = `
     <div class="card">
       <div class="card-h">识别结果</div>
-      <div class="card-note">结论由下方<b>硬证据</b>判定，不是猜测。置信度不高时，以实际启动游戏为准。</div>
+      
       <div class="btn-row spread" style="align-items:flex-start">
         <div>
           <div style="font-size:22px;font-weight:600">${eng.name}</div>
@@ -612,7 +612,7 @@ async function detectEngine() {
     </div>
     <div class="card">
       <div class="card-h">这条管线会怎么跑</div>
-      <div class="card-note">一眼看懂链路：原文从哪来 → 译文写到哪 → 改完怎么生效。</div>
+      
       <div class="pipe">
         <div class="pipe-step"><div class="ps-t">文本从哪来</div><div class="ps-v">资源字节流提取</div></div>
         <div class="pipe-arrow">→</div>
@@ -673,7 +673,7 @@ async function refreshKitCheck() {
   box.innerHTML = `
     <div class="card">
       <div class="card-h">需要部署的工具 <span class="badge b-muted" style="margin-left:6px">一次性</span></div>
-      <div class="card-note">工具缓存在<b>程序目录</b>，部署时才注入游戏目录；已部署过的不重复下载。</div>
+      
       <div class="tblwrap"><table>
         <thead><tr><th>工具</th><th style="width:90px">大小</th><th style="width:96px">校验</th><th style="width:128px">状态</th></tr></thead>
         <tbody>${rows || '<tr><td colspan="4" class="subtle">该引擎暂无可靠工具包</td></tr>'}</tbody>
@@ -1281,7 +1281,7 @@ async function loadSink(engineKey) {
   let extra = '';
   if (v.whitelist && v.whitelist.length) {
     extra += `<div class="card"><div class="card-h">字段白名单</div>
-      <div class="card-note">只有列进白名单的字段才会被翻译，其余一律不动 —— 防止把 ID / 键名也翻掉。</div>
+      
       <div>${
       v.whitelist.map(w => `<span class="chip"><span class="chip-mono">${w}</span></span>`).join('')
     }</div>` +
@@ -1289,13 +1289,13 @@ async function loadSink(engineKey) {
   }
   if (v.reasons) {
     extra += `<div class="card"><div class="card-h">为什么做不了</div>
-      <div class="card-note">当前引擎缺硬条件，以下各项被<b>阻断</b> —— 这是能力边界，不是故障。</div>${
+      ${
       v.reasons.map(r => `<div class="rowitem"><div class="ri-main"><div class="ri-t">${r.t}</div><div class="ri-s">${r.s}</div></div>
         <div class="ri-side"><span class="badge b-${r.badge}">阻断</span></div></div>`).join('')}</div>`;
   }
   if (v.alternatives) {
     extra += `<div class="card"><div class="card-h">能做的替代</div>
-      <div class="card-note">整段回写做不了时的<b>替代路线</b>：能用，但覆盖面可能打折扣。</div>${
+      ${
       v.alternatives.map(a => `<div class="rowitem"><div class="ri-main"><div class="ri-t">${a.t}</div><div class="ri-s">${a.s}</div></div>
         <div class="ri-side"><span class="badge b-${a.badge||'info'}">${a.badge?'推荐':''}</span></div></div>`).join('')}</div>`;
   }
@@ -1335,7 +1335,7 @@ async function loadSink(engineKey) {
       <svg class="ib-ico" width="17" height="17"><use href="#i-${v.kind==='none'?'warn':'info'}"/></svg>
       <div>${v.warn}</div></div>
     ${files ? `<div class="card"><div class="card-h">${v.kind==='rewrite'?'回写位置':'写入位置'}</div>
-      <div class="card-note">逐个列出将被写入的文件与动作，<b>保存前看清落点</b>。</div>${files}</div>` : ''}
+      ${files}</div>` : ''}
     ${extra}
     ${lockNote}
     <div class="btn-row spread">

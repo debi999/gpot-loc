@@ -375,22 +375,29 @@ const { chromium } = require('playwright-core');
   check('FR-83 font served as font/woff2',
     fontResp.status() === 200 && (fontResp.headers()['content-type'] || '').includes('font/woff2'));
 
-  // FR-84：卡片左栏说明（填掉标签栏空白）。
-  // 风险点：.card>:not(.card-h){grid-column:2} 与 .card-note 特异性相同，
-  // 若声明顺序被搅乱，说明会被挤进右栏 → 左栏又空了、还可能与内容叠。
-  // 断言：说明真实存在于左栏（gridColumn=1），且每张主卡都配了非空说明。
+  // FR-84（v0.6.3 改版）：用户嫌左栏说明段落臃肿，撤销填充 —— 改为内容直接
+  // 左对齐铺满、左铭牌降级为卡片顶部小标题，不再有侧栏。
+  // 断言：① 说明段落已全部撤除（0 个 .card-note）；② 主卡不再是两栏网格
+  // （gridTemplateColumns 不含 px 侧栏宽），内容已拉通到与标题同一起始 x。
   const fr84 = await page.evaluate(() => {
     const notes = [...document.querySelectorAll('.card>.card-note')];
-    const misplaced = notes.filter(n => getComputedStyle(n).gridColumn !== '1');
-    const empty = notes.filter(n => !n.textContent.trim());
-    // 静态五页（0/1/3/5/6）的每张卡必须都配说明；第 2/5 步动态卡由渲染时机决定，不在此强绑
     const pageCards = [...document.querySelectorAll('.page .card')]
       .filter(c => c.querySelector(':scope>.card-h') && ['0','1','3','5','6'].includes(c.closest('.page').dataset.page));
-    const missing = pageCards.filter(c => !c.querySelector(':scope>.card-note'));
-    return { total: notes.length, misplaced: misplaced.length, empty: empty.length, missing: missing.length };
+    let gutter = 0, aligned = 0;
+    pageCards.forEach(c => {
+      const cs = getComputedStyle(c);
+      if (cs.gridTemplateColumns.includes('px')) gutter++;          // 仍残留侧栏宽 → 失败
+      const h = c.querySelector(':scope>.card-h').getBoundingClientRect();
+      const first = [...c.children].find(el => !el.classList.contains('card-h'));
+      if (first) {
+        const f = first.getBoundingClientRect();
+        if (Math.abs(f.x - h.x) < 2) aligned++;                      // 内容起点与标题对齐 → 左对齐拉通
+      }
+    });
+    return { notes: notes.length, gutter, aligned, cards: pageCards.length };
   });
-  check('FR-84 card notes exist in left gutter (col 1)', fr84.total > 0 && fr84.misplaced === 0);
-  check('FR-84 every main card has a non-empty note', fr84.empty === 0 && fr84.missing === 0);
+  check('FR-84 card-note fill removed (0 remaining)', fr84.notes === 0);
+  check('FR-84 cards collapsed to full-width (no side gutter)', fr84.gutter === 0 && fr84.aligned === fr84.cards);
 
   await page.screenshot({ path: 'I:/AIcoding/gpot-loc/_smoke_v058.png', fullPage: false });
   await browser.close();
