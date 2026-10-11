@@ -95,7 +95,7 @@
   线性 SVG，关闭键悬停红）。三键经 pywebview `js_api`（`WinCtl`）桥接宿主窗口；
   浏览器运行（无桥）时三键自动隐藏。
 - **状态栏右下角常显版本号**（`v0.4.x`，取自 `/api/state` 的 `app_version`）。
-- **边缘缩放（v0.6.0，FR-81）**：无边框窗口边缘拖拽缩放以 Win32 消息补齐（见 §待定 6）。
+- **边缘缩放（v0.6.0，FR-81，已实现）**：见 §待定 6。
 
 ### 1.2 视觉令牌（定稿 · 双主题）
 
@@ -267,4 +267,4 @@
 3. **导航轨是否折叠**：272px 在小屏占比偏高，考虑 1024px 以下自动收窄到图标轨。
 4. **FR-35 副标题的数据来源**：部分需要在 `config.ini` 新增 `flow.*` 小节，存储结构待设计。
 5. ~~**键盘 / 读屏无障碍**~~：**已做**（2026-10-11 实施于 v0.5.9，FR-78~80）——跳转链接、`#sbMsg` `role=status aria-live=polite`（全站唯一播报出口）、五弹窗 `role=dialog`+`aria-labelledby`、导航 `role=tablist`+`aria-current`、弹窗焦点归还（单源 `_modalOpen/_modalClose`）、快捷键 `Esc`/`Alt+1..7`/`Alt+D`/`Ctrl+F`/`Ctrl+Shift+S` + 输入框打字守卫、`:focus-visible` 焦点可见描边。
-6. **无边框窗口边缘缩放**：pywebview 未内建，待以 Win32 消息（`WM_NCHITTEST`）补齐。
+6. ~~**无边框窗口边缘缩放**~~：**已做**（2026-10-11 实施于 v0.6.0，FR-81）——Win32 子类化拦 `WM_NCHITTEST`，四边四角返回缩放命中码，由系统原生接管拖拽；判定逻辑下沉 `core/winframe.py:hit_test`（纯函数可单测），失败静默降级并写 `[edge-resize]` 日志。
