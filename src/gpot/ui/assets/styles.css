@@ -234,7 +234,7 @@ button{font-family:inherit;cursor:pointer}
 
 /* ---------- 台账分区（核心结构）：卡片盒 → 左铭牌 + 右内容细线分区 ----------
    .card 由 app.js / index.html 注入，这里整体转译为台账区，不动结构。 */
-.card{display:grid;grid-template-columns:158px 1fr;gap:0 30px;
+.card{display:grid;grid-template-columns:176px 1fr;gap:0 30px;
   background:none;border:none;border-top:1px solid var(--hairline);
   border-radius:0;padding:19px 0;margin:0 0 2px;box-shadow:none;
   transition:none}
@@ -243,6 +243,12 @@ button{font-family:inherit;cursor:pointer}
   font-family:var(--font-mono);font-size:10.5px;font-weight:600;color:var(--text-mute);
   letter-spacing:.1em;text-transform:uppercase;line-height:1.7;margin:0}
 .card>:not(.card-h){grid-column:2}
+/* FR-84：卡片左栏说明。原先标签栏只有一行 mono 标签、下面整段空白，
+   补一段短说明填掉 —— 内容必须真实有用（操作指引/护栏提示），不许凑数占位。
+   ⚠️ 必须排在 .card>:not(.card-h) 之后：两条特异性相同（0,2,0），后者声明在后会赢。 */
+.card>.card-note{grid-column:1;font-size:11.5px;color:var(--text-sub);
+  line-height:1.75;margin:9px 0 0;padding-right:4px}
+.card>.card-note b{color:var(--ink);font-weight:600}
 .card-sub{font-size:12px;color:var(--text-mute);margin:0 0 12px;line-height:1.6}
 .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:0 26px}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}

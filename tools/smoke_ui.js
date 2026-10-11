@@ -375,6 +375,23 @@ const { chromium } = require('playwright-core');
   check('FR-83 font served as font/woff2',
     fontResp.status() === 200 && (fontResp.headers()['content-type'] || '').includes('font/woff2'));
 
+  // FR-84：卡片左栏说明（填掉标签栏空白）。
+  // 风险点：.card>:not(.card-h){grid-column:2} 与 .card-note 特异性相同，
+  // 若声明顺序被搅乱，说明会被挤进右栏 → 左栏又空了、还可能与内容叠。
+  // 断言：说明真实存在于左栏（gridColumn=1），且每张主卡都配了非空说明。
+  const fr84 = await page.evaluate(() => {
+    const notes = [...document.querySelectorAll('.card>.card-note')];
+    const misplaced = notes.filter(n => getComputedStyle(n).gridColumn !== '1');
+    const empty = notes.filter(n => !n.textContent.trim());
+    // 静态五页（0/1/3/5/6）的每张卡必须都配说明；第 2/5 步动态卡由渲染时机决定，不在此强绑
+    const pageCards = [...document.querySelectorAll('.page .card')]
+      .filter(c => c.querySelector(':scope>.card-h') && ['0','1','3','5','6'].includes(c.closest('.page').dataset.page));
+    const missing = pageCards.filter(c => !c.querySelector(':scope>.card-note'));
+    return { total: notes.length, misplaced: misplaced.length, empty: empty.length, missing: missing.length };
+  });
+  check('FR-84 card notes exist in left gutter (col 1)', fr84.total > 0 && fr84.misplaced === 0);
+  check('FR-84 every main card has a non-empty note', fr84.empty === 0 && fr84.missing === 0);
+
   await page.screenshot({ path: 'I:/AIcoding/gpot-loc/_smoke_v058.png', fullPage: false });
   await browser.close();
   console.log(results.join('\n'));

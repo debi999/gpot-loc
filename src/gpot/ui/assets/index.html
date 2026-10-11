@@ -87,10 +87,12 @@
         </div>
         <div class="card">
           <div class="card-h">选择提供方</div>
+          <div class="card-note">挑一个你手头有的后端：<b>本地 Ollama</b> 免费不限量、断网也能跑；<b>云服务</b>质量更稳，但要填密钥。填过的提供方会记住参数，下次直接用。</div>
           <div class="grid3" id="provGrid"></div>
         </div>
         <div class="card">
           <div class="card-h">连接参数</div>
+          <div class="card-note">地址填 <b>本机或服务商给的接口地址</b>；需要密钥的提供方点「获取模型」前必须先填。配置只存本机，不上传。</div>
           <div class="grid2">
             <div class="field">
               <label class="lbl">服务地址</label>
@@ -178,6 +180,7 @@
         </div>
         <div class="card">
           <div class="card-h">游戏位置</div>
+          <div class="card-note">认准放 <b>.exe 的那一层</b>（根目录），别选到上一层或 Data 里层。也可以把文件夹直接拖进窗口任意位置。</div>
           <div class="btn-row" style="margin-bottom:12px">
             <input class="inp" id="gamePath" style="flex:1" value="F:\erogame\Starmaker_Story\Starmaker Story(1.8e\Starmaker 1.8E"
                    onkeydown="if(event.key==='Enter')selectGame()" ondblclick="pickFolder()">
@@ -220,6 +223,7 @@
         <div class="grid2">
           <div class="card">
             <div class="card-h">扫描选项</div>
+            <div class="card-note">日常用 <b>增量合并</b>：只补新文本、不动已有译文。「重建」只在现表出错时用。</div>
             <div class="cklist">
               <label class="ck"><input type="radio" name="mode" value="merge" checked><div><div class="ck-t">增量合并（推荐）</div><div class="ck-d">保留已有译文，只补新条目</div></div></label>
               <label class="ck"><input type="radio" name="mode" value="replace"><div><div class="ck-t">重建</div><div class="ck-d">丢弃现表，重新扫一遍</div></div></label>
@@ -228,6 +232,7 @@
           </div>
           <div class="card">
             <div class="card-h">护栏</div>
+            <div class="card-note">两道过滤挡截断碎片和污染词条，实测 <b>0 误伤</b>。不确定就保持全开。</div>
             <label class="sw"><input type="checkbox" checked id="gFrag"><div><div>过滤截断碎片</div><div class="sw-d">上一轮拦掉 8,045 条（占 35.4%），0 误伤</div></div></label>
             <label class="sw"><input type="checkbox" checked id="gPoll"><div><div>过滤污染词条</div><div class="sw-d">上一轮拦掉 80 / 95，0 误伤</div></div></label>
             <label class="sw"><input type="checkbox" checked disabled><div><div>排除 resS / .resource</div><div class="sw-d">占 _Data 的 91.3%，实测 0 条真文本（恒开）</div></div></label>
@@ -235,6 +240,7 @@
         </div>
         <div class="card">
           <div class="card-h">开始扫描</div>
+          <div class="card-note">只读扫描，<b>不改游戏文件</b>。扫完按引擎落点生成词典，回第 4 步翻译。</div>
           <div class="infobar ib-ok hidden" id="p3base" style="margin-bottom:10px"><svg class="ib-ico" width="17" height="17"><use href="#i-check"/></svg><div></div></div>
           <div class="ri-s" style="font-size:12.5px">Starmaker 1.8E_Data · 排除 StreamingAssets/resS · 预计扫 1,240 个文件</div>
           <div class="btn-row" style="margin-top:14px">
@@ -342,6 +348,7 @@
         </div>
         <div class="card">
           <div class="card-h">当前管线</div>
+          <div class="card-note">按第 2 步识别结果<b>自动锁定</b>，不用手动选。切其它管线只能预览形态，「保存并写入」会禁用。</div>
           <div>
             <div class="btn-row spread" style="align-items:center">
               <div class="btn-row" style="gap:14px;align-items:center;margin:0;min-width:0">
@@ -377,10 +384,12 @@
         </div>
         <div class="card">
           <div class="card-h">写入结果自检</div>
+          <div class="card-note">列出这次<b>写了哪些文件、各自成败</b>。有红叉先看这里的说明，别急着进游戏。</div>
           <div id="p6checks"></div>
         </div>
         <div class="card">
           <div class="card-h">下一步</div>
+          <div class="card-note">启动游戏<b>亲眼确认</b>译文生效；不对可一键还原回原文。</div>
           <div class="grid3">
             <button class="btn btn-lg btn-accent" style="justify-content:center" onclick="launchGame()"><svg width="14" height="14"><use href="#i-play"/></svg> 启动游戏验证</button>
             <button class="btn btn-lg" style="justify-content:center" onclick="openTransDir()"><svg width="14" height="14"><use href="#i-folder"/></svg> 打开译文目录</button>
@@ -389,6 +398,7 @@
         </div>
         <div class="card">
           <div class="card-h">日常迭代</div>
+          <div class="card-note">改台词不用重走全流程：直接跳第 4 步改译文 → 第 5 步保存即可。</div>
           <div class="subtle">下次改一句台词：点左侧「4 翻译与人工校对」→ 改 → 走第 5 步保存。</div>
         </div>
       </section>
