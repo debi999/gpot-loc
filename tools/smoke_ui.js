@@ -72,6 +72,18 @@ const { chromium } = require('playwright-core');
     fr71.opts.length <= 2 && fr71.opts.every(v => v === '' || v === '__custom__'));
   check('FR-71 provider switch falls back to preset model (' + fr71.model + ')',
     fr71.model === 'claude-3-5-sonnet-latest');
+  // FR-76：需要密钥的提供方，Key 为空点「获取模型」必须被必填提示拦下（不发请求）
+  await page.evaluate(() => { STATE.config = Object.assign({}, STATE.config, { provider: 'ollama', key: '' }); });
+  await page.click('#btnModels');
+  await page.waitForTimeout(400);
+  const fr76 = await page.evaluate(() => ({
+    sb: document.getElementById('sbMsg').textContent,
+    opts: [...document.getElementById('cfgModelSel').options]
+      .map(o => o.value).filter(v => v && v !== '__custom__'),
+  }));
+  check('FR-76 empty key blocks fetch with required prompt (' + fr76.sb + ')',
+    fr76.sb.includes('API Key'));
+  check('FR-76 blocked fetch sends no request (list still empty)', fr76.opts.length === 0);
   // 切回 ollama 并重拉列表（列表被 FR-71 清空了，后续步骤还要用）
   await page.click('.prov[data-k="ollama"]');
   await page.waitForTimeout(150);

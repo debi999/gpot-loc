@@ -424,6 +424,24 @@ function _cfgBody() {
    FR-71: 必须把**界面当前所选的提供方**一起传给后端 —— 不然后端拿上次保存的
    配置去拉，选了 Claude 却列出本地 Ollama 的模型（老板 2026-10-11 实测）。 */
 async function fetchModels() {
+  /* FR-76: 必填项前置校验 —— 需要密钥的提供方（OpenAI兼容/DeepSeek/Claude/Gemini/DeepL）
+     在 Key 为空时点「获取模型」，不再发请求拿一句「接口不兼容」误导人，
+     而是直接提示必填并聚焦输入框。百度同理校验 AppID/Secret。
+     放行例外：输入框为空但**同一提供方**此前已存过密钥（重启后密码框不回填是
+     正常的，后端 /api/models 对空字段会回落到已存配置）—— 这种情况照常放行。 */
+  const p = PROVS.find(x => x.key === SEL_PROV) || {};
+  const saved = (STATE.config && STATE.config.provider === SEL_PROV) ? STATE.config : {};
+  if (p.needs_key && !document.getElementById('cfgKey').value.trim() && !saved.key) {
+    sb('当前提供方需要 API Key —— 请先填写再点「获取模型」');
+    document.getElementById('cfgKey').focus();
+    return;
+  }
+  const secIn = document.getElementById('cfgSecret').value.trim();
+  if (p.needs_appid && !(secIn.includes('/') || (saved.appid && saved.secret))) {
+    sb('百度提供方需要 AppID/Secret —— 请按「AppID/Secret」格式填写（中间用 / 分隔）');
+    document.getElementById('cfgSecret').focus();
+    return;
+  }
   const btn = document.getElementById('btnModels');
   btn.disabled = true; btn.textContent = '获取中…';
   const r = await api('POST', '/api/models', {
