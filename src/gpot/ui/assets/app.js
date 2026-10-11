@@ -483,6 +483,25 @@ function renderCfgStatus(r) {
 
 /* ---------------- Step 1：游戏目录 ---------------- */
 /* FR-39: 最近使用列表（游戏名 + 路径 + 已积累条数 + 已配置徽章） */
+/* FR-68: 路径进 JS 字符串必须走 `_jsStr` —— 不能直接 `esc()`。
+   ⚠️ 事故原委：`esc()` 只管 `& < > "`，**不管反斜杠**。把
+   `F:\erogame\Starmaker_Story\Starmaker Story(1.8e` 塞进
+   `onclick="selectRecent('...')"` 后，JS 把 `\e` `\S` `\s` 当转义序列吃掉 ——
+   点一下路径就变成 `F:erogameStarmaker_StoryStarmaker Story(1.8e`，
+   斜杠全没了（老板 2026-10-11 实测）。HTML 属性层面反斜杠无需转义，
+   但 JS 源码层面 `\` 必须变成 `\\`，单引号必须转义 —— 两层都得管。 */
+function _jsStr(s) {   // 安全嵌入单引号 JS 字符串字面量
+  return String(s ?? '')
+    .replace(/\\/g, '\\\\')      // 反斜杠：JS 源码层转义（先做，否则后面加的反斜杠会被再转）
+    .replace(/'/g, "\\'")
+    .replace(/\r?\n/g, '\\n')
+    // U+2028/U+2029 行/段分隔符：在 JS 字符串字面量里会截断源码，必须转义。
+    // ⚠️ 这里**不写裸字符**、也不用正则字面量 —— 源码里放不可见字符会在编辑/传输中被
+    //   破坏，表现是整份 app.js 抛 `Invalid regular expression` → 整个前端挂掉
+    //   （FR-68 踩过：修路径 bug 时自己引入的）。用 new RegExp + \u 转义最稳。
+    .replace(new RegExp('\u2028', 'g'), '\\u2028')
+    .replace(new RegExp('\u2029', 'g'), '\\u2029');
+}
 async function loadRecent() {
   const el = document.getElementById('recentBox');
   if (!el || DEMO) return;
@@ -491,7 +510,7 @@ async function loadRecent() {
   if (!list.length) { el.innerHTML = ''; return; }
   el.innerHTML = '<div class="subtle" style="margin-bottom:6px">最近使用</div>'
     + list.map(x => `
-    <div class="rowitem" style="cursor:pointer" onclick="selectRecent('${esc(x.path).replace(/'/g, '&#39;')}')">
+    <div class="rowitem" style="cursor:pointer" onclick="selectRecent('${_jsStr(x.path)}')">
       <div class="ri-main"><div class="ri-t">${esc(x.name)}</div><div class="ri-s mono">${esc(x.path)}</div></div>
       <div class="ri-side">${x.configured
         ? `<span class="badge b-ok">已配置 · ${(x.entries || 0).toLocaleString()} 条</span>`
@@ -513,7 +532,10 @@ async function selectGame() {
     + (g.relocated ? `<div class="infobar ib-warn" style="margin-top:8px"><svg class="ib-ico" width="17" height="17"><use href="#i-warn"/></svg>
     <div>所选目录不是游戏根，已自动定位到：<span class="mono">${esc(g.relocated)}</span></div></div>` : '');
   sb('已选择 ' + g.name + ' · 已有译文 ' + g.existing.toLocaleString() + ' 条');
-  goNext();
+  /* FR-69: 选完游戏明确落到第 2 步，不要再 `goNext()`（= current_step+1）。
+     旧实现在「应用恢复在更靠后步骤、用户回第 1 步重选游戏」时，current_step 已是 3，
+     goNext 会去 nav(4) 被拦、状态栏留下「这一步还没解锁」，让第 2 步看着像被锁死。 */
+  goto(2);
 }
 async function pickFolder() {
   // FR-52: 第 1 步「浏览」——后端弹 Windows 现代版文件夹选择对话框（/api/pick-folder）
@@ -533,8 +555,11 @@ async function pickFolder() {
 /* ---------------- Step 2：识别引擎 ---------------- */
 async function detectEngine() {
   const btn = document.getElementById('btnDetect');
+  if (!btn) return;
   btn.disabled = true; btn.textContent = '识别中…';
+  try {
   const eng = await api('POST', '/api/detect');
+  if (!eng || eng.error) throw new Error((eng && eng.message) || '识别接口返回异常');
   STATE.engine = eng;
   STATE.kit = eng.kit || { deployed: false, tools: [] };   // FR-41: 工具清单随识别返回
   const ev = (eng.evidence || []).map(e => `<span class="chip"><span class="chip-mono">${e}</span></span>`).join('');
@@ -581,6 +606,13 @@ async function detectEngine() {
         <div>该引擎暂无可靠工具包清单 —— 请点「跳过，我手动装」，或用第 5 步给出的替代方案。</div></div>`;
   }
   sb('识别为 ' + eng.name);
+  } catch (e) {
+    /* FR-69: 识别失败必须恢复按钮并如实报错 —— 否则卡在「识别中…」且 disabled，
+       第 2 步彻底卡死、既无部署按钮也无跳过按钮，老板会以为「第二步进不去第三步」。
+       （v0.5.5 前 detectEngine 没有任何 try/finally，一次接口异常就永久卡死） */
+    if (btn) { btn.disabled = false; btn.textContent = '识别引擎'; }
+    sb('识别失败：' + ((e && e.message) || e));
+  }
 }
 async function deployKit() {
   const btn = document.getElementById('btnDeploy');
@@ -604,12 +636,12 @@ async function deployKit() {
   btn.textContent = '重新校验';   // FR-41: 部署过 → 文案变「重新校验」
   btn.disabled = false;
   sb('注入工具已就位');
-  goNext();
+  goto(3);   // FR-69: 明确落到第 3 步（不再 goNext=current+1，避免 current_step 漂移被拦）
 }
 function skipKit() {   // FR-41: 「跳过，我手动装」→ 第 5 步顶部常驻提示
   STATE.kit = STATE.kit || {};
   STATE.kit.skipped = true;
-  goNext();
+  goto(3);   // FR-69: 明确落到第 3 步
 }
 
 /* ---------------- Step 3：提取 ---------------- */

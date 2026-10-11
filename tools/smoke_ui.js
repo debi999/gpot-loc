@@ -178,7 +178,42 @@ const { chromium } = require('playwright-core');
   check('extract refuses without game dir', p3.includes('提取未执行'));
   check('extract refusal names the cause', p3.includes('第 1 步'));
 
-  await page.screenshot({ path: 'I:/AIcoding/gpot-loc/_smoke_v051.png', fullPage: false });
+  // 16. FR-69：选完游戏必须明确落第 2 步，不随 current_step 漂移 overshoot；
+  //     部署/跳过必须明确落第 3 步。旧实现 selectGame 用 goNext(=current+1)，
+  //     恢复到靠后步骤后回第 1 步重选游戏会越级被拦，第 2 步看着像锁死。
+  await page.evaluate(async () => {
+    await api('POST', '/api/reset', {});
+    await loadState();
+    STATE.current_step = 3;   // 模拟「恢复到靠后步骤」后用户回第 1 步重选游戏
+    const gp = 'F:\\erogame\\Starmaker_Story\\Starmaker Story(1.8e\\Starmaker 1.8E';
+    document.getElementById('gamePath').value = gp;
+    await selectGame();       // 修复后走 goto(2)，不会去 nav(4) 越级
+  });
+  await page.waitForTimeout(600);
+  const fr69a = await page.evaluate(() => ({
+    cur: STATE.current_step,
+    page: [...document.querySelectorAll('.page.active')].map(x => x.dataset.page)[0],
+    sb: document.getElementById('sbMsg').innerText,
+  }));
+  check('FR-69 selectGame lands on step 2 (no overshoot)', fr69a.cur === 2 && fr69a.page === '2');
+  check('FR-69 no "这一步还没解锁" left on step2', !fr69a.sb.includes('这一步还没解锁'));
+
+  // 第 2 步识别引擎 → 跳过（不下载，安全）→ 必须落第 3 步
+  await page.evaluate(() => { const b = document.getElementById('btnDetect'); if (b) b.click(); });
+  await page.waitForTimeout(2200);
+  await page.evaluate(() => {
+    const bs = [...document.querySelectorAll('.page[data-page="2"] button')];
+    const t = bs.find(x => x.textContent.includes('跳过'));
+    if (t) t.click();
+  });
+  await page.waitForTimeout(1200);
+  const fr69b = await page.evaluate(() => ({
+    cur: STATE.current_step,
+    page: [...document.querySelectorAll('.page.active')].map(x => x.dataset.page)[0],
+  }));
+  check('FR-69 skip lands on step 3', fr69b.cur === 3 && fr69b.page === '3');
+
+  await page.screenshot({ path: 'I:/AIcoding/gpot-loc/_smoke_v055.png', fullPage: false });
   await browser.close();
   console.log(results.join('\n'));
   const fails = results.filter(r => r.startsWith('FAIL')).length;
