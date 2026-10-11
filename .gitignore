@@ -6,10 +6,13 @@ __pycache__/
 venv/
 
 # ===== 构建产物（可由源码重建，不入库）=====
+# ⚠️ build.spec 是**例外**：它是 PyInstaller 的打包配置，属于源码，必须入库
+# （M4 的打包口径是「一条命令出 exe」，配置丢了就没人知道怎么复现）。
+# 产物本身（build/ dist/ *.exe）依旧不入库 —— AGENTS 纪律：产物放 F 盘。
 build/
 dist/
 *.exe
-*.spec
+!build.spec
 
 # ===== 文档构建产物（.md 是真源；tools/md2html.py 产物不入库）=====
 docs/*.html
