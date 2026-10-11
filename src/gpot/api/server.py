@@ -25,7 +25,7 @@ _STATE = _store.Store()
 
 # 应用版本（FR-51: 版本唯一真源，随 /api/state 暴露、状态栏常显、双开复用前比对——
 # 旧版本实例不复用，避免「双击 bat 还是老版本」；老板 2026-10-10 指定 V0.4* 起编号）
-APP_VERSION = "0.5.7"
+APP_VERSION = "0.5.8"
 
 # 旧库格式 config.ini（随 kernel 落在 core/ 目录）—— 提供方/游戏目录记忆
 _CFG = kernel.load_config()
@@ -504,6 +504,11 @@ class _Handler(BaseHTTPRequestHandler):
             try:
                 plan = kit_installer.plan_install(eng, gdir)
             except Exception as e:
+                # FR-77: 引擎没有工具包清单时给人话，别把「未知引擎」当故障报
+                if kit_catalog.get_kit(eng) is None:
+                    return self._send(200, {"ok": False, "error": "no_kit",
+                                            "tools": [],
+                                            "message": "该引擎暂无可靠工具包清单 —— 请点「跳过，我手动装」，或用第 5 步给出的替代方案。"})
                 return self._send(200, {"ok": False, "error": "check_failed",
                                         "tools": [],
                                         "message": "校验失败：%s" % str(e)[:150]})
@@ -525,7 +530,12 @@ class _Handler(BaseHTTPRequestHandler):
                            "marker": p.get("marker", ""),
                            "cached": bool(p.get("cached")),
                            "verified": bool(p.get("verified")),
+                           # FR-77: 前端自动校验表格需要 size 算「下载并部署（约 N MB）」
+                           "size": p.get("size"),
                            "reason": p.get("reason", "")} for p in packs],
+                # FR-77: 摆出缓存母本位置（程序目录 toolcache），明确「工具存软件目录、
+                # 部署才注入游戏」——不写这条老板没法核对孩子说的对不对。
+                "cache_dir": plan.get("cache_dir") or "",
                 "message": ("工具齐备 · 共 %d 项" % len(packs)) if not missing
                 else ("缺 %d 项（共 %d）：%s" % (len(missing), len(packs),
                                                 "、".join(p.get("title") or p["id"]

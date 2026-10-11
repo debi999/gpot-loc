@@ -246,6 +246,17 @@ const { chromium } = require('playwright-core');
   // 第 2 步识别引擎 → 跳过（不下载，安全）→ 必须落第 3 步
   await page.evaluate(() => { const b = document.getElementById('btnDetect'); if (b) b.click(); });
   await page.waitForTimeout(2200);
+  // FR-77：识别后**不点部署** —— 工具表必须已自动校验渲染（先校验再决定要不要下载）
+  await page.waitForTimeout(600);
+  const fr77 = await page.evaluate(() => ({
+    rows: document.querySelectorAll('#kitBox tbody tr').length,
+    hasCacheLine: document.getElementById('kitBox').innerText.includes('缓存母本位置'),
+    btn: ((document.getElementById('btnDeploy') || {}).textContent || '').trim(),
+  }));
+  check('FR-77 auto-verify table rendered without deploy click (' + fr77.rows + ' rows)', fr77.rows > 0);
+  check('FR-77 cache location (program dir) shown', fr77.hasCacheLine);
+  check('FR-77 deploy button reflects check state (' + fr77.btn + ')',
+    /重新校验|部署到游戏（无需下载）|下载并部署/.test(fr77.btn));
   await page.evaluate(() => {
     const bs = [...document.querySelectorAll('.page[data-page="2"] button')];
     const t = bs.find(x => x.textContent.includes('跳过'));
@@ -270,7 +281,7 @@ const { chromium } = require('playwright-core');
   await page.evaluate(() => loadSink('unity'));   // 还原到当前引擎视图
   await page.waitForTimeout(400);
 
-  await page.screenshot({ path: 'I:/AIcoding/gpot-loc/_smoke_v056.png', fullPage: false });
+  await page.screenshot({ path: 'I:/AIcoding/gpot-loc/_smoke_v058.png', fullPage: false });
   await browser.close();
   console.log(results.join('\n'));
   const fails = results.filter(r => r.startsWith('FAIL')).length;

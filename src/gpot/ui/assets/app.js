@@ -618,24 +618,18 @@ async function detectEngine() {
     </div>
     <div id="kitBox"></div>
       <div class="btn-row spread">
-        <button class="btn btn-accent btn-lg" id="btnDeploy" onclick="deployKit()">下载并部署</button>
+        <button class="btn btn-accent btn-lg" id="btnDeploy" onclick="deployKit()">重新校验</button>
         <button class="btn btn-ghost" onclick="skipKit()">跳过，我手动装</button>
       </div>`;
   /* 主按钮移交（简报硬伤 2）：识别后底部「识别引擎」撤下，主按钮归部署区 */
   const detectRow = document.getElementById('detectRow');
   if (detectRow) detectRow.hidden = true;
-  /* FR-41: 主按钮文案随状态变化 —— 无清单隐藏按钮；有清单显示「下载并部署（约 N MB）」 */
-  const tools = (STATE.kit && STATE.kit.tools) || [];
-  const dbtn = document.getElementById('btnDeploy');
-  if (tools.length) {
-    const total = tools.reduce((a, t) => a + (parseFloat(t.size) || 0), 0);
-    dbtn.textContent = '下载并部署' + (total ? `（约 ${total.toFixed(1)} MB）` : '');
-  } else {
-    dbtn.hidden = true;
-    document.getElementById('kitBox').innerHTML = `
-      <div class="infobar ib-warn"><svg class="ib-ico" width="17" height="17"><use href="#i-warn"/></svg>
-        <div>该引擎暂无可靠工具包清单 —— 请点「跳过，我手动装」，或用第 5 步给出的替代方案。</div></div>`;
-  }
+  /* FR-77: 进入第 2 步**先自动校验工具**（只读 /api/kit/check），表格直接摆出
+     每项的真实状态（已注入游戏 / 已缓存·待注入 / 需下载），按钮文案按缺项定
+     ——不再是「先点下载并部署、部署完才看到校验」。 */
+  try {
+    await refreshKitCheck();
+  } catch (_) { /* 校验失败时 kitBox 留空，按钮仍是「重新校验」可手点 */ }
   sb('识别为 ' + eng.name);
   } catch (e) {
     /* FR-69: 识别失败必须恢复按钮并如实报错 —— 否则卡在「识别中…」且 disabled，
@@ -645,29 +639,76 @@ async function detectEngine() {
     sb('识别失败：' + ((e && e.message) || e));
   }
 }
-async function deployKit() {
-  const btn = document.getElementById('btnDeploy');
-  btn.disabled = true; btn.textContent = '部署中…';
-  const kit = await api('POST', '/api/deploy');
-  STATE.kit = kit;   // FR-41: 记录部署态（重新校验文案用）
-  /* FR-66：删掉原「版本」列 —— kit_catalog 没有 version 字段，那一列恒排「—」，
-     而版本号本来就写在工具名里（"BepInEx 5.4.23.5 (Windows x64)"），重复且误导。 */
-  const rows = (kit.tools || []).map(t => `
-    <tr><td>${t.name}</td><td class="mono">${t.size}</td>
-    <td>${t.verified ? '<span class="badge b-ok">已验证</span>' : '<span class="badge b-warn">仅查过</span>'}</td>
-    <td><span class="badge b-ok">${t.status}</span></td></tr>`).join('');
-  document.getElementById('kitBox').innerHTML = `
+/* FR-77: 只读校验并渲染工具表 —— 三态状态徽章：
+   已注入游戏（skip_exists）/ 已缓存·待注入（cached，无需下载）/ 需下载。
+   按钮文案按缺项自动切：全就位→「重新校验」；缺项全有缓存→「部署到游戏（无需下载）」；
+   有缺缓存→「下载并部署（缺 N 项，约 N MB）」。缓存母本位置明示在卡片底部。 */
+let _KIT_CHK = null;
+async function refreshKitCheck() {
+  const dbtn = document.getElementById('btnDeploy');
+  const chk = await api('GET', '/api/kit/check');
+  _KIT_CHK = chk;
+  const box = document.getElementById('kitBox');
+  if (!chk || chk.ok === false) {
+    if (dbtn) dbtn.hidden = true;
+    box.innerHTML = `
+      <div class="infobar ib-warn"><svg class="ib-ico" width="17" height="17"><use href="#i-warn"/></svg>
+        <div>${(chk && chk.message) || '该引擎暂无可靠工具包清单 —— 请点「跳过，我手动装」，或用第 5 步给出的替代方案。'}</div></div>`;
+    return;
+  }
+  const rows = (chk.tools || []).map(t => {
+    let status;
+    if (t.action === 'skip_exists') status = '<span class="badge b-ok">已注入游戏</span>';
+    else if (t.cached) status = '<span class="badge b-info">已缓存·待注入</span>';
+    else status = '<span class="badge b-warn">需下载</span>';
+    const verify = t.verified ? '<span class="badge b-ok">已验证</span>' : '<span class="badge b-warn">仅查过</span>';
+    const size = (t.size != null && t.size !== '') ? t.size : '—';
+    return `<tr><td>${t.title}</td><td class="mono">${size}</td><td>${verify}</td><td>${status}</td></tr>`;
+  }).join('');
+  box.innerHTML = `
     <div class="card">
       <div class="card-h">需要部署的工具 <span class="badge b-muted" style="margin-left:6px">一次性</span></div>
       <div class="tblwrap"><table>
-        <thead><tr><th>工具</th><th style="width:90px">大小</th><th style="width:96px">校验</th><th style="width:88px">状态</th></tr></thead>
+        <thead><tr><th>工具</th><th style="width:90px">大小</th><th style="width:96px">校验</th><th style="width:128px">状态</th></tr></thead>
         <tbody>${rows || '<tr><td colspan="4" class="subtle">该引擎暂无可靠工具包</td></tr>'}</tbody>
       </table></div>
+      <div class="subtle" style="margin-top:8px">缓存母本位置（程序目录，部署时才注入游戏目录，不重复下载）：${chk.cache_dir || '—'}</div>
     </div>`;
-  btn.textContent = '重新校验';   // FR-41: 部署过 → 文案变「重新校验」
-  btn.disabled = false;
-  sb('注入工具已就位');
-  goto(3);   // FR-69: 明确落到第 3 步（不再 goNext=current+1，避免 current_step 漂移被拦）
+  if (dbtn) {
+    const miss = (chk.tools || []).filter(t => t.action === 'install');
+    const dl = miss.filter(t => !t.cached);
+    if (!miss.length) {
+      dbtn.textContent = '重新校验';
+    } else if (!dl.length) {
+      dbtn.textContent = '部署到游戏（无需下载）';
+    } else {
+      const total = dl.reduce((a, t) => a + (parseFloat(t.size) || 0), 0);
+      dbtn.textContent = '下载并部署（缺 ' + dl.length + ' 项' + (total ? '，约 ' + total.toFixed(1) + ' MB' : '') + '）';
+    }
+    dbtn.hidden = false;
+  }
+}
+async function deployKit() {
+  const btn = document.getElementById('btnDeploy');
+  /* FR-77: 全部已注入游戏时按钮是「重新校验」——只读校验一遍，不再触发部署 */
+  if (_KIT_CHK && !( _KIT_CHK.tools || []).some(t => t.action === 'install')) {
+    btn.disabled = true; btn.textContent = '校验中…';
+    try { await refreshKitCheck(); } finally { btn.disabled = false; }
+    return;
+  }
+  btn.disabled = true; btn.textContent = '部署中…';
+  try {
+    const kit = await api('POST', '/api/deploy');
+    STATE.kit = kit;   // FR-41: 记录部署态（重新校验文案用）
+    await refreshKitCheck();   // FR-77: 部署后立即重校验，表格反映真实落位状态
+    sb('注入工具已就位');
+    goto(3);   // FR-69: 明确落到第 3 步（不再 goNext=current+1，避免 current_step 漂移被拦）
+  } catch (e) {
+    sb('部署失败：' + ((e && e.message) || e));
+    await refreshKitCheck().catch(() => {});
+  } finally {
+    btn.disabled = false;
+  }
 }
 function skipKit() {   // FR-41: 「跳过，我手动装」→ 第 5 步顶部常驻提示
   STATE.kit = STATE.kit || {};
