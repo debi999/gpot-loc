@@ -169,6 +169,12 @@ def start_translate(store, retry: bool = False, scope: str = "todo",
                     chunk, outs = fut.result()
                     apply(chunk, outs)
 
+        # ⚠️ P0-1（2026-10-11 审查提「翻译完应自动落盘」）—— **老板决定不采纳**。
+        # 落盘**只由用户手动触发**：第 5 步「保存并应用」(sink.apply)。
+        # 翻译任务只改内存里的 entries 并置 dirty=True，**一个字节都不碰磁盘**。
+        # 理由：自动写盘会在用户还没校对完译文时就改写词典文件，
+        # 而 .bak 轮转只留三代，覆写不可控 —— 落盘时机归人，不归程序。
+
         with store.lock:
             job["running"] = False
             if not job["cancel"]:
@@ -177,7 +183,17 @@ def start_translate(store, retry: bool = False, scope: str = "todo",
             stats = tstore.stats()
             store.translate["done"] = stats["translated"]
             store.translate["failed"] = stats["untranslated"]
-            store.translate["running"] = False
+            # P1-1（2026-10-11 审查）：`running` 是**全局**标志，不是本任务的。
+            # 取消只是把 flag 让出去，旧任务的 worker 还在 `run_chunk` 里跑
+            # （time.sleep 不可中断）——等它走到收尾时，这个标志可能已经属于
+            # 新任务了。无条件写 False 会把新任务的标志踩掉：实测 job2 跑到
+            # 一半被 job1 收尾清成 False → 第三个任务被误放行 → 两个任务
+            # 并发写同一批 80 条条目，指标虚高、「已有任务在进行」的 409 闸失效。
+            # 所以只清自己：只要还有别的任务在跑，标志就保持 True。
+            if store.jobs.get(job_id) is job:
+                store.translate["running"] = any(
+                    x is not job and x.get("running")
+                    for x in store.jobs.values())
             if not job["cancel"]:
                 pipeline.complete_step(store, 4)  # 翻译完成 → 解锁应用（第 5 步）
 
@@ -196,6 +212,10 @@ def cancel_job(store, job_id: str) -> bool:
         if j:
             j["cancel"] = True
             j["running"] = False
-            store.translate["running"] = False
+            # P1-1：只释放**自己**占着的全局标志。若此刻已有别的任务在跑
+            # （例如上一次取消的收尾还没走完、用户又开了一个），标志属于那个
+            # 任务，不能清 —— 否则「已有任务在进行」这道 409 闸形同虚设。
+            store.translate["running"] = any(
+                x is not j and x.get("running") for x in store.jobs.values())
             return True
     return False

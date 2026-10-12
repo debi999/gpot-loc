@@ -145,11 +145,21 @@ def apply(store, engine_key: str) -> dict:  # FR-44: 应用落盘（真实动作
     gdir = store.game.get("path", "") or ""
     tstore = store.tstore
 
+    # P1-3（2026-10-11 审查）：这条是**真正往磁盘写文件**的路径，入口必须先卡死。
+    # 之前唯独它没闸（/api/restore、/api/open-dir 都有）→ gdir 为空时
+    # os.path.join('', 'BepInEx', ...) 拼出相对路径，词典被写进进程当前工作目录
+    # （实测污染了 Temp）。同分支的 `none` 形态原用 `gdir or os.getcwd()`，是同一个坑。
+    # 写法与 extract.extract() 的 FR-63 早退一致，由 api 层映射成 400 + 人话。
+    if not gdir or not os.path.isdir(gdir):
+        raise RuntimeError("还没选游戏目录 —— 先回第 1 步选对目录再保存")
+
     if kind == "runtime":
-        dest = (kit_catalog.sink_path(eng, gdir) if eng and gdir else None) \
-            or kernel.translation_file_path(gdir)
+        dest = (kit_catalog.sink_path(eng, gdir) if eng else None) \
+            or kernel.resolve_translation_path(gdir)
+        if not dest:
+            raise RuntimeError("这个引擎没有可写入的词典落点")
         tstore.path = dest
-        tstore.save()
+        tstore.save(dest)
         files = [dest]
         backup = None
         note = "已写入词典（.bak 三代轮转）"
@@ -169,7 +179,8 @@ def apply(store, engine_key: str) -> dict:  # FR-44: 应用落盘（真实动作
                    len(res.get("miss") or ())))
 
     else:
-        out = os.path.join(gdir or os.getcwd(), "_G-POT_译文导出.csv")
+        # gdir 已在入口闸确认存在，这里不会再退化成 os.getcwd()
+        out = os.path.join(gdir, "_G-POT_译文导出.csv")
         kernel.export_csv(tstore, out)
         files = [out]
         backup = None

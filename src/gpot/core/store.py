@@ -175,14 +175,16 @@ def replace_rows(tstore, find: str, repl: str, field: str = "translation",
     if not find:
         return 0
     fields = {"translation", "original"} if field == "both" else {field}
-    pat = None if case_sensitive else re.compile(re.escape(find), re.IGNORECASE)
+    # P3-1/P2-2：关键字 → 正则的唯一真源是 `kernel.build_kw_pattern`
+    # （原来这里内联了一份 `re.escape`，与 kernel 那份各写各的）。whole_word=False
+    # 保持本函数的**子串**语义不变（与 UI 模态一致）。
+    pat = kernel.build_kw_pattern(find, case_sensitive, False)
     n = 0
     for e in tstore.entries:
         hit = False
         for f in fields:
             cur = e.get(f) or ""
-            new = cur.replace(find, repl) if pat is None \
-                else pat.sub(lambda _m: repl, cur)
+            new = pat.sub(lambda _m: repl, cur)
             if new != cur:
                 e[f] = new
                 hit = True
@@ -235,9 +237,15 @@ def delete_rows(tstore, indices) -> int:  # FR-57: 删除条目（右键菜单/�
     """按条目序号删除（去重 + 越界忽略）。返回实际删除条数，不落盘。
 
     索引集合先归一为合法序号再一次性重建列表，避免边删边移位。
+
+    ⚠️ P3-4（2026-10-11 审查）：`isinstance(True, int)` 是 **True**，所以
+    原来只看 `isinstance(i, int)` 时 `[True]` 会被当成索引 1 —— 实测
+    `delete_rows(t, [True])` 删掉了第 1 条。当前 JSON 传输路径不会产生
+    裸 `true`，属理论问题；但这里既然已经有类型守卫，排除 bool 是零成本的。
     """
     valid = sorted({i for i in indices
-                    if isinstance(i, int) and 0 <= i < len(tstore.entries)})
+                    if isinstance(i, int) and not isinstance(i, bool)
+                    and 0 <= i < len(tstore.entries)})
     if not valid:
         return 0
     drop = set(valid)

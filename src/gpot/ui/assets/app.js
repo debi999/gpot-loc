@@ -178,10 +178,12 @@ function renderRail() {
     // FR-78：导航项补 aria-current（读屏能报「当前第几步」）+ aria-disabled 表达未解锁
     const aria = current ? ' aria-current="step"' : '';
     const dis = locked ? ' aria-disabled="true"' : '';
+    // P2-4：s.sub 由 `_steps_dynamic()` 拼出，内含**游戏目录名**（用户
+    // 选的路径）与引擎名，属外部输入 —— 进 innerHTML 前统一转义。
     html += `<button class="step ${cls}" data-i="${i}" ${locked ? 'disabled' : ''}${aria}${dis} onclick="goto(${i})">
       <span class="step-mark">${mark}</span>
-      <span><span class="step-title">${s.title}</span>
-      <span class="step-sub">${s.sub}</span></span></button>`;
+      <span><span class="step-title">${esc(s.title)}</span>
+      <span class="step-sub">${esc(s.sub)}</span></span></button>`;
   }
   document.getElementById('steps').innerHTML = html;
 }
@@ -508,10 +510,10 @@ function renderCfgStatus(r) {
   const box = document.getElementById('cfgStatus');
   if (r.connected) {
     box.innerHTML = `<div class="infobar ib-ok"><svg class="ib-ico" width="17" height="17"><use href="#i-check"/></svg>
-      <div><strong>连接正常</strong> · ${r.message}</div></div>`;
+      <div><strong>连接正常</strong> · ${esc(r.message)}</div></div>`;
   } else {
     box.innerHTML = `<div class="infobar ib-warn"><svg class="ib-ico" width="17" height="17"><use href="#i-warn"/></svg>
-      <div><strong>尚未连通</strong> · ${r.message}</div></div>`;
+      <div><strong>尚未连通</strong> · ${esc(r.message)}</div></div>`;
   }
 }
 
@@ -596,17 +598,17 @@ async function detectEngine() {
   if (!eng || eng.error) throw new Error((eng && eng.message) || '识别接口返回异常');
   STATE.engine = eng;
   STATE.kit = eng.kit || { deployed: false, tools: [] };   // FR-41: 工具清单随识别返回
-  const ev = (eng.evidence || []).map(e => `<span class="chip"><span class="chip-mono">${e}</span></span>`).join('');
+  const ev = (eng.evidence || []).map(e => `<span class="chip"><span class="chip-mono">${esc(e)}</span></span>`).join('');
   document.getElementById('engineResult').innerHTML = `
     <div class="card">
       <div class="card-h">识别结果</div>
       
       <div class="btn-row spread" style="align-items:flex-start">
         <div>
-          <div style="font-size:22px;font-weight:600">${eng.name}</div>
+          <div style="font-size:22px;font-weight:600">${esc(eng.name)}</div>
           <div class="subtle" style="margin-top:4px">置信度 ${Math.round(eng.confidence*100)}% · 由硬证据判定</div>
         </div>
-        <span class="badge b-ok" style="font-size:12px;padding:4px 11px">${eng.verdict}</span>
+        <span class="badge b-ok" style="font-size:12px;padding:4px 11px">${esc(eng.verdict)}</span>
       </div>
       <div style="margin-top:14px">${ev}</div>
     </div>
@@ -618,7 +620,7 @@ async function detectEngine() {
         <div class="pipe-arrow">→</div>
         <div class="pipe-step"><div class="ps-t">译文写到哪</div><div class="ps-v">词典 txt（BepInEx）</div></div>
         <div class="pipe-arrow">→</div>
-        <div class="pipe-step"><div class="ps-t">怎么才生效</div><div class="ps-v">${eng.sink_desc}</div></div>
+        <div class="pipe-step"><div class="ps-t">怎么才生效</div><div class="ps-v">${esc(eng.sink_desc)}</div></div>
       </div>
     </div>
     <div id="kitBox"></div>
@@ -666,17 +668,19 @@ async function refreshKitCheck() {
     if (dbtn) dbtn.hidden = true;
     box.innerHTML = `
       <div class="infobar ib-warn"><svg class="ib-ico" width="17" height="17"><use href="#i-warn"/></svg>
-        <div>${(chk && chk.message) || '该引擎暂无可靠工具包清单 —— 请点「跳过，我手动装」，或用第 5 步给出的替代方案。'}</div></div>`;
+        <div>${esc(chk && chk.message) || '该引擎暂无可靠工具包清单 —— 请点「跳过，我手动装」，或用第 5 步给出的替代方案。'}</div></div>`;
     return;
   }
+  // P2-4：t.title / t.dest / t.marker / t.reason / chk.cache_dir 全是后端
+  // 返回的路径与说明文本，统一走 esc()
   const rows = (chk.tools || []).map(t => {
     let status;
     if (t.action === 'skip_exists') status = '<span class="badge b-ok">已注入游戏</span>';
     else if (t.cached) status = '<span class="badge b-info">已缓存·待注入</span>';
     else status = '<span class="badge b-warn">需下载</span>';
     const verify = t.verified ? '<span class="badge b-ok">已验证</span>' : '<span class="badge b-warn">仅查过</span>';
-    const size = (t.size != null && t.size !== '') ? t.size : '—';
-    return `<tr><td>${t.title}</td><td class="mono">${size}</td><td>${verify}</td><td>${status}</td></tr>`;
+    const size = (t.size != null && t.size !== '') ? esc(t.size) : '—';
+    return `<tr><td>${esc(t.title)}</td><td class="mono">${size}</td><td>${verify}</td><td>${status}</td></tr>`;
   }).join('');
   box.innerHTML = `
     <div class="card">
@@ -763,7 +767,7 @@ async function runExtract() {
     document.getElementById('p3prog').classList.add('hidden');
     document.getElementById('p3result').innerHTML =
       `<div class="metric"><div class="metric-l">提取未执行</div>` +
-      `<div class="metric-v" style="color:#e06c6c">${r.message || '前置条件不满足'}</div>` +
+      `<div class="metric-v" style="color:#e06c6c">${esc(r.message) || '前置条件不满足'}</div>` +
       `<div class="metric-n">${r.error === 'no_game' ? '回第 1 步选对游戏目录，再回第 2 步识别引擎' : '按提示补齐前置步骤'}</div></div>`;
     btn.textContent = '开始提取'; btn.disabled = false;
     sb(r.message || '提取未执行');
@@ -945,7 +949,8 @@ function onRowDblClick(ev) {
   const cell = tr.cells[4];   // 第 5 列 = 译文（FR-61 加勾选列后顺延）
   if (!cell || cell.querySelector('input')) return;
   const cur = tr.dataset.t || '';
-  cell.innerHTML = `<input class="inp" style="width:100%" value="${cur}">`;
+  // P2-4：译文是外部文本，直接进 value="..." 会被引号截断属性 → 必须转义
+  cell.innerHTML = `<input class="inp" style="width:100%" value="${esc(cur)}">`;
   const inp = cell.querySelector('input');
   inp.focus(); inp.select();
   let done = false;
@@ -1217,9 +1222,12 @@ function onRowCtx(ev) {
   const orig = tr.cells[3] ? tr.cells[3].textContent : '';   // 第 4 列 = 原文
   const trans = tr.dataset.t || '';
   const menu = document.getElementById('ctxMenu');
+  // P2-4：原文/译文是外部文本。`JSON.stringify` 只保证**JS 字符串**合法，
+  // 但它外面这层是 **HTML 属性**（双引号定界）—— 文本里一个引号就会截断属性。
+  // 所以必须再过一层 esc()：先 HTML 转义，浏览器解码后交给 JS 的仍是合法字面量。
   menu.innerHTML = `
-    <button class="dd-item" onclick="_copy(${JSON.stringify(orig)});_hideCtx()">复制原文</button>
-    <button class="dd-item" onclick="_copy(${JSON.stringify(trans)});_hideCtx()">复制译文</button>
+    <button class="dd-item" onclick="_copy(${esc(JSON.stringify(orig))});_hideCtx()">复制原文</button>
+    <button class="dd-item" onclick="_copy(${esc(JSON.stringify(trans))});_hideCtx()">复制译文</button>
     <button class="dd-item" onclick="viewFull(${ei});_hideCtx()">查看全文</button>
     <button class="dd-item" onclick="_clearRow(${ei});_hideCtx()">清空译文</button>
     <button class="dd-item" style="color:#e0526e" onclick="deleteRows([${ei}]);_hideCtx()">删除条目</button>`;
@@ -1293,30 +1301,34 @@ async function loadSink(engineKey) {
     return;
   }
   const v = await api('GET', '/api/sink?engine=' + engineKey);
+  // P2-4：x.l/x.v/x.n 与 f.path/f.note/f.action 均来自后端，统一转义。
+  // f.badge 是枚举值（ok/info/warn/danger），拼进 class 名，走白名单兜底。
+  const _badge = b => (b === 'ok' || b === 'info' || b === 'warn'
+    || b === 'danger' ? b : 'muted');
   const m = (v.metrics || []).map(x =>
-    `<div class="metric"><div class="metric-l">${x.l}</div><div class="metric-v">${x.v}</div><div class="metric-n">${x.n}</div></div>`).join('');
+    `<div class="metric"><div class="metric-l">${esc(x.l)}</div><div class="metric-v">${esc(x.v)}</div><div class="metric-n">${esc(x.n)}</div></div>`).join('');
   const files = (v.files || []).map(f =>
-    `<div class="rowitem"><div class="ri-main"><div class="mono">${f.path}</div><div class="ri-s">${f.note}</div></div>
-     <div class="ri-side"><span class="badge b-${f.badge}">${f.action}</span></div></div>`).join('');
+    `<div class="rowitem"><div class="ri-main"><div class="mono">${esc(f.path)}</div><div class="ri-s">${esc(f.note)}</div></div>
+     <div class="ri-side"><span class="badge b-${_badge(f.badge)}">${esc(f.action)}</span></div></div>`).join('');
   let extra = '';
   if (v.whitelist && v.whitelist.length) {
     extra += `<div class="card"><div class="card-h">字段白名单</div>
       
       <div>${
-      v.whitelist.map(w => `<span class="chip"><span class="chip-mono">${w}</span></span>`).join('')
+      v.whitelist.map(w => `<span class="chip"><span class="chip-mono">${esc(w)}</span></span>`).join('')
     }</div>` +
-    (v.blacklist ? `<div class="subtle" style="margin-top:12px"><b>不翻：</b>${v.blacklist}</div>` : '') + `</div>`;
+    (v.blacklist ? `<div class="subtle" style="margin-top:12px"><b>不翻：</b>${esc(v.blacklist)}</div>` : '') + `</div>`;
   }
   if (v.reasons) {
     extra += `<div class="card"><div class="card-h">为什么做不了</div>
       ${
-      v.reasons.map(r => `<div class="rowitem"><div class="ri-main"><div class="ri-t">${r.t}</div><div class="ri-s">${r.s}</div></div>
-        <div class="ri-side"><span class="badge b-${r.badge}">阻断</span></div></div>`).join('')}</div>`;
+      v.reasons.map(r => `<div class="rowitem"><div class="ri-main"><div class="ri-t">${esc(r.t)}</div><div class="ri-s">${esc(r.s)}</div></div>
+        <div class="ri-side"><span class="badge b-${_badge(r.badge)}">阻断</span></div></div>`).join('')}</div>`;
   }
   if (v.alternatives) {
     extra += `<div class="card"><div class="card-h">能做的替代</div>
       ${
-      v.alternatives.map(a => `<div class="rowitem"><div class="ri-main"><div class="ri-t">${a.t}</div><div class="ri-s">${a.s}</div></div>
+      v.alternatives.map(a => `<div class="rowitem"><div class="ri-main"><div class="ri-t">${esc(a.t)}</div><div class="ri-s">${esc(a.s)}</div></div>
         <div class="ri-side"><span class="badge b-${a.badge||'info'}">${a.badge?'推荐':''}</span></div></div>`).join('')}</div>`;
   }
   // 还原原文：只在「当前游戏管线」下出现；预览其它管线时不显示（老板 10-10 反馈 6）
@@ -1391,11 +1403,13 @@ async function restoreOriginal() {
 /* ---------------- Step 6：验证 ---------------- */
 async function loadVerify() {
   const r = await api('GET', '/api/verify');
-  document.getElementById('p6hint').innerHTML = '<b>' + r.hint + '</b>';
+  // P2-4（2026-10-11 审查）：r.hint / c.s 含文件路径与后端异常原文，
+  // 直接拼进 innerHTML 会被浏览器当标签解析 —— 一律经 esc() 转义。
+  document.getElementById('p6hint').innerHTML = '<b>' + esc(r.hint) + '</b>';
   // FR-45: 自检三项按真实结果渲染「通过 / 失败」，失败给可操作线索而非一句报错
   document.getElementById('p6checks').innerHTML = (r.checks || []).map(c => {
     const ok = c.ok !== false;
-    return `<div class="rowitem"><div class="ri-main"><div class="ri-t">${c.t}</div><div class="ri-s mono">${c.s}</div></div>
+    return `<div class="rowitem"><div class="ri-main"><div class="ri-t">${esc(c.t)}</div><div class="ri-s mono">${esc(c.s)}</div></div>
      <div class="ri-side"><span class="badge b-${ok ? 'ok' : 'danger'}">${ok ? '通过' : '失败'}</span></div></div>`;
   }).join('');
   document.getElementById('btnRestore').hidden = !(STATE.sink && STATE.sink.backup);
@@ -1492,13 +1506,14 @@ async function checkKit() {
       <div class="ri-side"><span class="badge b-${meta[1]}">${meta[0]}</span></div>
     </div>`;
   });
-  head.innerHTML = `<b>${r.engine || '未知引擎'}</b> · ${r.message || ''}
-    ${r.sink_path ? `<div class="subtle" style="margin-top:4px">译文落点：<span class="mono">${r.sink_path}</span></div>` : ''}
-    ${r.sink_desc ? `<div class="subtle">${r.sink_desc}</div>` : ''}
-    ${r.notes ? `<div class="subtle" style="margin-top:4px">${r.notes}</div>` : ''}`;
+  // P2-4：r.engine / r.message / r.sink_path 等是后端返回串，统一转义
+  head.innerHTML = `<b>${esc(r.engine) || '未知引擎'}</b> · ${esc(r.message) || ''}
+    ${r.sink_path ? `<div class="subtle" style="margin-top:4px">译文落点：<span class="mono">${esc(r.sink_path)}</span></div>` : ''}
+    ${r.sink_desc ? `<div class="subtle">${esc(r.sink_desc)}</div>` : ''}
+    ${r.notes ? `<div class="subtle" style="margin-top:4px">${esc(r.notes)}</div>` : ''}`;
   body.innerHTML = rows.length ? rows.join('')
     : `<div class="subtle" style="padding:14px 2px;line-height:1.8">
-        该引擎没有需要部署的注入工具${r.reason ? '：' + r.reason : '（原生机制或仅支持导出）'}。</div>`;
+        该引擎没有需要部署的注入工具${r.reason ? '：' + esc(r.reason) : '（原生机制或仅支持导出）'}。</div>`;
   sb('注入工具校验：' + (r.message || ''));
 }
 function closeKit() { _modalClose('kitModal'); }

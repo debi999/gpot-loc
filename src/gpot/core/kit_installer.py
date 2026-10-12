@@ -39,6 +39,7 @@ import zipfile
 
 # M2 迁移适配（唯一改动）：包内相对导入（原为 `import kit_catalog as catalog`）
 from . import kit_catalog as catalog
+from . import engine_detector
 
 # --- UTF-8 输出引导 ---------------------------------------------------------
 for _s in (sys.stdout, sys.stderr):
@@ -518,12 +519,18 @@ def install_kit(engine, game_dir, cache_dir=None, tool_dir=None, log=None,
 # ----------------------------------------------------------------------------
 
 def _escape(s):
-    """XUnity 行格式转义：字段内部换行写成字面 \\n。
+    """XUnity 行格式转义 —— **唯一真源 `kernel.escape_field`**。
 
-    与 GUI `TranslationStore._escape_line` 保持一致 —— 如果不转义，一条多行
-    译文会被切成两行，重载时后半句变成一篇全新的「原文」，资产直接损坏。
+    ⚠️ 这里原本是第二份实现，注释里写着「与 GUI 保持一致」靠人工同步
+    （2026-10-11 审查 P2-2）。两条写盘链路各一份，改一处忘另一处
+    就会产出格式不一致的词典文件。现在统一转发 kernel。
+
+    为什么是**函数内** import：`kernel` 顶层 `from . import kit_installer`，
+    反过来在模块顶层 `from . import kernel` 会形成循环导入。调用发生在
+    两个模块都加载完成之后，此时函数内导入是安全的。
     """
-    return (s or '').replace('\r\n', '\\n').replace('\n', '\\n').replace('\r', '\\n')
+    from . import kernel
+    return kernel.escape_field(s)
 
 
 def _normalize_entries(entries):
@@ -644,11 +651,18 @@ def write_translations(engine, game_dir, entries, lang=None, backup=True,
 # ----------------------------------------------------------------------------
 
 def _detect_engine(game_dir):
-    """调 engine_detector 自动识别。识别不出来抛 KitError。"""
-    try:
-        import engine_detector
-    except ImportError:
-        raise KitError('找不到 engine_detector.py（需与 kit_installer 同目录）')
+    """调 engine_detector 自动识别。识别不出来抛 KitError。
+
+    ⚠️ 2026-10-11 审查 P1-2：这里原本是**绝对导入** `import engine_detector`
+    —— 包内没有这个顶层模块（它在 `gpot.core` 里），于是
+    `python -m gpot.core.kit_installer <游戏目录>`（不带 --engine）100% 抛
+    「找不到 engine_detector.py」，模块 docstring 里三条用法废掉两条。
+    而且它是**语法正确、运行时必炸**的实现 —— 正是 AGENTS.md 铁律③要清的
+    那类东西：静态检查全过，一跑就崩。改为包内相对导入。
+
+    返回契约：`engine_detector.detect_best()` → (引擎名, 置信度)，与本函数
+    的 (eng, conf) 一致，改完导入即可正常工作。
+    """
     eng, conf = engine_detector.detect_best(game_dir)
     if not eng:
         raise KitError('识别不出引擎：硬特征和软特征都没有命中')

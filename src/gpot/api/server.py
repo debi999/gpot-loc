@@ -8,6 +8,7 @@ M2（2026-10-10）：全部端点接入真实内核（kernel.py = 旧库 v3.29 �
 """
 from __future__ import annotations
 
+import collections
 import json
 import mimetypes
 import os
@@ -26,7 +27,22 @@ _STATE = _store.Store()
 
 # 应用版本（FR-51: 版本唯一真源，随 /api/state 暴露、状态栏常显、双开复用前比对——
 # 旧版本实例不复用，避免「双击 bat 还是老版本」；老板 2026-10-10 指定 V0.4* 起编号）
-APP_VERSION = "0.6.4"
+APP_VERSION = "0.6.5"
+
+# P1-4：服务端异常环形缓冲（最近 20 条），经 /api/logs 暴露。
+# 之前 do_GET/do_POST 里的异常只冒泡到线程崩，界面上什么都不留，
+# 事后无从查证。落一份在这里，出问题时老板能直接看到原文。
+_ERRORS = collections.deque(maxlen=20)
+
+
+def _note_error(exc: BaseException) -> None:
+    _ERRORS.append((time.strftime("%H:%M:%S"),
+                    "%s: %s" % (type(exc).__name__, exc)))
+
+
+def last_errors() -> list:
+    """最近的服务端异常（[(时间, 文本), ...]）。测试与 /api/logs 共用。"""
+    return list(_ERRORS)
 
 # 旧库格式 config.ini（随 kernel 落在 core/ 目录）—— 提供方/游戏目录记忆
 _CFG = kernel.load_config()
@@ -442,9 +458,41 @@ class _Handler(BaseHTTPRequestHandler):
         except Exception:
             return {}
 
+    @staticmethod
+    def _int_param(raw, default: int, lo: int, hi: int) -> int:
+        """HTTP 整数参数解析的**唯一实现**（P1-4，2026-10-11 审查）。
+
+        之前 `_rows`（limit/offset）与 `/api/nav`（step）各自 `int(...)` 裸奔：
+        请求带 `limit=abc` 时 ValueError 一路冒泡出 do_GET → worker 线程崩 →
+        客户端拿到的是 **RemoteDisconnected（连接被断开）**而不是 400。
+        前端只能显示「网络错误」，分不清「参数写错」和「后端挂了」——
+        违反诚实性 NFR-9「如实告知」。
+
+        畸形值一律回落 default，再夹到 [lo, hi]；这样单个参数写错只影响
+        那一个参数，不会带走整个响应。
+        """
+        try:
+            v = int(str(raw).strip(), 10)
+        except (TypeError, ValueError):
+            return default
+        return max(lo, min(hi, v))
+
+    def _fail(self, code: int, err: str, msg: str) -> None:
+        """兜底响应。已经写过响应头/正文时不再二次发送（会抛 broken pipe，
+        反而把真正的异常盖掉）。"""
+        try:
+            self._send(code, {"error": err, "message": msg})
+        except Exception:
+            pass
+
     def _static(self, rel: str, ctype: str):
         fp = _ASSETS / rel
-        if not fp.is_file() or not str(fp.resolve()).startswith(str(_ASSETS.resolve())):
+        # P2-5（2026-10-11 审查）：`startswith` 必须带上路径分隔符。
+        # 裸判断会让 `assets2/`、`assets-evil/` 这类**同前缀的兄弟目录**被当成
+        # assets 内部目录（实测 .../assets2/leak.txt 被判为在 .../assets 内）。
+        # 分隔符加上后边界才真实。
+        root = str(_ASSETS.resolve())
+        if not fp.is_file() or not str(fp.resolve()).startswith(root + os.sep):
             return self._send(404, {"error": "not found"})
         try:
             data = fp.read_bytes()
@@ -473,7 +521,7 @@ class _Handler(BaseHTTPRequestHandler):
         pass
 
     # -------------------- GET --------------------
-    def do_GET(self):
+    def _serve_get(self):
         p = urlparse(self.path)
         path = p.path
         if path in ("/", "/index.html"):
@@ -575,6 +623,10 @@ class _Handler(BaseHTTPRequestHandler):
                 % (_STATE.current_step, _STATE.max_step),
             ]
             lines += ["步骤 %d %s：%s" % (s["n"], s["title"], s["sub"]) for s in steps]
+            errs = last_errors()
+            if errs:
+                lines += ["", "近期服务端异常（最近 %d 条）：" % len(errs)]
+                lines += ["  %s  %s" % (t, m) for t, m in errs]
             return self._send(200, {"text": "\n".join(lines)})
         if path == "/api/pick-folder":  # FR-52: 第 1 步「浏览」——原生文件夹选择对话框
             return self._send(200, _pick_folder())
@@ -587,8 +639,8 @@ class _Handler(BaseHTTPRequestHandler):
     @staticmethod
     def _rows(q: dict) -> dict:
         t = _STATE.tstore
-        limit = min(5000, max(1, int(q.get("limit", ["5000"])[0])))
-        offset = max(0, int(q.get("offset", ["0"])[0]))
+        limit = _Handler._int_param(q.get("limit", ["5000"])[0], 5000, 1, 5000)
+        offset = _Handler._int_param(q.get("offset", ["0"])[0], 0, 0, 10 ** 9)
         # FR-43: 筛选（SMAP 映射/搜索/状态）唯一实现在 core/translate.filter_entries
         # —— 不在此复制第二份（2026-10-10 评估 P1：双份映射表是「筛不中」bug 的温床）
         matched = [{"i": i, "o": e["original"], "t": e["translation"],
@@ -621,7 +673,7 @@ class _Handler(BaseHTTPRequestHandler):
         return 200, {"ok": True, "status": e["status"], "stats": _STATE.tstore.stats()}
 
     # -------------------- POST --------------------
-    def do_POST(self):
+    def _serve_post(self):
         p = urlparse(self.path)
         path = p.path
         b = self._json_body()
@@ -699,12 +751,24 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send(200, _STATE.game)
 
         if path == "/api/detect":  # FR-40: 识别引擎（第 2 步，真实启发式）· FR-41: 工具清单随回
-            eng = _ensure_engine() or {"key": "manual", "name": "未识别",
-                                       "engine": "manual", "confidence": 0.0,
-                                       "sink_type": "none"}
+            eng = _ensure_engine()
+            if eng is None:
+                # P2-3（2026-10-11 审查）：识别不出来就**如实报未识别，且不许解锁**。
+                # 原写法 `eng = _ensure_engine() or {...未识别...}` 之后无条件
+                # complete_step(2) —— 实测 reset 后直接调 /api/detect，
+                # max_step 从 0 被推到 3，导航轨显示第 2/3 步「已解锁」，
+                # 可实际上连游戏目录都没选。与项目诚实性原则冲突。
+                # 口径与 /api/kit/check 一致：200 + ok:false + 人话 message，
+                # 前端（app.js:596 已判 eng.error）据此显示提示而不是假装走完第 2 步。
+                return self._send(200, {"ok": False, "error": "no_game",
+                                        "key": "manual", "name": "未识别",
+                                        "engine": None, "confidence": 0.0,
+                                        "sink_type": "none",
+                                        "message": "还没选游戏目录 —— 先回第 1 步选对目录再识别",
+                                        "kit": _STATE.kit})
             pipeline.complete_step(_STATE, 2)
             _persist_flow()   # FR-37
-            return self._send(200, {**eng, "kit": _STATE.kit})
+            return self._send(200, {**{**eng, "ok": True}, "kit": _STATE.kit})
 
         if path == "/api/deploy":  # FR-41: 部署注入工具（第 2 步·真实下载部署）
             eng = (_STATE.engine or {}).get("engine")
@@ -930,7 +994,7 @@ class _Handler(BaseHTTPRequestHandler):
                                               "untranslated": st["untranslated"]}})
 
         if path == "/api/nav":  # FR-36: 导航锁（数字闸 + FR-63 事实闸）· FR-37: 位置持久化
-            step = int(b.get("step", 0))
+            step = self._int_param(b.get("step", 0), 0, 0, len(_store.STEPS) - 1)
             ok = _STATE.nav(step)
             if ok:
                 _persist_flow()
@@ -948,6 +1012,29 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send(200, _STATE.to_dict())
 
         return self._send(404, {"error": "not found"})
+
+    # -------------------- 统一异常边界（P1-4）--------------------
+    # `BaseHTTPRequestHandler` 不会兜住 do_GET/do_POST 里的异常：一旦冒泡出去，
+    # 线程直接崩，客户端收到的是「连接被关闭」而不是一个带错误码的响应。
+    # 前端因此只能显示「网络错误」——分不清是参数写错还是后端挂了，违反 NFR-9。
+    # 这里加一层薄兜底：参数类 → 400，其余 → 500 且落进 /api/logs 可见的环形缓冲。
+    def do_GET(self):
+        try:
+            self._serve_get()
+        except ValueError:
+            self._fail(400, "bad_param", "请求参数格式不对")
+        except Exception as e:
+            _note_error(e)
+            self._fail(500, "internal", "服务端出错：%s" % str(e)[:200])
+
+    def do_POST(self):
+        try:
+            self._serve_post()
+        except ValueError:
+            self._fail(400, "bad_param", "请求参数格式不对")
+        except Exception as e:
+            _note_error(e)
+            self._fail(500, "internal", "服务端出错：%s" % str(e)[:200])
 
 
 class _Srv(ThreadingHTTPServer):
