@@ -45,6 +45,8 @@ TESTS = SRC / "tests"
 DOCS = ROOT / "docs"
 SMOKE = ROOT / "tools" / "smoke_ui.js"
 SERVER = SRC / "gpot" / "api" / "server.py"
+VERSION_DOC = DOCS / "版本记录.md"       # 版本号单一真源（文档先行）
+VERSION_ANCHOR = "## 当前版本"            # 判据只认这个区，不全文搜
 
 # 冒烟硬 sleep 基线（2026-10-13 实测 25420ms）
 SLEEP_BUDGET_MS = 40_000
@@ -180,52 +182,58 @@ def check_r2(rep: Report):
 # ---------------------------------------------------------------------------
 # R3 版本号三处一致
 # ---------------------------------------------------------------------------
-def _ver_tuple(s: str):
-    try:
-        return tuple(int(x) for x in s.split("."))
-    except Exception:
-        return None
+def _declared_version() -> str | None:
+    """取 `docs/版本记录.md`「## 当前版本」区声明的版本号。
 
-
-def _max_version(texts: list[str], major: str = "0"):
-    """取文本里最大的版本号。
-
-    ⚠️ 两道收紧，都是首跑实测踩出来的误报：
-      ① 必须带 `v` 前缀 —— 否则 `127.0.0.1` 里的 `127.0.0` 被当版本号；
-      ② 主版本必须与真源一致 —— 否则文档里引用的第三方版本（如 `v3.21.1`）
-         被当成本项目版本。主版本从 APP_VERSION 取，升到 1.x 自动跟随。
+    ⚠️ 为什么锚定这里、不全文搜（2026-10-13 老板诊断 + 实测）：
+    旧判据取 docs/tests **全文最大的 vX.Y.Z**，而文档里的 v0.6.x 绝大多数是
+    **历史叙述**（「v0.6.3 起单栏满宽」「FR-85（v0.6.4）」），被误当当前版本声明。
+    后果是「把代码版本号升上去追平文档」就能消红灯 —— 校验规则失去意义
+    （实证：真源 0.6.5 时 docs 0.6.7 / tests 0.6.8 报 FAIL，升到 0.6.8 后自己变 PASS）。
+    与 R5 首版被模板行骗过是**同一类病：全文搜 = 假绿/假红源，判据必须锚定内容区**。
     """
-    best, raw = None, None
-    pat = r"\bv" + re.escape(major) + r"\.(\d+)\.(\d+)\b"
-    for t in texts:
-        for m in re.findall(pat, t):
-            full = f"{major}.{m[0]}.{m[1]}"
-            tv = _ver_tuple(full)
-            if tv and (best is None or tv > best):
-                best, raw = tv, full
-    return raw
+    raw = _read(VERSION_DOC)
+    # ⚠️ 必须**行首**锚定（^## 且整行），不能子串搜：文件顶部的说明引用块里
+    # 写了「取本文件「## 当前版本」区的版本号」—— 子串搜会命中它，导致
+    # 正文从引用块中间开始、又被下一个标题提前截断，最终读不到版本号（实测踩到）。
+    m = re.search(r"^" + re.escape(VERSION_ANCHOR) + r"\s*$", raw, re.M)
+    if not m:
+        return None
+    body = raw[m.end():]
+    nxt = re.search(r"^## ", body, re.M)
+    if nxt:
+        body = body[:nxt.start()]
+    for line in body.splitlines():
+        s = line.strip()
+        if not s or s.startswith(("#", ">")):
+            continue
+        m = re.search(r"\bv?(\d+\.\d+\.\d+)\b", s)
+        if m:
+            return m.group(1)
+    return None
 
 
 def check_r3(rep: Report):
     srv = _read(SERVER)
     m = re.search(r'APP_VERSION\s*=\s*["\']([\d.]+)["\']', srv)
     if not m:
-        rep.fail("R3", f"{SERVER.name} 里找不到 APP_VERSION（版本号唯一真源）")
+        rep.fail("R3", f"{SERVER.name} 里找不到 APP_VERSION")
         return
-    truth = m.group(1)
-    major = truth.split(".")[0]
+    code_v = m.group(1)
+    doc_v = _declared_version()
 
-    doc_texts = [_read(p) for p in DOCS.glob("*.md")] if DOCS.is_dir() else []
-    test_texts = [_read(p) for p in TESTS.glob("test_*.py")] if TESTS.is_dir() else []
-    v_doc = _max_version(doc_texts, major)
-    v_test = _max_version(test_texts, major)
+    if doc_v is None:
+        rep.fail("R3", f"{VERSION_DOC.name} 的「{VERSION_ANCHOR}」区没有版本号声明 —— "
+                       f"版本号单一真源在那儿，升版先写它、再改代码")
+        return
 
-    rep.ok("R3", f"真源 APP_VERSION = {truth}")
-    if v_doc and _ver_tuple(v_doc) > _ver_tuple(truth):
-        rep.fail("R3", f"docs 最高版本 {v_doc} > 真源 {truth}（版本漂了，升版要改 APP_VERSION）",
-                 "R3|docs-ahead")
-    if v_test and _ver_tuple(v_test) > _ver_tuple(truth):
-        rep.fail("R3", f"tests 最高版本 {v_test} > 真源 {truth}", "R3|tests-ahead")
+    if doc_v == code_v:
+        rep.ok("R3", f"版本一致 {doc_v}（{VERSION_DOC.name} = APP_VERSION）")
+    else:
+        rep.fail("R3", f"版本漂移：{VERSION_DOC.name} 声明 {doc_v} ≠ APP_VERSION {code_v}",
+                 "R3|mismatch")
+        rep.fail("R3", f"    顺序铁律：先写文档定版本 → 改代码 → 最后回填 APP_VERSION。"
+                       f"文档是基准，代码跟随，不是反过来")
 
     # <title> 写死版本号的历史坑（v0.6.6 之前 <title> 写 v4.0）
     idx = SRC / "gpot" / "ui" / "assets" / "index.html"
@@ -234,9 +242,6 @@ def check_r3(rep: Report):
     if t and re.search(r"\d+\.\d+\.\d+", t.group(1)):
         rep.warn("R3", f"index.html <title> 写死了版本号「{t.group(1).strip()}」，"
                        f"升版必漂 —— 建议由后端 /api/state 注入")
-    if not (v_doc and _ver_tuple(v_doc) > _ver_tuple(truth)) \
-       and not (v_test and _ver_tuple(v_test) > _ver_tuple(truth)):
-        rep.ok("R3", "docs / tests 版本号未超前于真源")
 
 
 # ---------------------------------------------------------------------------
